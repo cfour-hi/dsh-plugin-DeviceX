@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.13 — Security + Processes tabs to TSX
+
+No visible UI change.
+
+- `SecurityTab.tsx`: status-card grid (FileVault/SIP/Gatekeeper/firewall or
+  BitLocker/Secure Boot/Defender), privacy/TCC table, admins, remote-login facts and the
+  settings-pane toolbar; `SecurityStatusCard.tsx` extracted with the enabled/disabled pill.
+- `ProcessesTab.tsx`: searchable/sortable process table with per-row kill action and refresh.
+- Both build engines render identically (215 + 32 assertions each); `plugin/client.js`:
+  202,843 → 202,788 bytes; typecheck/tests/build/offline suites green.
+
 ## 1.3.12 — Software + Network tabs to TSX
 
 No visible UI change.

@@ -630,3 +630,9 @@ The browser half is no longer hand-edited as one file:
   constants; `spanIcon` is now a shared TSX helper for banner icons.
 - Callbacks (`onAction`, `openConfirm`, `openDns`, `openPane`) keep their original signatures.
 - Remaining `h()` tabs: Security/Processes/Cleanup/Benchmark/Actions + Modal/Toasts layer.
+
+## 1.3.13 Security + Processes tabs (P2-b continued, frozen)
+
+- `SecurityTab.tsx` + `SecurityStatusCard.tsx` extracted (the latter owns the
+  enabled/disabled/unknown pill); `ProcessesTab.tsx` extracted with the kill/refresh actions.
+- Remaining `h()`: Cleanup/Benchmark/Actions tabs + Modal/Toasts layer.
