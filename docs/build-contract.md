@@ -623,3 +623,10 @@ The browser half is no longer hand-edited as one file:
 - Startup/launch-agent rows keep the switch + confirmation dialog flow through `openConfirm`.
 - Remaining `h()` tabs: Software/Network/Security/Processes/Cleanup/Benchmark/Actions + the
   actions/modal layer.
+
+## 1.3.12 Software + Network tabs (P2-b continued, frozen)
+
+- `SoftwareTab.tsx` and `NetworkTab.tsx` extracted with their `SW_SOURCE_KEYS` / `NET_TYPE_KEYS`
+  constants; `spanIcon` is now a shared TSX helper for banner icons.
+- Callbacks (`onAction`, `openConfirm`, `openDns`, `openPane`) keep their original signatures.
+- Remaining `h()` tabs: Security/Processes/Cleanup/Benchmark/Actions + Modal/Toasts layer.

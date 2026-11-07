@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.12 — Software + Network tabs to TSX
+
+No visible UI change.
+
+- `SoftwareTab.tsx`: searchable/sortable applications table with source filter, reveal/uninstall
+  row actions and the Homebrew/winget card; `SW_SOURCE_KEYS` moved into the module.
+- `NetworkTab.tsx`: Wi-Fi/DNS/route/proxy cards, interface table and listening-port table;
+  `NET_TYPE_KEYS` moved into the module; `spanIcon` extracted as a shared TSX helper.
+- Both tabs keep their confirm/DNS/settings callbacks (`openConfirm`, `openDns`, `openPane`).
+- Both build engines render identically (215 + 32 assertions each); `plugin/client.js`:
+  202,792 → 202,843 bytes; typecheck/tests/build/offline suites green.
+
 ## 1.3.11 — System tab to TSX
 
 No visible UI change.
