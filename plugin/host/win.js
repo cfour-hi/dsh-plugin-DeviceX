@@ -12,7 +12,7 @@
  * rather than string interpolation; callers use {@link psString} only for
  * constant option values.
  *
- * @module @local/dsh-devicex/host/win
+ * @module @cfour-hi/dsh-devicex/host/win
  */
 import { readFileSync } from 'node:fs';
 import { run } from './proc.js';

@@ -5,5 +5,8 @@ node_modules/
 .DS_Store
 *.log
 
+# Build artifacts (regenerate: cd plugin && npm pack --pack-destination ../dist)
+dist/
+
 # Local scratch
 .tmp/

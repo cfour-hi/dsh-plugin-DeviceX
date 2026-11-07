@@ -7,7 +7,7 @@
  *
  * Plain Node ESM; `node:*` imports only (plus the sibling process helper).
  *
- * @module @local/dsh-devicex/host/actions
+ * @module @cfour-hi/dsh-devicex/host/actions
  */
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';

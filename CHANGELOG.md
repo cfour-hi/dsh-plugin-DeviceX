@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.3 — publish under the @cfour-hi scope; dist/ untracked
+
+- Rename the plugin package from `@local/dsh-devicex` to `@cfour-hi/dsh-devicex` in both manifests,
+  the bundle patch row, the browser module id and the docs. GitHub installs now record the dependency
+  under the real scope; a profile that still holds the old name must remove it before reinstalling
+  (`dsh plugin --profile <profile> remove @local/dsh-devicex`).
+- Stop tracking `dist/`: the tarball is a build artifact
+  (`cd plugin && npm pack --pack-destination ../dist`) that can be attached to a GitHub Release;
+  GitHub installs read the source directly and no longer need a committed tarball. `.gitignore` now
+  covers `dist/`.
+- `scripts/verify.mjs` derives the package name from the manifest instead of hardcoding it, so a
+  future rename cannot silently desynchronize the patch row and the browser module id.
+
 ## 1.1.2 — install from a GitHub repository URL
 
 - Installing the plugin straight from its GitHub link failed: the plugin package lives in `plugin/`

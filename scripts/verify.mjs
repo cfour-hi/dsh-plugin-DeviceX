@@ -112,12 +112,12 @@ const requireFromRoot = createRequire(pathToFileURL(join(root, 'package.json')))
 check(
   'every exported resource resolves through the root manifest',
   [
-    '@local/dsh-devicex',
-    '@local/dsh-devicex/client',
-    '@local/dsh-devicex/package.json',
-    '@local/dsh-devicex/locale/en.json',
-    '@local/dsh-devicex/locale/zh.json',
-    '@local/dsh-devicex/icon',
+    '@cfour-hi/dsh-devicex',
+    '@cfour-hi/dsh-devicex/client',
+    '@cfour-hi/dsh-devicex/package.json',
+    '@cfour-hi/dsh-devicex/locale/en.json',
+    '@cfour-hi/dsh-devicex/locale/zh.json',
+    '@cfour-hi/dsh-devicex/icon',
   ].every((specifier) => {
     try {
       return statSync(requireFromRoot.resolve(specifier)).isFile();
@@ -127,7 +127,10 @@ check(
   }),
 );
 const patch = readFileSync(join(pluginDir, 'cordis.patch.yml'), 'utf8');
-check('patch inserts the devicex row', /- id: devicex[\s\S]*name: '@local\/dsh-devicex'/.test(patch));
+check(
+  'patch inserts the devicex row pointing at the package name',
+  /- id: devicex/.test(patch) && patch.includes(`name: '${manifest.name}'`),
+);
 const icon = statSync(join(pluginDir, 'icon.svg')).size;
 check('icon.svg is a plausible SVG under the 256 KiB limit', icon > 0 && icon < 262144, `${icon} B`);
 for (const locale of ['en', 'zh']) {
@@ -301,7 +304,7 @@ check('route and tool registrations are disposable', routes.every((route) => rou
 // ---------------------------------------------------------------------------
 section('4. Browser module (stubbed platform)');
 const clientSource = readFileSync(join(pluginDir, 'client.js'), 'utf8');
-check('module loader id matches the package name', clientSource.includes('id: "@local/dsh-devicex"'));
+check('module loader id matches the package name', clientSource.includes(`id: "${manifest.name}"`));
 check('only react is required', !/require\("(?!react")/.test(clientSource));
 class Component {
   constructor(props) {
@@ -340,7 +343,7 @@ new Function(
   if (!(id in moduleRegistry)) throw new Error(`unexpected require: ${id}`);
   return moduleRegistry[id];
 }, {});
-check('browser module registers itself', moduleEntry?.id === '@local/dsh-devicex');
+check('browser module registers itself', moduleEntry?.id === manifest.name);
 const clientExports = moduleEntry.factory((id) => moduleRegistry[id]);
 check('client injects slots + locale', JSON.stringify(clientExports.inject) === JSON.stringify(['slots', 'locale']));
 const slotRegistrations = [];

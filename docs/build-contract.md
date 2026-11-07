@@ -290,7 +290,7 @@ Format (verified): a single browser module loaded by the module loader:
 
 ```js
 window.__ModuleLoader__.load({
-  id: '@local/dsh-devicex',
+  id: '@cfour-hi/dsh-devicex',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

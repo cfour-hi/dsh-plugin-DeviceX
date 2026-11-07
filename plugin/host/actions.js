@@ -7,7 +7,7 @@
  * `device_control` and the browser API call through this module, so a caller
  * never needs to know which platform produced the answer.
  *
- * @module @local/dsh-devicex/host/actions
+ * @module @cfour-hi/dsh-devicex/host/actions
  */
 import * as darwin from './actions-darwin.js';
 import * as win32 from './actions-win32.js';

@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "@local/dsh-devicex",
+	id: "@cfour-hi/dsh-devicex",
 	factory: (require) => {
 		/**
 		 * Device X — the browser half of the plugin.

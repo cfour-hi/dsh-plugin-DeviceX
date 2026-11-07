@@ -3,7 +3,7 @@
  * surface as the browser API, so the model and the UI can never disagree
  * about what an action does.
  *
- * @module @local/dsh-devicex/host/tool
+ * @module @cfour-hi/dsh-devicex/host/tool
  */
 
 /** Sections the read tool accepts, in UI order. */

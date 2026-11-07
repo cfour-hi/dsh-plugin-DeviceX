@@ -130,11 +130,11 @@ node scripts/verify-windows.mjs   # Windows 适配专项（155 项）：桥接�
 本机实测证据（安装后）：
 
 - `plugin_manager install_bundle` → `application: applied`，`warnings: []`；profile 记录
-  `"@local/dsh-devicex": "link:~/GitHub/DSHP-DeviceX/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
+  `"@cfour-hi/dsh-devicex": "link:~/GitHub/DSHP-DeviceX/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
 - 实时 Host：`Tool.listTools` 中出现 `device_info`、`device_control`（参数枚举完整）。
 - 实时 Client：`Slots.listSubTree("main")` 出现 `devicex` occupant；`Slots.listSubTree("sidebar.panellist")`
   出现 `devicex` / order 20 occupant（说明浏览器端模块已加载并成功注册，无需刷新页面）。
-- `/plugins/events` 的模块图中包含 `@local/dsh-devicex` 条目，抓取到的 bundle 与 `plugin/client.js`
+- `/plugins/events` 的模块图中包含 `@cfour-hi/dsh-devicex` 条目，抓取到的 bundle 与 `plugin/client.js`
   逐字节一致（仅多一行 sourceMappingURL）。
 - 路由存活与栅栏：`GET /devicex/api/metrics` → `401`（已注册且拒绝未认证），
   同时 `/definitely-not-a-route-xyz/` → `404`（证明 401 不是兜底页）。
@@ -183,13 +183,15 @@ DSH（pnpm）把仓库**根目录**当作要安装的包，所以仓库根部保
 **本地文件 / tgz 安装（开发或离线分发）**：
 
 ```sh
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.2.tgz
+# 需要 tgz 时先生成（dist/ 是构建产物，不随仓库提交）：
+cd plugin && npm pack --pack-destination ../dist   # dist/cfour-hi-dsh-devicex-1.1.3.tgz
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.3.tgz
 # 或：dsh plugin --profile desktop add /绝对路径/plugin
 ```
 
 运行中的 Desktop/Web 也可以直接在会话里用 `plugin_manager action=install_bundle target=<绝对路径或仓库地址>`
-热安装（返回 `application: applied`，无需重启）。分发件为 `dist/local-dsh-devicex-1.1.2.tgz`
-（仅含运行文件；随代码提交，代码改动后需重新 `npm pack`）。
+热安装（返回 `application: applied`，无需重启）。`dist/` 已在 `.gitignore` 中：需要 tgz 时用上面的
+`npm pack` 生成，分发时也可以把它作为 GitHub Release 附件（Release 的 `.tgz` 直链同样可安装）。
 完整步骤、前提（macOS 或 Windows 10/11、web 形态 profile）、GitHub/npm 分发、卸载与注意事项见
 [`docs/INSTALL.md`](docs/INSTALL.md)。
 

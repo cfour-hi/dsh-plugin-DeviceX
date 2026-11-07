@@ -52,14 +52,14 @@ plugin_manager action=install_bundle target=https://github.com/cfour-hi/DSHP-Dev
 ## 方式二：官方 CLI（本地 tgz / 源码目录）
 
 ```sh
-# 从打包文件安装（适合离线或分发给别人）
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.2.tgz
+# 从打包文件安装（适合离线或分发给别人；先在 plugin/ 下 npm pack 生成，见方式四）
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.3.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
 
 # Windows（PowerShell / cmd）
-dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.2.tgz
+dsh plugin --profile desktop add C:\path\cfour-hi-dsh-devicex-1.1.3.tgz
 dsh plugin --profile desktop add C:\path\plugin
 ```
 
@@ -79,14 +79,14 @@ dsh plugin --profile desktop add C:\path\plugin
 - 对 **其他 profile**（如自建 `web` profile）：装完用 `dsh --profile <profile>` 启动即可加载；tui/headless 这类
   没有 `webServer` 的 profile 不会激活本插件。
 - 目录安装是 `link:` 依赖，之后**不要移动/删除**该目录，否则插件失效。
-- Git 仓库安装见方式一；它与本地安装共用同一个包名 `@local/dsh-devicex`，同一 profile 只保留一种来源。
+- Git 仓库安装见方式一；它与本地安装共用同一个包名 `@cfour-hi/dsh-devicex`，同一 profile 只保留一种来源。
 
 ## 方式三：应用内 `plugin_manager`（运行中热安装）
 
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.2.tgz
+plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1.1.3.tgz
 # 也可以直接填仓库地址：target=https://github.com/cfour-hi/DSHP-DeviceX
 ```
 
@@ -98,12 +98,18 @@ plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.
 - 这个入口在 CLI 的能力之上还多了：registry 回退计划、GitHub 预检、构建脚本批准（`approvedBuilds`）、
   以及给界面的安装进度/激活结果；Plugins 页面也用它做启用/停用/卸载。
 
-## 方式四：分发包
+## 方式四：分发包（npm pack / GitHub Release）
 
-仓库里的 `dist/local-dsh-devicex-1.1.2.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
+`dist/` 是本地构建产物，**不随仓库提交**（已在 `.gitignore` 中）。需要离线分发时在仓库里生成：
 
-- 对方拿到后按方式二或方式三安装即可；
-- 更新同理：重新 `npm pack`（在 `plugin/` 下 `npm pack --pack-destination ../dist`）后用新 tgz 覆盖安装。
+```sh
+cd plugin && npm pack --pack-destination ../dist
+# 生成 dist/cfour-hi-dsh-devicex-<version>.tgz（仅含运行文件与 Windows PowerShell 脚本）
+```
+
+- 对方拿到 tgz 后按方式二或方式三安装即可；
+- 也可以把 tgz 作为 GitHub Release 的附件，`install_bundle` 同样支持 Release 的 `.tgz` 直链；
+- 更新同理：重新 `npm pack` 后用新 tgz 覆盖安装。
 
 ## 方式五：npm registry 发布
 
@@ -125,17 +131,17 @@ plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.
 
 ```sh
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:50732/devicex/api/metrics   # 期望 401
-curl -sN -m 2 http://127.0.0.1:50732/plugins/events | grep -c '@local/dsh-devicex'      # 期望 ≥1
+curl -sN -m 2 http://127.0.0.1:50732/plugins/events | grep -c '@cfour-hi/dsh-devicex'      # 期望 ≥1
 ```
 
 ## 卸载 / 更新
 
 ```sh
 # CLI：卸载并同时从 bundles 选择中移除
-dsh plugin --profile <profile> remove @local/dsh-devicex
+dsh plugin --profile <profile> remove @cfour-hi/dsh-devicex
 
 # 应用内
-plugin_manager action=remove_bundle target=@local/dsh-devicex
+plugin_manager action=remove_bundle target=@cfour-hi/dsh-devicex
 ```
 
 更新：
@@ -145,6 +151,9 @@ plugin_manager action=remove_bundle target=@local/dsh-devicex
   若 DSH 认为“已安装”而未更新，先 `remove` 再安装。
 - 早期用裸仓库地址安装失败时，CLI 可能留下一个名为 `DSHP-DeviceX` 的 **0.0.0 普通依赖**（没有 bundle）。
   升级到带仓库根清单的版本前，先用 `dsh plugin --profile <profile> remove DSHP-DeviceX` 清掉它。
+- 从 1.1.2 及更早版本升级：旧包名是 `@local/dsh-devicex`，1.1.3 起改为 `@cfour-hi/dsh-devicex`。
+  先 `remove @local/dsh-devicex`（应用内 `remove_bundle`），再按方式一/方式二安装新名字，避免同一个
+  profile 里出现新旧两个 `devicex` 层。
 
 ## 注意事项
 
