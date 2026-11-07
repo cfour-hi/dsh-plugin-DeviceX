@@ -615,3 +615,11 @@ The browser half is no longer hand-edited as one file:
 - Thermal translation-key lookup and `normalizeThermal()` moved into `ThermalCard`.
 - Remaining `h()` tabs: System/Software/Network/Security/Processes/Cleanup/Benchmark/Actions,
   plus the actions/modal layer; they migrate with the same pattern.
+
+## 1.3.11 System tab extraction (P2-b continued, frozen)
+
+- `SystemTab.tsx` moved out of `core.js` with its `ENV_KEYS` / `AGENT_SCOPE_KEYS` constants;
+  it receives `{ t, platform, state, pending, onRetry, openConfirm }` like before.
+- Startup/launch-agent rows keep the switch + confirmation dialog flow through `openConfirm`.
+- Remaining `h()` tabs: Software/Network/Security/Processes/Cleanup/Benchmark/Actions + the
+  actions/modal layer.

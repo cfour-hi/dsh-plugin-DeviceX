@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.11 — System tab to TSX
+
+No visible UI change.
+
+- `SystemTab.tsx` is the third tab extracted from `core.js`: OS/device/boot/locale fact grids,
+  users table, startup/launch-agent table (with the toggle + confirm flow), login items and the
+  whitelisted environment table are now JSX.
+- `ENV_KEYS` / `AGENT_SCOPE_KEYS` move into the tab module; `core.js` drops the local definition.
+- Both build engines still render identically (215 + 32 assertions each); typecheck/tests/
+  build/offline suites stay green. `plugin/client.js`: 202,822 → 202,792 bytes.
+
 ## 1.3.10 — Hardware tab to TSX
 
 No visible UI change.

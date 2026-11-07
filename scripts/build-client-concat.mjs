@@ -59,6 +59,7 @@ const MODULE_ORDER = [
   'components/ThermalCard.tsx',
   'components/DriversCard.tsx',
   'components/HardwareTab.tsx',
+  'components/SystemTab.tsx',
   'components/DeviceScene.tsx',
   'components/OverviewTab.tsx',
   'core.js',
