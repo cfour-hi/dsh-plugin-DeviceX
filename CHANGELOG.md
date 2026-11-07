@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.14 — Cleanup + Benchmark tabs to TSX
+
+No visible UI change.
+
+- `CleanupTab.tsx`: allowlisted scan, selection/select-all, confirm banner and deletion flow,
+  with hooks from the forwarder layer and the cleanup API/normalizer imported directly.
+- `BenchmarkTab.tsx` + `BenchmarkDelta.tsx`: fixed-work run button, three result cards with
+  per-metric details and the previous-run delta, environment facts and error/empty states.
+- Both build engines render identically (215 + 32 assertions each); `plugin/client.js`:
+  202,788 → 202,766 bytes; typecheck/tests/build/offline suites green.
+
 ## 1.3.13 — Security + Processes tabs to TSX
 
 No visible UI change.

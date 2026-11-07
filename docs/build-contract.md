@@ -636,3 +636,11 @@ The browser half is no longer hand-edited as one file:
 - `SecurityTab.tsx` + `SecurityStatusCard.tsx` extracted (the latter owns the
   enabled/disabled/unknown pill); `ProcessesTab.tsx` extracted with the kill/refresh actions.
 - Remaining `h()`: Cleanup/Benchmark/Actions tabs + Modal/Toasts layer.
+
+## 1.3.14 Cleanup + Benchmark tabs (P2-b continued, frozen)
+
+- `CleanupTab.tsx` owns the scan/selection/confirm flow and imports `api`/`normalizeCleanup`
+  directly; `BenchmarkTab.tsx` + `BenchmarkDelta.tsx` own the run/compare UI.
+- Hook wrappers are used without TS generics (the forwarder returns `any`; typed generics can
+  come later if the runtime wrapper is tightened).
+- Remaining `h()`: ActionsTab + Modal/Toasts layer.
