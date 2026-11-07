@@ -644,3 +644,14 @@ The browser half is no longer hand-edited as one file:
 - Hook wrappers are used without TS generics (the forwarder returns `any`; typed generics can
   come later if the runtime wrapper is tightened).
 - Remaining `h()`: ActionsTab + Modal/Toasts layer.
+
+## 1.4.0 complete TSX migration (P2-b finished, frozen)
+
+- All UI code lives in `.tsx` modules under `src/client/components/` (+ `action-helpers.tsx`):
+  19 primitives, 10 tabs, `Modal`, `Toasts`. `core.js` is page assembly + state only
+  (~1,000 lines, down from ~6,600).
+- Shared TSX helpers: `TabShell`/`SectionErrors`/`spanIcon`, `hooks.js` forwarders,
+  `action-helpers.tsx` for the catalogue-driven forms.
+- Both build engines (B esbuild, C concat+TS transpile) render the same DOM; every
+  extraction was verified with the 215-assertion 10-tab suite and the 32-assertion
+  Windows-data scenario.

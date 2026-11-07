@@ -31,6 +31,7 @@
     "types/contracts.ts",
     "src/client/jsx.js",
     "src/client/components/*.tsx",
-    "src/client/hooks.js"
+    "src/client/hooks.js",
+    "src/client/action-helpers.tsx"
   ]
 }

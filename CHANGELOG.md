@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.0 — complete UI migration to TSX
+
+The browser UI is now fully modular and type-checked; no visible UI change.
+
+- `ActionsTab.tsx` + `action-helpers.tsx`: the 19-action catalogue, generated forms
+  (`ParamField`/`ActionCard`), DNS server parsing and the history list.
+- `Modal.tsx` (focus trap, Escape handling, confirm/cancel footer) and `Toasts.tsx`
+  (auto-dismiss stack) moved out of `core.js`.
+- Every tab is now a `.tsx` module: Overview, Hardware (+Thermal/Drivers cards), System,
+  Software, Network, Security (+status card), Processes, Cleanup, Benchmark (+delta), Actions.
+- `src/client/core.js` shrank from ~6,600 to ~1,000 lines: it now only holds the page
+  assembly, polling/state plumbing and the registration entry.
+- Both build engines render identically (215 + 32 assertions each); `plugin/client.js`:
+  202,843 → 202,532 bytes; typecheck/tests/build/offline suites green.
+
 ## 1.3.14 — Cleanup + Benchmark tabs to TSX
 
 No visible UI change.
