@@ -15,6 +15,7 @@ import { getReact } from "./runtime.js";
 const FRAGMENT = Symbol.for("devicex.fragment");
 
 /** Fragment marker for `<></>` in `.tsx` components (mapped inside `h`). */
+/** @type {any} */
 export const Fragment = FRAGMENT;
 
 /**

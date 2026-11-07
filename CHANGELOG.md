@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.7 — TSX migration of the presentation primitives
+
+No visible UI change.
+
+- Seven more components moved from the `core.js` closure to typed `.tsx` modules:
+  `Icon`, `Card`, `Skeleton`, `EmptyState`, `Fact`, `FactGrid`, `DataTable` (plus the
+  existing `Pill`/`SignalBars`, nine `.tsx` components in total). They are imported by
+  `core.js` and keep identical markup/classes.
+- `src/client/jsx.js` `Fragment` is typed as the classic-fragment marker for `<></>`
+  support in TSX; the esbuild build and the concat fallback both handle the new files
+  (concat transpiles TSX with the TypeScript compiler, still no bundler).
+- `tsconfig.client.json` now type-checks all nine components; `plugin/client.js` shrank
+  slightly (202,719 → 202,667 bytes) because JSX output differs from the old `h()` calls.
+- Both render suites still pass for both engines (215 + 32 assertions each) and the
+  type/test/build/offline pipelines stay green.
+
 ## 1.3.6 — JSX pilot (P2-b)
 
 No visible UI change; the first `.tsx` components are wired into the bundle.

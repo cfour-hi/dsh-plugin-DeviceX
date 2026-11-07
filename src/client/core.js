@@ -9,6 +9,13 @@
 import { getReact } from "./runtime.js";
 import { Pill } from "./components/Pill";
 import { SignalBars } from "./components/SignalBars";
+import { Icon } from "./components/Icon";
+import { Card } from "./components/Card";
+import { Skeleton } from "./components/Skeleton";
+import { EmptyState } from "./components/EmptyState";
+import { Fact } from "./components/Fact";
+import { FactGrid } from "./components/FactGrid";
+import { DataTable } from "./components/DataTable";
 import {
 	NS,
 	PANEL_ID,
@@ -201,54 +208,6 @@ export function createClient() {
 		// ------------------------------------------------------------------
 		// Small presentational primitives.
 		// ------------------------------------------------------------------
-		function Icon(props) {
-			const name = strOr(props.name, "info");
-			const size = numOr(props.size, 16);
-			const shapes = ICONS[name] || ICONS.info;
-			const children = shapes.map((shape, index) => h(shape[0], Object.assign({ key: index }, shape[1])));
-			return h(
-				"svg",
-				{
-					width: size,
-					height: size,
-					viewBox: "0 0 24 24",
-					fill: "none",
-					stroke: "currentColor",
-					strokeWidth: numOr(props.strokeWidth, 1.7),
-					strokeLinecap: "round",
-					strokeLinejoin: "round",
-					"aria-hidden": "true",
-					focusable: "false",
-					className: props.className,
-				},
-				children,
-			);
-		}
-
-		function Card(props) {
-			const head =
-				props.title || props.subtitle || props.actions
-					? h(
-							"div",
-							{ className: "dx-cardHead" },
-							props.icon ? h("span", { className: "dx-cardHeadIcon" }, h(Icon, { name: props.icon, size: 15 })) : null,
-							h(
-								"div",
-								{ className: "dx-cardTitles" },
-								props.title ? h("h2", { className: "dx-cardTitle" }, props.title) : null,
-								props.subtitle ? h("p", { className: "dx-cardSub" }, props.subtitle) : null,
-							),
-							props.actions ? h("div", { className: "dx-cardActions" }, props.actions) : null,
-						)
-					: null;
-			return h(
-				"section",
-				{ className: joinClass("dx-card", props.className), "data-span": props.span === 2 ? "2" : undefined },
-				head,
-				h("div", { className: props.flush ? "dx-cardBody dx-cardBodyFlush" : "dx-cardBody" }, props.children),
-			);
-		}
-
 		function Switch(props) {
 			return h(
 				"button",
@@ -381,38 +340,6 @@ export function createClient() {
 			);
 		}
 
-		function EmptyState(props) {
-			return h(
-				"div",
-				{ className: "dx-empty" },
-				h("span", { className: "dx-emptyIcon" }, h(Icon, { name: strOr(props.icon, "info"), size: 22 })),
-				props.title ? h("p", { className: "dx-emptyTitle" }, props.title) : null,
-				props.text ? h("p", { className: "dx-emptyText" }, props.text) : null,
-				props.action || null,
-			);
-		}
-
-		function Skeleton(props) {
-			const lines = asArray(props.lines).length > 0 ? props.lines : ["40", "80", "60", "100"];
-			return h(
-				"div",
-				{ className: "dx-skelGrid", "aria-hidden": "true" },
-				Array.from({ length: numOr(props.cards, 3) }).map((_ignored, index) =>
-					h(
-						"div",
-						{ className: "dx-skelCard", key: index },
-						h("div", { className: "dx-skelLine", "data-w": "40" }),
-						h("div", { className: "dx-skelLine", "data-w": "100", "data-h": "tall" }),
-						h(
-							"div",
-							{ style: { display: "flex", gap: "8px" } },
-							lines.map((width, lineIndex) => h("div", { key: lineIndex, className: "dx-skelLine", "data-w": width, style: { flex: 1 } })),
-						),
-					),
-				),
-			);
-		}
-
 		function ErrorState(props) {
 			return h(
 				"div",
@@ -432,68 +359,6 @@ export function createClient() {
 				{ className: "dx-sectionHead" },
 				h("h2", { className: "dx-sectionTitle" }, props.title),
 				props.subtitle ? h("span", { className: "dx-sectionSub" }, props.subtitle) : null,
-			);
-		}
-
-		function Fact(props) {
-			return h(
-				"div",
-				{ className: "dx-fact", "data-wide": props.wide ? "true" : undefined },
-				h("div", { className: "dx-factLabel" }, props.label),
-				h("div", { className: "dx-factValue", title: typeof props.title === "string" ? props.title : undefined }, props.value),
-			);
-		}
-
-		function FactGrid(props) {
-			const items = asArray(props.items).filter(Boolean);
-			if (items.length === 0) return h(EmptyState, { title: props.emptyText || props.t("common.empty") });
-			return h(
-				"div",
-				{ className: "dx-factGrid" },
-				items.map((item, index) => h(Fact, { key: item.key || index, label: item.label, value: item.value, wide: item.wide, title: item.title })),
-			);
-		}
-
-		function DataTable(props) {
-			const rows = asArray(props.rows);
-			if (rows.length === 0) {
-				if (props.empty) return props.empty;
-				return h(EmptyState, { title: props.t("common.empty") });
-			}
-			const columns = asArray(props.columns);
-			return h(
-				"div",
-				{ className: "dx-tableWrap" },
-				h(
-					"table",
-					{ className: "dx-table", "aria-label": props.ariaLabel },
-					h(
-						"thead",
-						null,
-						h(
-							"tr",
-							null,
-							columns.map((column) => h("th", { key: column.key, scope: "col", className: column.className }, column.label)),
-						),
-					),
-					h(
-						"tbody",
-						null,
-						rows.map((row, index) =>
-							h(
-								"tr",
-								{ key: props.rowKey ? props.rowKey(row, index) : index },
-								columns.map((column) =>
-									h(
-										"td",
-										{ key: column.key, className: joinClass(column.cellClass, column.align === "right" ? "dx-num" : "") },
-										column.render ? column.render(row, index) : strOr(asObject(row)[column.key], "—"),
-									),
-								),
-							),
-						),
-					),
-				),
 			);
 		}
 

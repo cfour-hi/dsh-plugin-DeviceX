@@ -573,3 +573,15 @@ The browser half is no longer hand-edited as one file:
   (`jsx: React`, `jsxFactory: h`) before concatenating — still no bundler, and TypeScript
   is already a devDependency for typecheck. `verify-build` counts loader seed *calls*
   after stripping comments, so the non-minified concat artifact passes the same check.
+
+## 1.3.7 TSX presentation primitives (P2-b, frozen)
+
+- `src/client/components/` now hosts nine `.tsx` components imported by `core.js`:
+  `Pill`, `SignalBars`, `Icon`, `Card`, `Skeleton`, `EmptyState`, `Fact`, `FactGrid`,
+  `DataTable`. Markup and class names are unchanged; the render suites are the guard.
+- `Icon` reads the frozen `ICONS` table from `constants.js`; dynamic SVG shapes are emitted
+  with `h` (`jsxFactory`), so no React runtime import is added.
+- The concat (C) fallback transpiles each `.tsx` with the TypeScript compiler before
+  concatenation; module order in `scripts/build-client-concat.mjs` follows the component
+  dependency chain.
+- Remaining `h()` components convert incrementally; new UI components should be `.tsx`.
