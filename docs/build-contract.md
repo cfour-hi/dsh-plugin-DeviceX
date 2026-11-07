@@ -541,3 +541,13 @@ The browser half is no longer hand-edited as one file:
   normalized contract (an untrusted boundary must not be disguised as trusted data); the
   contract interfaces are the documentation/future-typing target.
 - CI still runs `build --check → typecheck → npm test → verify:build → verify`.
+
+## 1.3.5 client pure-logic checkJs (P2-a, frozen)
+
+- `tsconfig.client.json` type-checks `src/client/{constants,helpers,runtime,normalizers,api}.js`
+  with `allowJs`/`checkJs`, `strictNullChecks`, `lib: [ES2022, DOM]`, no node types.
+  `npm run typecheck` = host project + client project.
+- Exclusions are intentional: `core.js` (UI, `h()` style) is protected by the jsdom render
+  suites (215 assertions), `dicts.js`/`styles.js` are data/stylesheet modules.
+- `// @ts-check` and JSDoc casts are comments, so the generated `plugin/client.js` bundle stays
+  byte-identical (`build --check` enforced in CI); `.tsx`/jsx-runtime migration remains P2-b.

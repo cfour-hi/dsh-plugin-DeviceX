@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Device X client runtime — the one place the module-loader's `react` seed is
  * stored. `entry.js` sets it from the loader factory; core modules read it

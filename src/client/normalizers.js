@@ -1,3 +1,4 @@
+// @ts-check
 // Generated source split of the Device X client: Host payload normalizers.
 //
 // Type-only contract references (P0): the browser half is still checked by

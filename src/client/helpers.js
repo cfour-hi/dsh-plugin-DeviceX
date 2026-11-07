@@ -1,3 +1,4 @@
+// @ts-check
 // Generated source split of the Device X client: defensive accessors and formatters (no React).
 		// ------------------------------------------------------------------
 		// Safe value helpers. Every Host payload field is untrusted: these

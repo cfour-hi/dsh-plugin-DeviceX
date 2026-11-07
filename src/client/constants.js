@@ -1,3 +1,4 @@
+// @ts-check
 // Generated source split of the Device X client: frozen UI constants (no React).
 		/** Dictionary namespace owned by this plugin page. */
 		const NS = "devicex";

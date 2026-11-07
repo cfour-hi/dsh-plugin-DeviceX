@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.5 — client pure-logic type checking (P2-a)
+
+No runtime or UI change.
+
+- `src/client/{constants,helpers,runtime,normalizers,api}.js` now start with
+  `// @ts-check` and are checked by a dedicated `tsconfig.client.json`
+  (`allowJs`/`checkJs`, `strictNullChecks`, DOM lib, no node types).
+- `npm run typecheck` runs both projects: the host `tsconfig.json` and the client
+  `tsconfig.client.json`; `npm run typecheck:client` is available for the client
+  half alone. CI inherits the combined command.
+- One real type mismatch fixed: `api.js` attached `status` to a plain `Error`
+  (now typed as `Error & {status?: number}`); no behaviour change.
+- Scope is deliberate: `core.js` (components/page, `h()` style) is covered by the
+  React render suites instead of `checkJs`; `dicts.js`/`styles.js` are data and
+  stylesheets.
+- esbuild output is byte-identical (`build --check` passes) because the check
+  directives and JSDoc casts are comments.
+
 ## 1.3.4 — per-action parameter contracts (P1)
 
 Type-only continuation of 1.3.2/1.3.3; no runtime or UI change.

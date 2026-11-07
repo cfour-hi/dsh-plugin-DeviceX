@@ -1,3 +1,4 @@
+// @ts-check
 // Generated source split of the Device X client: same-origin HTTP API.
 import { asObject, strOr, safeErrorText } from "./helpers.js";
 import { normalizeBenchmark } from "./normalizers.js";
@@ -17,7 +18,7 @@ import { normalizeBenchmark } from "./normalizers.js";
 			}
 			if (!response.ok) {
 				const serverMessage = body && body.error && typeof body.error.message === "string" ? body.error.message : "";
-				const error = new Error(serverMessage || "HTTP " + response.status);
+				const error = /** @type {Error & {status?: number}} */ (new Error(serverMessage || "HTTP " + response.status));
 				error.status = response.status;
 				throw error;
 			}
