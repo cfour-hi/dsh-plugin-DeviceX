@@ -390,6 +390,7 @@ function countersOf(raw) {
 /** Previous `os.cpus()` snapshot for delta-based CPU usage. */
 let cpuSnapshot = null;
 /** Last computed CPU usage, used when two polls land within the same tick. */
+/** @type {{usagePercent: number, perCore: number[]}} */
 let lastCpuUsage = { usagePercent: 0, perCore: [] };
 
 /**
@@ -415,7 +416,7 @@ async function cpuUsage() {
       return round(clamp(100 * (1 - idle / total), 0, 100), 1);
     });
     const usagePercent =
-      totalDelta > 0 ? round(clamp(100 * (1 - idleDelta / totalDelta), 0, 100), 1) : lastCpuUsage.usagePercent;
+      totalDelta > 0 ? round(clamp(100 * (1 - idleDelta / totalDelta), 0, 100), 1) ?? 0 : lastCpuUsage.usagePercent;
     lastCpuUsage = { usagePercent, perCore };
     return lastCpuUsage;
   };
@@ -660,7 +661,8 @@ function mapThermal(raw, battery) {
     .map((value) => str(value))
     .filter((value) => value !== null)
     .slice(0, 12);
-  const note = THERMAL_NOTES.includes(str(data.note)) ? str(data.note) : cpuCelsius === null ? 'wmi-unsupported' : null;
+  const noteValue = str(data.note);
+  const note = noteValue !== null && THERMAL_NOTES.includes(noteValue) ? noteValue : cpuCelsius === null ? 'wmi-unsupported' : null;
   const nvmeCelsius = plausibleTemperature(data.nvmeCelsius);
   const available = [cpuCelsius, gpuCelsius, batteryCelsius, nvmeCelsius].some(
     (value) => typeof value === 'number' && Number.isFinite(value),
@@ -1105,8 +1107,10 @@ function mapHardware(raw, transportError) {
       vendor: str(cpuRaw.manufacturer),
       physicalCores: num(cpuRaw.physicalCores) ?? safeCpuCount(),
       logicalCores: num(cpuRaw.logicalCores) ?? safeCpuCount(),
-      speedGHz:
-        num(cpuRaw.maxClockSpeedMHz) === null ? null : round(num(cpuRaw.maxClockSpeedMHz) / 1000, 2),
+      speedGHz: (() => {
+        const mhz = num(cpuRaw.maxClockSpeedMHz);
+        return mhz === null ? null : round(mhz / 1000, 2);
+      })(),
       architecture: mapProcessorArchitecture(cpuRaw.architecture),
       features: asArray(cpuRaw.features)
         .map((value) => str(value))
@@ -1244,7 +1248,7 @@ function mapSystem(raw, transportError) {
       return {
         label: str(entry.label) ?? path,
         path,
-        scope: str(entry.scope) === 'user' ? 'user' : 'system',
+        scope: /** @type {'user'|'system'} */ (str(entry.scope) === 'user' ? 'user' : 'system'),
         loaded: entry.loaded !== false,
         pid: null,
         lastExitStatus: null,
@@ -1411,6 +1415,7 @@ function mapInterfaceType(adapter) {
  * @returns {{http: string|null, https: string|null, socks: string|null}}
  */
 function mapProxy(raw) {
+  /** @type {{http: string|null, https: string|null, socks: string|null}} */
   const result = { http: null, https: null, socks: null };
   if (!isObject(raw)) return result;
   const enabled = raw.enable === true || raw.enable === 1 || raw.enable === '1';
@@ -1531,7 +1536,7 @@ function mapNetwork(raw, transportError) {
         address: str(listener.address) ?? '*',
         port,
         pid: num(listener.pid),
-        process: str(listener.process),
+        process: str(listener.process) ?? '',
       });
     }
   };
@@ -1899,7 +1904,7 @@ export async function collectMetrics() {
  * Unknown section names reject; every PowerShell/data failure is captured in
  * the returned section's `errors[]` instead of throwing.
  *
- * @param {'hardware'|'system'|'software'|'network'|'security'|'processes'} section
+ * @param {string} section
  * @param {{fresh?: boolean}} [options]
  * @returns {Promise<object>}
  */
@@ -1940,8 +1945,9 @@ export async function collectSection(section, options = {}) {
  * @returns {Promise<object>}
  */
 export async function collectInventory(options = {}) {
-  const requested = Array.isArray(options?.sections)
-    ? SECTIONS.filter((section) => options.sections.includes(section))
+  const sectionFilter = Array.isArray(options?.sections) ? options.sections : null;
+  const requested = sectionFilter !== null
+    ? SECTIONS.filter((section) => sectionFilter.includes(section))
     : [...SECTIONS];
   const fresh = options?.fresh === true;
   const errors = [];

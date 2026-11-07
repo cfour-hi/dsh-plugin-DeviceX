@@ -32,7 +32,7 @@ function acquire() {
     active += 1;
     return Promise.resolve();
   }
-  return new Promise((resolve) => waiters.push(resolve));
+  return new Promise((resolve) => waiters.push(() => resolve(undefined)));
 }
 
 function release() {
@@ -91,7 +91,7 @@ export function run(file, args = [], options = {}) {
         };
         /** @param {unknown} err */
         const failure = (err) => {
-          const error = /** @type {NodeJS.ErrnoException} */ (err ?? {});
+          const error = /** @type {NodeJS.ErrnoException & {signal?: string|null}} */ (err ?? {});
           finish({
             ok: false,
             stdout: '',
@@ -129,7 +129,7 @@ export function run(file, args = [], options = {}) {
                 });
                 return;
               }
-              const error = /** @type {NodeJS.ErrnoException & {killed?: boolean}} */ (err);
+              const error = /** @type {NodeJS.ErrnoException & {killed?: boolean, signal?: string|null}} */ (err);
               finish({
                 ok: false,
                 stdout: typeof stdout === 'string' ? stdout : '',

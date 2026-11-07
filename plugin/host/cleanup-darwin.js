@@ -155,8 +155,9 @@ function shortErr(value, max = 220) {
  */
 function errorMessage(error) {
   if (error && typeof error === 'object') {
-    const code = typeof error.code === 'string' ? error.code : null;
-    const message = 'message' in error ? String(error.message) : String(error);
+    const candidate = /** @type {{code?: unknown, message?: unknown}} */ (error);
+    const code = typeof candidate.code === 'string' ? candidate.code : null;
+    const message = 'message' in candidate ? String(candidate.message) : String(candidate);
     return shortErr(code && !message.startsWith(code) ? `${code}: ${message}` : message);
   }
   return shortErr(String(error ?? 'unknown error'));
@@ -687,7 +688,7 @@ export const __test = {
    * sandbox path as its own allowlist; the public delete path never does this.
    * @param {string} target
    * @param {{recreate?: boolean}} [options]
-   * @param {Set<string>} allowlist
+   * @param {Set<string>} [allowlist]
    */
   removeTreeAt(target, options, allowlist) {
     return removeTree(target, options, allowlist);

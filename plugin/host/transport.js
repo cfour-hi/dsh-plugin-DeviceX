@@ -253,6 +253,7 @@ export function registerRoutes(ctx, operations) {
         });
         return;
       }
+      /** @type {any} */
       let body = {};
       if (text.trim() !== '') {
         try {

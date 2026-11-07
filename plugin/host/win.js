@@ -35,12 +35,13 @@ const OUTPUT_PREFIX =
  * `Get-PnpDevice`, `Get-PhysicalDisk`) that are not guaranteed under pwsh 7.
  * Set DEVICEX_PWSH to override (useful on hosts where only pwsh 7 exists).
  */
-export const PS_CANDIDATES = [
+/** @type {string[]} */
+export const PS_CANDIDATES = /** @type {string[]} */ ([
   process.env.DEVICEX_PWSH,
   'powershell.exe',
   'pwsh.exe',
   'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
-].filter((candidate) => typeof candidate === 'string' && candidate.length > 0);
+].filter((candidate) => typeof candidate === 'string' && candidate.length > 0));
 
 /** One resolved interpreter per Host process lifetime. */
 let resolution;
@@ -130,7 +131,7 @@ function trimOutput(text) {
  * a short diagnostic supplied by the script (or from stderr); it never throws.
  * @param {string} script
  * @param {object} [options] same as {@link runPS}.
- * @returns {Promise<{ok: true, data: unknown, raw: string} | {ok: false, error: string, raw: string, stderr: string}>}
+ * @returns {Promise<{ok: true, data: any, raw: string} | {ok: false, error: string, raw: string, stderr: string}>}
  */
 export async function runPSJson(script, options = {}) {
   const result = await runPS(script, options);

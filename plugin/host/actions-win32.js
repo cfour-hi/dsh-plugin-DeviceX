@@ -127,6 +127,7 @@ function paramsObject(value) {
  * @returns {Record<string, string>}
  */
 function envOf(values) {
+  /** @type {Record<string, string>} */
   const env = {};
   for (const [key, value] of Object.entries(values)) {
     env[`DEVICEX_ARG_${key}`] = value === undefined || value === null ? '' : String(value);
@@ -138,7 +139,7 @@ function envOf(values) {
  * Turn a failed PowerShell result into an ActionResult with its diagnostic.
  * @param {string} label
  * @param {{error?: string, stderr?: string, raw?: string}} result
- * @returns {{ok: false, message: string, code: string}}
+ * @returns {{ok: false, message: string, code?: string}}
  */
 function commandFailure(label, result) {
   const detail = String(result.error || result.stderr || result.raw || 'the command failed').trim();
@@ -1196,7 +1197,7 @@ export async function runAction(id, params) {
     );
   }
   recordHistory({ ts, id: actionId, params: requestParams, ok: result.ok === true, message: result.message });
-  return jsonSafe(result);
+  return /** @type {any} */ (jsonSafe(result));
 }
 
 /**

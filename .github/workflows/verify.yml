@@ -1,0 +1,29 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    # macOS is the development target; the Windows half is covered by fixtures
+    # and a simulated win32 Host, so one macOS runner is enough.
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build artifact is current
+        run: node scripts/build-client.mjs --check
+      - name: JSDoc/TypeScript check (host)
+        run: npm run typecheck
+      - name: Client render smoke test (10 tabs, 215 assertions)
+        run: node scripts/render-check.mjs
+      - name: Windows render scenario
+        run: node scripts/render-windows-check.mjs
+      - name: Offline verification suites
+        run: npm run verify

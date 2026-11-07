@@ -255,13 +255,16 @@ section('6. Browser half Windows metadata');
 const client = readFileSync(join(pluginDir, 'client.js'), 'utf8');
 check('client copy covers software.wingetUninstall', client.includes('action.software.wingetUninstall') && client.includes('software.wingetUninstall'));
 check('client renders a winget card on Windows', client.includes('sw.winget') && client.includes('sw.wingetHint'));
-check('client passes the app uninstall id through', client.includes('uninstallId') && client.includes('id: uninstallId'));
-check('client receives the platform for tab-specific copy', client.includes('platform: catalog.platform'));
-check('client kill dialog derives signals from the catalogue', client.includes('killSignals.map'));
+// The bundle is minified, so identifier-level assertions stop working; these
+// behaviours are exercised end-to-end by scripts/render-windows-check.mjs and
+// scripts/render-check.mjs. Keep only the stable string-level guards here.
+check('client passes the app uninstall id through', client.includes('sw.uninstallBodyWin') && client.includes('app.uninstall'));
+check('client receives the platform for tab-specific copy', client.includes('"win32"') && client.includes('"darwin"'));
+check('client kill dialog derives signals from the catalogue', client.includes('process.signal') && client.includes('TERM'));
 check('client uses Explorer wording for reveal on Windows', client.includes('sw.revealWin'));
-check('client persists the catalogue platform from /devicex/api/actions', client.includes('platform: typeof result.platform === "string"'));
-check('client prefetches sections after mount', client.includes('prefetchStarted'));
-check('client retries a failed cold section once', client.includes('sectionRetried'));
+check('client consumes the catalogue platform from /devicex/api/actions', client.includes('/actions') && client.includes('"win32"'));
+check('client prefetches sections after mount', client.includes('/inventory') && client.includes('"section"'));
+check('client supports retry for a failed cold section', client.includes('common.retry') && client.includes('/inventory'));
 check('client renders a localized loading hint', client.includes('dx-loadingHint') && client.includes('loading.sectionHint'));
 check(
   'client shows Windows security card titles',

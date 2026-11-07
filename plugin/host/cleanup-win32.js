@@ -718,7 +718,7 @@ export async function scanCleanup(options = {}) {
  * The cleanup allowlist as public metadata (ids, labels, categories and fixed
  * paths). Used by the action validator, tests and client labelling.
  * @returns {Array<{id: string, label: string, category: string,
- *   requiresAdmin: boolean, path: string}>}
+ *   requiresAdmin: boolean, path: string|null}>}
  */
 export function cleanupItems() {
   return ITEMS.map((item) => ({

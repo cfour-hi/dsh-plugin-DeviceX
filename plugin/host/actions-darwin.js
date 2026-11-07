@@ -457,7 +457,7 @@ function readSelect(params, name, options, fallback) {
  * @returns {Record<string, unknown>}
  */
 function paramsObject(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (value && typeof value === 'object' && !Array.isArray(value)) return /** @type {Record<string, unknown>} */ (value);
   return {};
 }
 
@@ -510,7 +510,7 @@ function readCleanupIds(params) {
 /**
  * Resolve an existing path through symlinks.
  * @param {string} raw
- * @returns {Promise<{ok: true, path: string, stat: fs.Stats} | {ok: false, message: string, code: string}>}
+ * @returns {Promise<{ok: true, path: string, stat: fs.Stats} | {ok: false, message: string, code?: string}>}
  */
 async function resolveExisting(raw) {
   const resolved = path.resolve(raw);

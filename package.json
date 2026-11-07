@@ -1,6 +1,6 @@
 {
   "name": "@cfour-hi/dsh-devicex",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "type": "module",
   "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
@@ -34,6 +34,18 @@
     }
   },
   "scripts": {
-    "verify": "node scripts/verify.mjs && node scripts/verify-windows.mjs && node scripts/verify-sensors.mjs && node scripts/verify-cleanup.mjs && node scripts/verify-benchmark.mjs"
+    "build": "node scripts/build-client.mjs",
+    "build:check": "node scripts/build-client.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "verify": "node scripts/verify.mjs && node scripts/verify-windows.mjs && node scripts/verify-sensors.mjs && node scripts/verify-cleanup.mjs && node scripts/verify-benchmark.mjs",
+    "verify:ci": "node scripts/build-client.mjs --check && npm run typecheck && node scripts/render-check.mjs && node scripts/render-windows-check.mjs && npm run verify"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "jsdom": "^31.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.9.3"
   }
 }

@@ -47,7 +47,7 @@ export function deleteCleanup(ids) {
  * The cleanup allowlist as public metadata (ids, labels, categories, fixed
  * paths). Used by the action validator, tests and client labelling.
  * @returns {Array<{id: string, label: string, category: string,
- *   requiresAdmin: boolean, path: string}>}
+ *   requiresAdmin: boolean, path: string|null}>}
  */
 export function cleanupItems() {
   return impl.cleanupItems();

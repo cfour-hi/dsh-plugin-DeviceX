@@ -100,17 +100,24 @@ plugin/
 │   ├── win/*.ps1         # 七个只读、免管理员、单 JSON 输出的 PowerShell 采集脚本
 │   ├── transport.js      # /devicex/api/{metrics,inventory,actions,action,cleanup,benchmark}，信任栅栏 + JSON 信封
 │   └── tool.js           # device_info / device_control / device_benchmark 的 schema、摘要与渲染
-├── client.js             # 浏览器模块：main 面板 + sidebar.panellist + zh/en 词典 + 样式
+├── src/client/           # 浏览器端 ESM 源码（模块拆分：entry/runtime/core/dicts/styles/api/normalizers/helpers/constants）
+├── client.js             # 构建产物：src/client → esbuild 单文件 bundle（勿手改，改源码后 npm run build）
 ├── locale/{en,zh}.json   # 插件管理器里的标题、描述
 └── icon.svg              # 原创图标
 docs/build-contract.md    # 构建契约（数据形状、API、动作表、UI 要求）
 docs/windows-contract.md  # Windows 适配契约（PowerShell 约定、CIM 数据源、Windows 动作表）
+scripts/build-client.mjs  # esbuild：src/client → plugin/client.js（--check 校验产物是否最新）
+scripts/render-check.mjs  # jsdom + React 18 渲染冒烟（10 个标签页、215 条断言）
+scripts/render-windows-check.mjs # 映射后的 Windows 数据渲染（32 条断言）
+scripts/client-fixtures.mjs # 渲染测试用的数据 fixture
 scripts/verify.mjs        # 通用离线验证（91 项检查）
 scripts/verify-windows.mjs # Windows 离线验证（167 项：fixture 映射 + 模拟 win32 Host 端到端）
 scripts/verify-sensors.mjs # 温度/驱动采集验证（57 项：静态 + fixture 映射 + 本机真实探测）
 scripts/verify-cleanup.mjs # 清理扫描/动作验证（130 项：真实扫描 + 沙箱删除 + 白名单不可变）
 scripts/verify-benchmark.mjs # 基准引擎验证（46 项：形状/确定性/重复性/临时文件清理）
 scripts/fixtures/win32/   # 真实 CIM 输出形态的 fixture
+tsconfig.json             # JSDoc/checkJs 类型检查配置（覆盖 Host）
+.github/workflows/verify.yml # CI：build 一致性 + tsc + 渲染测试 + 全部离线验证
 ```
 
 HTTP API（同一来源，`cache-control: no-store`）：
@@ -124,6 +131,14 @@ HTTP API（同一来源，`cache-control: no-store`）：
 | `GET /devicex/api/cleanup[?fresh=1]` | `{ ok, cleanup }`（白名单扫描，60s 缓存） |
 | `POST /devicex/api/benchmark` | `{ ok, benchmark }`（body: `{ tests?, repeat? }`） |
 
+## 工程化（1.3）
+
+- **源码/产物分离**：浏览器端源码在 `src/client/`（ESM 模块：`entry.js` 负责 module-loader 注册，`core.js` 是页面与组件，`dicts.js`/`styles.js`/`helpers.js`/`constants.js`/`normalizers.js`/`api.js` 各自独立）。`plugin/client.js` 是 esbuild 生成的**单文件 IIFE bundle**（minify，仍只通过 loader 的 `require("react")` 取运行时而外部不引入依赖），`npm run build` 重新生成，`npm run build:check` 校验提交产物与源码一致（CI 强制）。
+- **静态类型**：`tsconfig.json` 开启 `allowJs + checkJs`（`strictNullChecks` 打开，其余渐进放松），覆盖 `plugin/index.js` 与 `plugin/host/**/*.js`；JSDoc 描述数据契约与返回类型，`npm run typecheck`（`tsc --noEmit`）为 0 error，CI 强制。
+- **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
+- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → 两个渲染测试 → 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查。
+- 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。
+
 ## 验证
 
 离线（不需要改动 profile）：
@@ -134,6 +149,12 @@ node scripts/verify-windows.mjs   # Windows 适配专项（167 项）：桥接�
 node scripts/verify-sensors.mjs   # 温度/驱动专项（57 项）：契约静态检查 + fixture 映射 + 本机真实采集
 node scripts/verify-cleanup.mjs   # 清理专项（130 项）：真实扫描、缓存、沙箱删除、白名单不可变、动作守卫
 node scripts/verify-benchmark.mjs # 基准专项（46 项）：形状、确定性、重复性、worker 回退、临时文件清理
+
+# 工程化门禁（等价 CI）
+npm run build:check   # 提交的 client.js 与 src/client 一致
+npm run typecheck     # tsc --noEmit，覆盖 Host，0 error
+node scripts/render-check.mjs          # 215 条渲染断言
+node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言
 ```
 
 `verify.mjs` 覆盖：语法/清单/locale/图标、指标与六大分区真实采集、动作目录与守卫、伪造 Cordis 上下文下的
@@ -153,7 +174,8 @@ node scripts/verify-benchmark.mjs # 基准专项（46 项）：形状、确定�
   逐字节一致（仅多一行 sourceMappingURL）。
 - 路由存活与栅栏：`GET /devicex/api/metrics` → `401`（已注册且拒绝未认证），
   同时 `/definitely-not-a-route-xyz/` → `404`（证明 401 不是兜底页）。
-- 客户端渲染：React 18.3 + jsdom 真实渲染 10 个标签页 + 清理删除流 + 基准运行/对比 + 弹窗/焦点/重试/畸形数据等 **215/215 断言通过**。
+- 客户端渲染：React 18.3 + jsdom 真实渲染 10 个标签页 + 清理删除流 + 基准运行/对比 + 弹窗/焦点/重试/畸形数据等 **215/215 断言通过**（测试已入库，CI 每次 push 重跑）；Windows 映射数据渲染 **32/32**。
+- 类型检查：`tsc --noEmit`（JSDoc/checkJs）覆盖 Host **0 error**；esbuild 产物与源码一致性由 `build --check` 强制。
 - Windows：开发机没有 Windows/PowerShell 可用，故为 **离线静态 + fixture 验证 + 模拟 win32 Host 端到端**
   （167 项），并经过一轮独立 QA 复审（阻塞问题已修复、复审无新阻塞项）；真实 Windows 运行时仍需在
   Windows 10/11 实机安装后确认，这是本轮交付的已知验证边界。
@@ -219,5 +241,5 @@ dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
 
 修改 `plugin/` 下任意文件后，重新执行 `plugin_manager install_bundle`（target 同上）即可；
 或者重启 Harness。改动插件清单时记得同步仓库根的 `package.json`（GitHub 安装读取它）。
-随后运行 `npm run verify`（或逐个执行 `scripts/verify*.mjs`）做离线回归，
+首次开发先 `npm ci`（esbuild/TypeScript/jsdom/react 均为 devDependencies）。改 `plugin/client.js` 时请改 `src/client/` 并 `npm run build`（CI 会拒绝过期产物），随后 `npm run typecheck`、`node scripts/render-check.mjs`、`npm run verify`（或直接 `npm run verify:ci`）做完整回归，
 并用上面的 `curl` 探测实时路由。

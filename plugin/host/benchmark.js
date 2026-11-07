@@ -99,7 +99,7 @@ function defaultWorkerFactory(iterations) {
 
 /**
  * Run `count` worker legs plus the caller's own leg, all in parallel.
- * @param {{threads:number, workerFactory?:Function}} options
+ * @param {{threads?:number, workerFactory?:Function}} [options]
  * @returns {Promise<{mode:string, threads:number, iterations:number, durationMs:number, checksum:number}>}
  */
 async function runCpuMulti(options = {}) {
@@ -342,8 +342,9 @@ function environment() {
  * @returns {Promise<{ok:true, benchmark:object}>}
  */
 export async function runBenchmark(options = {}) {
-  const requested = Array.isArray(options.tests) && options.tests.length > 0
-    ? TESTS.filter((id) => options.tests.includes(id))
+  const requestedTests = Array.isArray(options.tests) ? options.tests : [];
+  const requested = requestedTests.length > 0
+    ? TESTS.filter((id) => requestedTests.includes(id))
     : TESTS;
   const repeat = options.repeat === true;
   const startedAt = Date.now();

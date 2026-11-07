@@ -435,6 +435,7 @@ function parseSwap(text) {
 function parsePmsetBattery(text) {
   const sourceMatch = /Now drawing from '([^']+)'/.exec(text);
   const line = /^-\s*InternalBattery-\d+.*$/m.exec(text);
+  /** @type {{present: boolean, percent: number|null, charging: boolean, plugged: boolean, powerSource: string|null, timeRemainingMin: number|null, batteryState: string|null}} */
   const result = {
     present: Boolean(line),
     percent: null,
@@ -1736,7 +1737,7 @@ async function collectLaunchAgents(errors) {
 
   const agents = await Promise.all(
     plistPaths.map(async (plistPath) => {
-      const scope = plistPath.startsWith(home) ? 'user' : 'system';
+      const scope = /** @type {'user'|'system'} */ (plistPath.startsWith(home) ? 'user' : 'system');
       let parsed = null;
       try {
         parsed = await parsePlistFile(plistPath);
@@ -1865,6 +1866,7 @@ function collectEnvironment() {
 function mergeMdlsBatch(stdout, paths, target) {
   /** @type {Array<{bundleId: string|null, sizeBytes: number|null, lastUsed: number|null}>} */
   const records = [];
+  /** @type {{bundleId: string|null, sizeBytes: number|null, lastUsed: number|null}|null} */
   let current = null;
   for (const rawLine of String(stdout ?? '').split(/\r?\n/)) {
     const line = rawLine.trim();
@@ -2101,7 +2103,7 @@ async function buildNetwork() {
     // Keep the Wi-Fi port when it is turned off: "Wi-Fi off" is a state, not
     // a missing interface. Other dead Thunderbolt stubs are dropped.
     const port = hardwarePorts.get(iface.name);
-    return Boolean(port) && /wi-?fi|airport/i.test(port);
+    return Boolean(port) && /wi-?fi|airport/i.test(String(port));
   });
 
   const interfacesSection = selected.map((iface) => ({
@@ -2118,6 +2120,7 @@ async function buildNetwork() {
   if (!airportRes.ok) errors.push(`system_profiler airport: ${shortErr(airportRes.error)}`);
   const wifi = airportRes.ok ? parseAirportWifi(airportRes.data) : null;
 
+  /** @type {{servers: string[], searchDomains: string[]}} */
   let dns = { servers: [], searchDomains: [] };
   if (dnsRes.ok) {
     dns = parseDns(dnsRes.stdout);
@@ -2125,6 +2128,7 @@ async function buildNetwork() {
     errors.push(`scutil --dns: ${shortErr(dnsRes.error)}`);
   }
 
+  /** @type {{http: string|null, https: string|null, socks: string|null}} */
   let proxy = { http: null, https: null, socks: null };
   if (proxyRes.ok) {
     proxy = parseProxy(parseScutilDictionary(proxyRes.stdout));
@@ -2148,7 +2152,10 @@ async function buildNetwork() {
         const names = new Map();
         for (const line of lines(nameRes.stdout)) {
           const match = /^\s*(\d+)\s+(.*)$/.exec(line);
-          if (match) names.set(Number(match[1]), commandName(match[2].trim()));
+          if (match) {
+            const procName = commandName(String(match[2] ?? '').trim());
+            if (procName !== null) names.set(Number(match[1]), procName);
+          }
         }
         listeningPorts = listeningPorts.map((entry) => ({
           ...entry,
@@ -2346,6 +2353,7 @@ async function buildProcesses() {
 /** Previous `os.cpus()` snapshot for delta-based CPU usage. */
 let cpuSnapshot = null;
 /** Last computed CPU usage, used when two polls land within the same tick. */
+/** @type {{usagePercent: number, perCore: number[]}} */
 let lastCpuUsage = { usagePercent: 0, perCore: [] };
 
 /**
@@ -2371,7 +2379,7 @@ async function cpuUsage() {
       return round(clamp(100 * (1 - idle / total), 0, 100), 1);
     });
     const usagePercent =
-      totalDelta > 0 ? round(clamp(100 * (1 - idleDelta / totalDelta), 0, 100), 1) : lastCpuUsage.usagePercent;
+      totalDelta > 0 ? round(clamp(100 * (1 - idleDelta / totalDelta), 0, 100), 1) ?? 0 : lastCpuUsage.usagePercent;
     lastCpuUsage = { usagePercent, perCore };
     return lastCpuUsage;
   };
@@ -2851,7 +2859,7 @@ export async function collectMetrics() {
  * Unknown section names reject; every command failure is captured in the
  * returned section's `errors[]` instead of throwing.
  *
- * @param {'hardware'|'system'|'software'|'network'|'security'|'processes'} section
+ * @param {string} section
  * @param {{fresh?: boolean}} [options]
  * @returns {Promise<object>}
  */
@@ -2902,8 +2910,9 @@ export async function collectSection(section, options = {}) {
  *   actions: {catalog: any[], history: any[]}, errors: string[]}>}
  */
 export async function collectInventory(options = {}) {
-  const requested = Array.isArray(options?.sections)
-    ? SECTIONS.filter((section) => options.sections.includes(section))
+  const sectionFilter = Array.isArray(options?.sections) ? options.sections : null;
+  const requested = sectionFilter !== null
+    ? SECTIONS.filter((section) => sectionFilter.includes(section))
     : [...SECTIONS];
   const fresh = options?.fresh === true;
   const errors = [];

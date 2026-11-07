@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.0 — light-weight engineering: module split, bundle build, type check, CI
+
+No user-facing behaviour change; the delivery pipeline was made maintainable.
+
+- **Client source split**: `plugin/client.js` is now a generated esbuild bundle. The editable
+  source lives in `src/client/` (`entry`, `runtime`, `core`, `dicts`, `styles`, `helpers`,
+  `constants`, `normalizers`, `api`); the module-loader contract is unchanged (single file served,
+  `require("react")` still comes from the loader, no extra runtime dependency).
+- **`npm run build` / `build:check`**: esbuild (IIFE, minify, es2020) emits the single-file
+  `plugin/client.js` (287 KB → 203 KB) and `--check` fails when the committed artifact is stale.
+- **JSDoc + TypeScript**: `tsconfig.json` enables `allowJs`/`checkJs` (with `strictNullChecks`)
+  over `plugin/index.js` and `plugin/host/**/*.js`; `npm run typecheck` is 0-error and enforced in
+  CI. Comment-only fixes plus a few `@type` annotations; no runtime behaviour changed.
+- **Client render tests are now in the repo**: `scripts/render-check.mjs` (10 tabs, 215
+  assertions) and `scripts/render-windows-check.mjs` (mapped Windows data, 32 assertions), driven
+  by React 18 + jsdom devDependencies.
+- **CI**: `.github/workflows/verify.yml` runs build freshness, typecheck, both render suites and
+  the five offline verification scripts on every push/PR.
+- `package-lock.json` committed for reproducible `npm ci`.
+
 ## 1.2.0 — sensors, drivers, cleanup and a repeatable benchmark
 
 New capabilities on top of the 1.1.x Windows/i18n work, all reachable from the panel and the

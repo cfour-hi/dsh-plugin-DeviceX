@@ -339,13 +339,17 @@ check('route and tool registrations are disposable', routes.every((route) => rou
 // ---------------------------------------------------------------------------
 section('4. Browser module (stubbed platform)');
 const clientSource = readFileSync(join(pluginDir, 'client.js'), 'utf8');
-check('module loader id matches the package name', clientSource.includes(`id: "${manifest.name}"`));
+check(
+  'module loader id matches the package name',
+  clientSource.includes('window.__ModuleLoader__.load') &&
+    new RegExp(`id:\\s*["']${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']`).test(clientSource),
+);
 check(
   'client ships cleanup + benchmark tabs and endpoints',
   clientSource.includes('"tab.cleanup"') &&
     clientSource.includes('"tab.benchmark"') &&
-    clientSource.includes('API_BASE + "/cleanup"') &&
-    clientSource.includes('API_BASE + "/benchmark"') &&
+    clientSource.includes('"/cleanup"') &&
+    clientSource.includes('"/benchmark"') &&
     clientSource.includes('cleanup.delete'),
 );
 check(
@@ -353,7 +357,8 @@ check(
   clientSource.includes('hw.drivers.title') &&
     clientSource.includes('hw.thermal.title') &&
     clientSource.includes('dx-benchCard') &&
-    clientSource.includes('BenchmarkDelta'),
+    clientSource.includes('bench.better') &&
+    clientSource.includes('bench.worse'),
 );
 check('only react is required', !/require\("(?!react")/.test(clientSource));
 // The switch thumb must contrast with its track in both themes. `label-primary`
