@@ -1,0 +1,9 @@
+# Dependencies
+node_modules/
+
+# OS / editor noise
+.DS_Store
+*.log
+
+# Local scratch
+.tmp/

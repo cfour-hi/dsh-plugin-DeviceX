@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Device X">
+  <defs>
+    <linearGradient id="dx-body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2f6bff"/>
+      <stop offset="1" stop-color="#7a4dff"/>
+    </linearGradient>
+    <linearGradient id="dx-orbit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#63e6ff"/>
+      <stop offset="1" stop-color="#9d7bff"/>
+    </linearGradient>
+  </defs>
+  <rect x="13" y="17" width="38" height="30" rx="7" fill="url(#dx-body)"/>
+  <rect x="19" y="23" width="26" height="18" rx="3" fill="#0b1024" opacity="0.82"/>
+  <path d="M19 28h26M19 33h18M19 38h22" stroke="#63e6ff" stroke-width="1.6" stroke-linecap="round" opacity="0.9"/>
+  <path d="M22 47v6M32 47v6M42 47v6M17 22v-5M32 22V14M47 22v-5" stroke="#c9d6ff" stroke-width="2.4" stroke-linecap="round"/>
+  <ellipse cx="32" cy="32" rx="29" ry="11" fill="none" stroke="url(#dx-orbit)" stroke-width="2" transform="rotate(-24 32 32)" opacity="0.95"/>
+  <circle cx="52.5" cy="21.5" r="3.1" fill="#63e6ff"/>
+</svg>
