@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.3 — parser unit tests (P1) and two real macOS parser fixes
+
+Continues the P0 contract work. No UI change; two genuine Host data bugs fixed.
+
+- **`test/` + `npm test` (node:test, 57 tests)**: direct unit coverage for the pure
+  high-risk functions, with no command spawning and no cache mutation:
+  - macOS parsers: `vm_stat`, `sysctl vm.swapusage`, `pmset -g batt`, `ioreg`
+    battery/disk, `netstat`, `df`, `ifconfig`, `network setup` ports, `route`, `scutil`
+    dns/proxy, `lsof`, `ps`/ELAPSED, `launchctl list`, XML plist, `mdls`, `system_profiler`
+    airport, driver inventory;
+  - Windows CIM mappers (metrics/hardware/system/software/network/security/processes),
+    cleanup normalization, action catalogue + validators/guards;
+  - benchmark pure helpers (determinism, scoring, disk temp-file cleanup, worker fallback).
+- **Two bugs found by the new tests and fixed**:
+  - `pmset -g batt` lines are indented by one space, so `parsePmsetBattery` always reported
+    `present: false` (battery presence now comes from the real line);
+  - the battery state `discharging` contains the substring `charging`, so the parser reported
+    `charging: true` while unplugged (state matching is now whole-word).
+- `collector-darwin.js` exposes a pure `__test` seam (parsers/helpers) and the CI pipeline now
+  runs `npm test` between typecheck and the build-engine conformance step.
+- `types/contracts.ts` remains the type source of truth; per-action discriminated unions,
+  client `checkJs`/`.tsx` stay deferred.
+
 ## 1.3.2 — type-only contract layer (P0)
 
 Implements the first step of the "contracts, not full TS" plan. No runtime or UI change.

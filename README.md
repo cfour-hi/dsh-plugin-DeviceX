@@ -142,7 +142,8 @@ HTTP API（同一来源，`cache-control: no-store`）：
 - **静态类型**：`tsconfig.json` 开启 `allowJs + checkJs`（`strictNullChecks` 打开，其余渐进放松），覆盖 `plugin/index.js` 与 `plugin/host/**/*.js`；JSDoc 描述数据契约与返回类型，`npm run typecheck`（`tsc --noEmit`）为 0 error，CI 强制。
 - **类型契约层（P0）**：[types/contracts.ts](types/contracts.ts) 是纯类型文件（不参与运行时、不打进 bundle、不随包分发），定义 Host 采集 ↔ 动作/HTTP API ↔ 浏览器客户端之间的冻结形状：`Metrics`、六个 section、`Inventory`、19 个动作的 `ActionId`/`Action`/`ActionResult`、cleanup/benchmark、`ExecResult`，以及最小的 DSH 契约（`PluginContext`/`ToolDefinition`/`WebRoute`）。**平台适配器接口** `PlatformCollector`/`PlatformActions` 在 `collector.js`/`actions.js` 的 dispatcher 处编译期校验——任一平台漏实现或签名漂移都会让 `tsc` 报错。Host 用 JSDoc `import type` 引用，client 源码用 JSDoc typedef 指向同一文件。
 - **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
-- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
+- **解析器单元测试（P1）**：`test/` 下用 `node:test` 覆盖高风险纯函数（`npm test`，57 项）：macOS 命令解析（vm_stat/swap/pmset/ioreg/ifconfig/route/scutil/lsof/ps/launchctl/plist/mdls/system_profiler）、Windows CIM mapper 与 cleanup 归一化、动作目录/参数守卫、基准纯函数。测试直接驱动解析器，不 spawn 命令、不修改缓存。
+- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → npm test → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
 - 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。
 
 ## 验证
@@ -155,10 +156,12 @@ node scripts/verify-windows.mjs   # Windows 适配专项（167 项）：桥接�
 node scripts/verify-sensors.mjs   # 温度/驱动专项（57 项）：契约静态检查 + fixture 映射 + 本机真实采集
 node scripts/verify-cleanup.mjs   # 清理专项（130 项）：真实扫描、缓存、沙箱删除、白名单不可变、动作守卫
 node scripts/verify-benchmark.mjs # 基准专项（46 项）：形状、确定性、重复性、worker 回退、临时文件清理
+npm test                          # 解析器/映射器/守卫单测（57 项，node:test）
 
 # 工程化门禁（等价 CI）
 npm run build:check   # 提交的 client.js 与 src/client 一致
 npm run typecheck     # tsc --noEmit，覆盖 Host，0 error
+npm test                               # node:test 解析器/映射器/守卫单测（57 项）
 node scripts/verify-build.mjs          # B/C/D 构建一致性（37 项，含两个引擎的渲染回归）
 node scripts/render-check.mjs          # 215 条渲染断言（对提交产物）
 node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交产物）

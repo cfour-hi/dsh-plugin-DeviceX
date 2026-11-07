@@ -21,6 +21,8 @@ jobs:
         run: node scripts/build-client.mjs --check
       - name: JSDoc/TypeScript check (host)
         run: npm run typecheck
+      - name: Unit tests (node:test parsers/mappers/validators)
+        run: npm test
       - name: Build-engine conformance (B esbuild + C concat + D committed artifact)
         run: npm run verify:build
       - name: Offline verification suites

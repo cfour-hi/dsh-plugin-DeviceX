@@ -516,3 +516,14 @@ The browser half is no longer hand-edited as one file:
   structurally by `tsc --noEmit`.
 - Deliberately deferred: per-action parameter discriminated unions (runners still validate at
   runtime), client `checkJs`, and `.tsx` components.
+
+## 1.3.3 parser unit tests (P1, frozen)
+
+- `test/*.test.mjs` runs with `node --test`; tests import only the modules' `__test` seams
+  (or pure mappers) and never spawn a command or mutate a cache. Suites:
+  `darwin-parsers`, `win32-mappers`, `action-contracts`, `benchmark-helpers`.
+- `collector-darwin.js` now exports `__test` with the pure parsers (same idea as the Windows
+  `__test`), so macOS command-output parsing is covered without sudo/real hardware.
+- Parser fixes carried by this work: indented `pmset` battery lines are recognised; battery
+  `charging` state is matched exactly (previously `discharging` matched the `charging` substring).
+- CI order: `build --check → typecheck → npm test → verify:build → verify`.

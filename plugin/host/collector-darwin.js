@@ -434,7 +434,7 @@ function parseSwap(text) {
  */
 function parsePmsetBattery(text) {
   const sourceMatch = /Now drawing from '([^']+)'/.exec(text);
-  const line = /^-\s*InternalBattery-\d+.*$/m.exec(text);
+  const line = /^\s*-\s*InternalBattery-\d+.*$/m.exec(text);
   /** @type {{present: boolean, percent: number|null, charging: boolean, plugged: boolean, powerSource: string|null, timeRemainingMin: number|null, batteryState: string|null}} */
   const result = {
     present: Boolean(line),
@@ -450,7 +450,9 @@ function parsePmsetBattery(text) {
   if (percent) result.percent = Number(percent[1]);
   const state = /;\s*([^;]+?)\s*;/.exec(line[0]);
   if (state) result.batteryState = state[1].trim();
-  result.charging = /charging/.test(result.batteryState ?? '') && !/charged/.test(result.batteryState ?? '');
+  const pmsetState = result.batteryState ?? '';
+  // `discharging` contains the substring `charging`; match whole states instead.
+  result.charging = (pmsetState === 'charging' || pmsetState === 'finishing charge') && !/discharg/.test(pmsetState);
   result.plugged = (result.powerSource ?? '').toLowerCase().includes('ac');
   const remaining = /(\d+):(\d{2})\s*remaining/.exec(line[0]);
   if (remaining) {
@@ -2951,3 +2953,43 @@ export function clearCache(section) {
   }
   sectionCache.clear();
 }
+
+/* -------------------------------------------------------------------------- */
+/* Test seam (node:test)                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Pure parser/helper surface for `test/` and the offline harnesses: no
+ * process spawn, no cache mutation, no state changes.
+ */
+export const __test = {
+  num,
+  str,
+  parseVmStat,
+  parseSwap,
+  parsePmsetBattery,
+  parseIoregBattery,
+  batteryHealth,
+  parseIoregDisk,
+  parseNetstatBytes,
+  parseDf,
+  parseIfconfig,
+  parseHardwarePorts,
+  interfaceType,
+  parseDefaultRoute,
+  parseDns,
+  parseScutilDictionary,
+  parseProxy,
+  parseLsofListeners,
+  parsePs,
+  parseElapsed,
+  parseLaunchctlList,
+  decodeXml,
+  parseXmlPlist,
+  parseAirportWifi,
+  mergeMdlsBatch,
+  parseMdlsDate,
+  mapArchitecture,
+  parseDarwinDrivers,
+  driverSummaryOf,
+};
