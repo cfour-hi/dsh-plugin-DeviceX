@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.9 — Tab layer starts moving to TSX
+
+No visible UI change.
+
+- `src/client/hooks.js`: hook forwarders (`useState`/`useEffect`/`useRef`/`useCallback`/
+  `useMemo`/`useId`) that delegate to the loader-injected React, so stateful `.tsx`
+  components can leave the `createClient()` closure without importing React.
+- `DeviceScene` and the whole **OverviewTab** (hero, derived alerts, KPI donut grid,
+  sparklines, top processes, memory breakdown) moved from `core.js` into typed `.tsx`;
+  `buildAlerts`/`MEMORY_SEGMENTS` live inside the tab module now.
+- Shared **TabShell** (loading/error/non-fatal errors) and **SectionErrors** moved to `.tsx`
+  as the base for the remaining tabs.
+- `plugin/client.js` regenerated (202,703 → 202,945 bytes); render suites still pass
+  (215 + 32 assertions, both build engines), typecheck/tests/offline suites green.
+- Remaining `h()` code is the other nine tabs + modal/actions layer; they migrate next.
+
 ## 1.3.8 — TSX migration of form/chart primitives
 
 No visible UI change.

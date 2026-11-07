@@ -30,6 +30,7 @@
     "src/client/api.js",
     "types/contracts.ts",
     "src/client/jsx.js",
-    "src/client/components/*.tsx"
+    "src/client/components/*.tsx",
+    "src/client/hooks.js"
   ]
 }

@@ -595,3 +595,13 @@ The browser half is no longer hand-edited as one file:
   narrows without per-site casts.
 - Remaining `h()` code is the page/tab/modal layer; it converts module by module and the
   render suites (215 assertions, both build engines) remain the behaviour guard.
+
+## 1.3.9 Tab layer migration (P2-b continued, frozen)
+
+- `src/client/hooks.js` forwards hooks to the injected React (no react import); stateful
+  `.tsx` components use it.
+- `OverviewTab.tsx` (with `DeviceScene.tsx`) is the first tab extracted from `core.js`;
+  its private helpers (`buildAlerts`, `MEMORY_SEGMENTS`) moved with it.
+- `TabShell.tsx` + `SectionErrors.tsx` are the shared shell for every remaining tab.
+- C (concat) fallback transpiles the new `.tsx` files with the TypeScript compiler and its
+  module order follows the component dependency chain; both engines stay equivalent.

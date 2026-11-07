@@ -27,6 +27,7 @@ const manifest = JSON.parse(readFileSync(join(root, 'plugin', 'package.json'), '
 /** Module order matters: later modules use names declared by earlier ones. */
 const MODULE_ORDER = [
   'runtime.js',
+  'hooks.js',
   'constants.js',
   'helpers.js',
   'dicts.js',
@@ -53,6 +54,10 @@ const MODULE_ORDER = [
   'components/SegmentedControl.tsx',
   'components/ErrorState.tsx',
   'components/KpiCard.tsx',
+  'components/SectionErrors.tsx',
+  'components/TabShell.tsx',
+  'components/DeviceScene.tsx',
+  'components/OverviewTab.tsx',
   'core.js',
 ];
 
