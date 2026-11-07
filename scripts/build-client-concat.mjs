@@ -17,6 +17,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = dirname(here);
@@ -32,6 +33,9 @@ const MODULE_ORDER = [
   'styles.js',
   'normalizers.js',
   'api.js',
+  'jsx.js',
+  'components/Pill.tsx',
+  'components/SignalBars.tsx',
   'core.js',
 ];
 
@@ -61,8 +65,31 @@ function stripModuleSyntax(source, name) {
   return out.trim();
 }
 
+/**
+ * Read one module. `.ts`/`.tsx` are transpiled with the TypeScript compiler
+ * (no bundler involved) using the same classic-JSX factory as the esbuild
+ * build, so the concat fallback can handle TSX components too.
+ * @param {string} file
+ * @returns {string}
+ */
+function readModuleSource(file) {
+  const raw = readFileSync(join(sourceDir, file), 'utf8');
+  if (!file.endsWith('.ts') && !file.endsWith('.tsx')) return raw;
+  const transpiled = ts.transpileModule(raw, {
+    compilerOptions: {
+      target: ts.ScriptTarget.ES2020,
+      module: ts.ModuleKind.ESNext,
+      jsx: ts.JsxEmit.React,
+      jsxFactory: 'h',
+      jsxFragmentFactory: 'Fragment',
+    },
+    fileName: file,
+  });
+  return transpiled.outputText;
+}
+
 const modules = MODULE_ORDER.map((file) => {
-  const source = readFileSync(join(sourceDir, file), 'utf8');
+  const source = readModuleSource(file);
   return { file, body: stripModuleSyntax(source, file) };
 });
 

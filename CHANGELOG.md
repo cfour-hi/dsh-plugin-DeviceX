@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.6 — JSX pilot (P2-b)
+
+No visible UI change; the first `.tsx` components are wired into the bundle.
+
+- New `src/client/jsx.js`: classic JSX runtime that binds `h` to the loader-injected
+  React lazily and maps a fragment marker to `React.Fragment`. The esbuild build uses
+  `jsx: 'transform'`, `jsxFactory: 'h'`, `jsxFragment: 'Fragment'`, so the bundle still
+  requests only the single `react` seed and never imports `react/jsx-runtime`
+  (the build script refuses to write otherwise).
+- First pilot components migrated to TSX: `Pill` (status pill, used across all tabs) and
+  `SignalBars` (Wi-Fi/signal).
+- `@types/react` / `@types/react-dom` added as devDependencies; `tsconfig.client.json`
+  now type-checks `.tsx` (`jsx: react`, `jsxFactory: h`) alongside the pure-logic modules.
+- The C fallback (`build-client-concat.mjs`) now transpiles `.ts`/`.tsx` with the TypeScript
+  compiler (still **no bundler**) so it keeps producing an equivalent artifact; the
+  build-conformance seed check now ignores comments when counting the `react` seed request.
+- `plugin/client.js` regenerated (202,552 → 202,717 bytes); all 215 render assertions and
+  the 32 Windows-data assertions still pass for both build engines, and the
+  offline/build/type/test pipelines stay green.
+
 ## 1.3.5 — client pure-logic type checking (P2-a)
 
 No runtime or UI change.

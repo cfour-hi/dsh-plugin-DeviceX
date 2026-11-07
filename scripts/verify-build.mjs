@@ -94,8 +94,11 @@ try {
   ]) {
     check(`${label}: registers through window.__ModuleLoader__.load`, code.includes('window.__ModuleLoader__.load'));
     check(`${label}: registers id @cfour-hi/dsh-devicex`, code.includes('"@cfour-hi/dsh-devicex"') || code.includes("'@cfour-hi/dsh-devicex'"));
-    const reactSeeds = (code.match(/"react"/g) ?? []).length;
-    check(`${label}: asks the loader only for the react seed`, reactSeeds === 1, `${reactSeeds}`);
+    // Count loader seed *calls* in code, not in comments/diagnostics: the
+    // non-minified concat build keeps the jsx.js docs that mention require("react").
+    const codeOnly = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const seedCalls = (codeOnly.match(/[A-Za-z0-9_$]+\("react"\)/g) ?? []).length;
+    check(`${label}: asks the loader only for the react seed`, seedCalls === 1, `${seedCalls}`);
     check(`${label}: no ESM import/export syntax`, !/(^|\n)\s*(import|export)\s/.test(code));
     check(`${label}: no sibling-file imports or requires`, !/(?:from|require)\s*\(\s*["']\.\.?\//.test(code) && !/from\s+["']\.\.?\//.test(code));
   }

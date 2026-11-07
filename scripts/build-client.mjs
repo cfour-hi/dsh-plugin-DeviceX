@@ -33,6 +33,11 @@ const result = await build({
   platform: 'browser',
   target: ['es2020'],
   minify: true,
+  // The loader injects React, so JSX must use the classic transform with the
+  // local `h` wrapper (see src/client/jsx.js); never bundle react/jsx-runtime.
+  jsx: 'transform',
+  jsxFactory: 'h',
+  jsxFragment: 'Fragment',
   legalComments: 'none',
   write: false,
   banner: {

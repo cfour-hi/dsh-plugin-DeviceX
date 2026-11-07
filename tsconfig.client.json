@@ -3,8 +3,13 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "DOM"],
-    "types": [],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "types": [
+      "react"
+    ],
     "allowJs": true,
     "checkJs": true,
     "noEmit": true,
@@ -12,7 +17,10 @@
     "noImplicitAny": false,
     "strictNullChecks": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react",
+    "jsxFactory": "h",
+    "jsxFragmentFactory": "Fragment"
   },
   "include": [
     "src/client/constants.js",
@@ -20,6 +28,8 @@
     "src/client/runtime.js",
     "src/client/normalizers.js",
     "src/client/api.js",
-    "types/contracts.ts"
+    "types/contracts.ts",
+    "src/client/jsx.js",
+    "src/client/components/*.tsx"
   ]
 }

@@ -7,6 +7,8 @@
  * are treated as untrusted.
  */
 import { getReact } from "./runtime.js";
+import { Pill } from "./components/Pill";
+import { SignalBars } from "./components/SignalBars";
 import {
 	NS,
 	PANEL_ID,
@@ -247,10 +249,6 @@ export function createClient() {
 			);
 		}
 
-		function Pill(props) {
-			return h("span", { className: "dx-pill", "data-tone": props.tone || "idle", title: props.title }, props.children);
-		}
-
 		function Switch(props) {
 			return h(
 				"button",
@@ -380,15 +378,6 @@ export function createClient() {
 					h("span", null, isFiniteNumber(props.percent) ? fmtPercent(percent) : "—"),
 				),
 				h("div", { className: "dx-barTrack", role: "presentation" }, h("div", { className: "dx-barFill", style: { width: percent + "%", background: strOr(props.color, usageTone(percent)) } })),
-			);
-		}
-
-		function SignalBars(props) {
-			const level = clamp(numOr(props.level, 0), 0, 4);
-			return h(
-				"span",
-				{ className: "dx-signalWrap", role: "img", "aria-label": strOr(props.label, "Signal " + level + "/4") },
-				[1, 2, 3, 4].map((index) => h("span", { key: index, className: "dx-signalBar", "data-on": index <= level ? "true" : "false" })),
 			);
 		}
 

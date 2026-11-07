@@ -551,3 +551,25 @@ The browser half is no longer hand-edited as one file:
   suites (215 assertions), `dicts.js`/`styles.js` are data/stylesheet modules.
 - `// @ts-check` and JSDoc casts are comments, so the generated `plugin/client.js` bundle stays
   byte-identical (`build --check` enforced in CI); `.tsx`/jsx-runtime migration remains P2-b.
+
+## 1.3.6 JSX pilot (P2-b, frozen)
+
+- JSX is compiled with the **classic transform** (`jsxFactory: 'h'`,
+  `jsxFragmentFactory: 'Fragment'`) because the module loader injects React: importing
+  `react/jsx-runtime` would add a second runtime request and break the zero-dependency
+  bundle contract. `scripts/build-client.mjs` validates that the bundle still asks the
+  loader for exactly one `react` seed.
+- `src/client/jsx.js` is the runtime: `h(type, props, ...children)` resolves the injected
+  React lazily; the `Fragment` marker is mapped to `React.Fragment`.
+- Pilot components: `src/client/components/Pill.tsx` and `SignalBars.tsx`; they are
+  imported from `core.js` (extensionless specifier, resolved by esbuild and Bundler
+  moduleResolution) and stay behaviour-identical.
+- `tsconfig.client.json` includes the `.tsx` files with `jsx: react` / `jsxFactory: h`;
+  `@types/react` and `@types/react-dom` are devDependencies only (runtime React is still
+  supplied by the loader).
+- Migration continues incrementally: new UI components should be `.tsx`; existing `h()`
+  calls can be converted module by module without changing the build chain.
+- The C (concat) fallback transpiles `.ts`/`.tsx` with the TypeScript compiler
+  (`jsx: React`, `jsxFactory: h`) before concatenating — still no bundler, and TypeScript
+  is already a devDependency for typecheck. `verify-build` counts loader seed *calls*
+  after stripping comments, so the non-minified concat artifact passes the same check.
