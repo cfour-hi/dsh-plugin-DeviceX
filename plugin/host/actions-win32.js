@@ -16,6 +16,10 @@ import { resolve } from 'node:path';
 import { cleanupItems, deleteCleanup } from './cleanup-win32.js';
 import { runPS, runPSJson, psString } from './win.js';
 
+/** @typedef {import('../../types/contracts.js').Win32ActionParamsById} Win32Params */
+/** @typedef {import('../../types/contracts.js').Win32Signal} Win32Signal */
+/** @typedef {import('../../types/contracts.js').ActionResult} ActionResult */
+
 /** Action groups, in UI order. */
 export const GROUPS = ['process', 'app', 'system', 'network', 'software', 'power'];
 
@@ -150,7 +154,8 @@ function commandFailure(label, result) {
 /* Pure validators (no process spawn, no side effects)                        */
 /* -------------------------------------------------------------------------- */
 
-/** Read an integer/number param with range checks. */
+/** Read an integer/number param with range checks. * @returns {{ok: true, value: number|null} | {ok: false, message: string, code?: string}}
+ */
 function readNumber(params, name, options = {}) {
   const raw = params[name];
   if (raw === undefined || raw === null || raw === '') {
@@ -171,7 +176,8 @@ function readNumber(params, name, options = {}) {
   return { ok: true, value };
 }
 
-/** Read a trimmed string param, rejecting controls and enforcing a pattern. */
+/** Read a trimmed string param, rejecting controls and enforcing a pattern. * @returns {{ok: true, value: string} | {ok: false, message: string, code?: string}}
+ */
 function readString(params, name, options = {}) {
   const raw = params[name];
   if (raw === undefined || raw === null) {
@@ -193,7 +199,8 @@ function readString(params, name, options = {}) {
   return { ok: true, value };
 }
 
-/** Read a boolean param, tolerating the JSON/string/0-1 forms clients send. */
+/** Read a boolean param, tolerating the JSON/string/0-1 forms clients send. * @returns {{ok: true, value: boolean} | {ok: false, message: string, code?: string}}
+ */
 function readBoolean(params, name, options = {}) {
   const raw = params[name];
   if (raw === undefined && options.defaultValue !== undefined) return { ok: true, value: options.defaultValue };
@@ -202,7 +209,8 @@ function readBoolean(params, name, options = {}) {
   return failure(`Parameter "${name}" must be a boolean.`, 'BAD_PARAMS');
 }
 
-/** Read a select param restricted to a fixed option list. */
+/** Read a select param restricted to a fixed option list. * @returns {{ok: true, value: string} | {ok: false, message: string, code?: string}}
+ */
 function readSelect(params, name, options) {
   const raw = params[name];
   if ((raw === undefined || raw === null || raw === '') && options.defaultValue !== undefined) {
@@ -223,6 +231,7 @@ function readSelect(params, name, options) {
  * @param {object} params
  * @param {string} name
  * @param {{allowDirectory?: boolean}} [options]
+ * @returns {{ok: true, value: string} | {ok: false, message: string, code?: string}}
  */
 function readExistingPath(params, name, options = {}) {
   const raw = readString(params, name, { required: true, maxLength: 4096 });
@@ -300,6 +309,7 @@ function parseRegistryKey(raw) {
 /**
  * Classify `id` for `app.uninstall`: `msi:{GUID}`, `winget:<token>` or a registry key.
  * @param {object} params
+ * @returns {{ok: true, value: any} | {ok: false, message: string, code?: string}}
  */
 function parseUninstallId(params) {
   const raw = readString(params, 'id', { required: true, maxLength: 1024 });
@@ -327,7 +337,8 @@ function parseUninstallId(params) {
   return { ok: true, value: { kind: 'registry', id, key: registry.value } };
 }
 
-/** Parse `startup:<HKCU|HKLM|HKLM32>:<ValueName>` for `system.launchAgent`. */
+/** Parse `startup:<HKCU|HKLM|HKLM32>:<ValueName>` for `system.launchAgent`. * @returns {{ok: true, value: any} | {ok: false, message: string, code?: string}}
+ */
 function parseLaunchAgentPath(params) {
   const raw = readString(params, 'path', { required: true, maxLength: 160 });
   if (!raw.ok) return raw;
@@ -341,7 +352,8 @@ function parseLaunchAgentPath(params) {
   return { ok: true, value: { hive: match[1], name: match[2], path: raw.value } };
 }
 
-/** Parse `servers` (string or string[]) into 0-4 validated IP addresses. */
+/** Parse `servers` (string or string[]) into 0-4 validated IP addresses. * @returns {{ok: true, value: any} | {ok: false, message: string, code?: string}}
+ */
 function readDnsServers(params) {
   const raw = params.servers;
   let list;
@@ -382,6 +394,7 @@ function readDnsServers(params) {
  * paths, duplicates and oversized batches are refused before any filesystem
  * call.
  * @param {object} params
+ * @returns {{ok: true, value: any} | {ok: false, message: string, code?: string}}
  */
 function readCleanupIds(params) {
   const raw = params.ids;
@@ -434,6 +447,9 @@ const SPECS = [
       { name: 'pid', type: 'number', required: true, min: 2, max: 4294967295 },
       { name: 'signal', type: 'select', required: false, options: SIGNALS },
     ],
+    /**
+     * @returns {{ok: true, value: Win32Params['process.signal']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const pid = readNumber(params, 'pid', { required: true, integer: true, min: 2, max: 4294967295 });
       if (!pid.ok) return pid;
@@ -442,7 +458,10 @@ const SPECS = [
       }
       const signal = readSelect(params, 'signal', { options: SIGNALS, defaultValue: 'TERM' });
       if (!signal.ok) return signal;
-      return { ok: true, value: { pid: pid.value, signal: signal.value } };
+      return {
+        ok: true,
+        value: { pid: /** @type {number} */ (pid.value), signal: /** @type {Win32Signal} */ (signal.value) },
+      };
     },
   },
   {
@@ -451,6 +470,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'name', type: 'string', required: true, placeholder: 'Process name, e.g. Code' }],
+    /**
+     * @returns {{ok: true, value: Win32Params['app.quit']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const name = readString(params, 'name', {
         required: true,
@@ -469,6 +491,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'path', type: 'string', required: true, placeholder: 'C:\\Path\\app.exe' }],
+    /**
+     * @returns {{ok: true, value: Win32Params['app.launch']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const path = readExistingPath(params, 'path');
       if (!path.ok) return path;
@@ -481,6 +506,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'path', type: 'string', required: true, placeholder: 'C:\\Path\\item' }],
+    /**
+     * @returns {{ok: true, value: Win32Params['app.reveal']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const path = readExistingPath(params, 'path', { allowDirectory: true });
       if (!path.ok) return path;
@@ -493,6 +521,9 @@ const SPECS = [
     danger: 'high',
     requiresAdmin: false,
     params: [{ name: 'id', type: 'string', required: true, placeholder: 'msi:{GUID} | winget:<id> | HKLM:\\...\\Uninstall\\...' }],
+    /**
+     * @returns {{ok: true, value: Win32Params['app.uninstall']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       return parseUninstallId(params);
     },
@@ -506,6 +537,9 @@ const SPECS = [
       { name: 'kind', type: 'select', required: true, options: ['ComputerName'] },
       { name: 'value', type: 'string', required: true, placeholder: 'NEW-HOSTNAME' },
     ],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.setHostname']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const rawKind = params.kind;
       const kind = readSelect(params, 'kind', { options: ['ComputerName'] });
@@ -534,10 +568,13 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'percent', type: 'number', required: true, min: 0, max: 100 }],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.setVolume']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const percent = readNumber(params, 'percent', { required: true, min: 0, max: 100 });
       if (!percent.ok) return percent;
-      return { ok: true, value: { percent: percent.value } };
+      return { ok: true, value: { percent: /** @type {number} */ (percent.value) } };
     },
   },
   {
@@ -546,6 +583,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'enabled', type: 'boolean', required: true }],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.setDarkMode']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const enabled = readBoolean(params, 'enabled');
       if (!enabled.ok) return enabled;
@@ -561,6 +601,9 @@ const SPECS = [
       { name: 'path', type: 'string', required: true, placeholder: 'startup:HKCU:ValueName' },
       { name: 'enabled', type: 'boolean', required: true },
     ],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.launchAgent']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const path = parseLaunchAgentPath(params);
       if (!path.ok) return path;
@@ -575,6 +618,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [{ name: 'pane', type: 'select', required: true, options: SETTINGS_PANES }],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.openSettings']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const pane = readSelect(params, 'pane', { options: SETTINGS_PANES });
       if (!pane.ok) return pane;
@@ -587,6 +633,9 @@ const SPECS = [
     danger: 'high',
     requiresAdmin: true,
     params: [{ name: 'enabled', type: 'boolean', required: true }],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.toggleFirewall']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const enabled = readBoolean(params, 'enabled');
       if (!enabled.ok) return enabled;
@@ -599,6 +648,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.flushDNS']} | {ok: false, message: string, code?: string}}
+     */
     validate() {
       return { ok: true, value: {} };
     },
@@ -609,6 +661,9 @@ const SPECS = [
     danger: 'medium',
     requiresAdmin: false,
     params: [],
+    /**
+     * @returns {{ok: true, value: Win32Params['system.emptyTrash']} | {ok: false, message: string, code?: string}}
+     */
     validate() {
       return { ok: true, value: {} };
     },
@@ -621,6 +676,9 @@ const SPECS = [
     params: [
       { name: 'ids', type: 'string', required: true, multiple: true, placeholder: 'user-temp, crash-dumps' },
     ],
+    /**
+     * @returns {{ok: true, value: Win32Params['cleanup.delete']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const ids = readCleanupIds(params);
       if (ids.ok !== true) return ids;
@@ -633,6 +691,9 @@ const SPECS = [
     danger: 'medium',
     requiresAdmin: true,
     params: [{ name: 'enabled', type: 'boolean', required: true }],
+    /**
+     * @returns {{ok: true, value: Win32Params['network.setWifiPower']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const enabled = readBoolean(params, 'enabled');
       if (!enabled.ok) return enabled;
@@ -648,6 +709,9 @@ const SPECS = [
       { name: 'service', type: 'string', required: true, placeholder: 'Interface alias, e.g. Ethernet' },
       { name: 'servers', type: 'string', required: false, placeholder: '1.1.1.1, 8.8.8.8' },
     ],
+    /**
+     * @returns {{ok: true, value: Win32Params['network.setDns']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const service = readString(params, 'service', { required: true, maxLength: 256 });
       if (!service.ok) return service;
@@ -662,6 +726,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [],
+    /**
+     * @returns {{ok: true, value: Win32Params['power.sleep']} | {ok: false, message: string, code?: string}}
+     */
     validate() {
       return { ok: true, value: {} };
     },
@@ -672,6 +739,9 @@ const SPECS = [
     danger: 'low',
     requiresAdmin: false,
     params: [],
+    /**
+     * @returns {{ok: true, value: Win32Params['power.lock']} | {ok: false, message: string, code?: string}}
+     */
     validate() {
       return { ok: true, value: {} };
     },
@@ -682,6 +752,9 @@ const SPECS = [
     danger: 'medium',
     requiresAdmin: false,
     params: [{ name: 'id', type: 'string', required: true, placeholder: 'Publisher.Package' }],
+    /**
+     * @returns {{ok: true, value: Win32Params['software.wingetUninstall']} | {ok: false, message: string, code?: string}}
+     */
     validate(params) {
       const id = readString(params, 'id', {
         required: true,

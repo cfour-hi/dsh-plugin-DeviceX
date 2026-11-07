@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.4 — per-action parameter contracts (P1)
+
+Type-only continuation of 1.3.2/1.3.3; no runtime or UI change.
+
+- `types/contracts.ts` now carries the normalized per-action parameter table:
+  `DarwinActionParamsById` / `Win32ActionParamsById` (19 actions each), including
+  discriminated unions for `app.uninstall` (msi | winget | registry) and
+  `system.launchAgent` (HKCU | HKLM | HKLM32), plus platform signal unions.
+- All 19 Windows `validate(params)` functions are annotated with
+  `@returns {Win32ActionParamsById['<id>']}`; `tsc --noEmit` now fails if a validator
+  produces a value that drifts from the contract. The Windows read helpers
+  (number/string/boolean/select/existing-path/parse-*) gained explicit literal-union
+  returns so the narrowing is real.
+- macOS runners stay intentionally untyped at the trust boundary (they validate raw
+  input inline); the contract types document what each normalized value would be and
+  are available to future client/tool typing.
+- CI/typecheck unchanged in shape: `build --check → typecheck → npm test →
+  verify:build → five offline suites`; all checks stay green.
+
 ## 1.3.3 — parser unit tests (P1) and two real macOS parser fixes
 
 Continues the P0 contract work. No UI change; two genuine Host data bugs fixed.

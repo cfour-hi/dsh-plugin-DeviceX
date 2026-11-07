@@ -659,3 +659,64 @@ export interface PluginContext {
   connection: ConnectionService;
   tools: ToolsService;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Per-action normalized parameter values (P1)                                */
+/* ------------------------------------------------------------------------- */
+
+/** Signals macOS accepts for `process.signal`. */
+export type DarwinSignal = 'TERM' | 'KILL' | 'INT' | 'STOP' | 'CONT';
+/** Signals Windows accepts for `process.signal`. */
+export type Win32Signal = 'TERM' | 'KILL' | 'INT';
+
+/** Normalized value of a Windows uninstall target. */
+export type Win32UninstallValue =
+  | { kind: 'msi'; id: string; guid: string }
+  | { kind: 'winget'; id: string; token: string }
+  | { kind: 'registry'; id: string; key: string };
+
+/** macOS normalized action values (the subset consumed by the darwin runners). */
+export interface DarwinActionParamsById {
+  'process.signal': { pid: number; signal?: DarwinSignal };
+  'app.quit': { name: string };
+  'app.launch': { path: string };
+  'app.reveal': { path: string };
+  'app.uninstall': { path: string; mode?: 'trash' | 'delete' };
+  'system.setHostname': { kind: 'HostName' | 'ComputerName' | 'LocalHostName'; value: string };
+  'system.setVolume': { percent: number };
+  'system.setDarkMode': { enabled: boolean };
+  'system.launchAgent': { path: string; enabled: boolean };
+  'system.openSettings': { pane: string };
+  'system.toggleFirewall': { enabled: boolean };
+  'system.flushDNS': Record<string, never>;
+  'system.emptyTrash': Record<string, never>;
+  'cleanup.delete': { ids: string[] };
+  'network.setWifiPower': { enabled: boolean };
+  'network.setDns': { service: string; servers: string[] };
+  'power.sleep': Record<string, never>;
+  'power.lock': Record<string, never>;
+  'software.brewUninstall': { name: string };
+}
+
+/** Windows normalized action values (the shape `runAction` hands to each runner). */
+export interface Win32ActionParamsById {
+  'process.signal': { pid: number; signal: Win32Signal };
+  'app.quit': { name: string };
+  'app.launch': { path: string };
+  'app.reveal': { path: string };
+  'app.uninstall': Win32UninstallValue;
+  'system.setHostname': { kind: 'ComputerName'; value: string };
+  'system.setVolume': { percent: number };
+  'system.setDarkMode': { enabled: boolean };
+  'system.launchAgent': { hive: 'HKCU' | 'HKLM' | 'HKLM32'; name: string; path: string; enabled: boolean };
+  'system.openSettings': { pane: string };
+  'system.toggleFirewall': { enabled: boolean };
+  'system.flushDNS': Record<string, never>;
+  'system.emptyTrash': Record<string, never>;
+  'cleanup.delete': { ids: string[] };
+  'network.setWifiPower': { enabled: boolean };
+  'network.setDns': { service: string; servers: string[] };
+  'power.sleep': Record<string, never>;
+  'power.lock': Record<string, never>;
+  'software.wingetUninstall': { id: string };
+}

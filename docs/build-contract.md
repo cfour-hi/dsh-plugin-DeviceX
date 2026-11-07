@@ -527,3 +527,17 @@ The browser half is no longer hand-edited as one file:
 - Parser fixes carried by this work: indented `pmset` battery lines are recognised; battery
   `charging` state is matched exactly (previously `discharging` matched the `charging` substring).
 - CI order: `build --check → typecheck → npm test → verify:build → verify`.
+
+## 1.3.4 per-action parameter contracts (P1, frozen)
+
+- `types/contracts.ts` exports `DarwinActionParamsById` / `Win32ActionParamsById`: the
+  normalized value each action runner receives, with discriminated unions where the code
+  branches (`app.uninstall.kind`, `system.launchAgent.hive`) and platform-specific signal
+  unions.
+- Windows: every `SPECS[].validate(params)` is annotated with
+  `@returns {Win32ActionParamsById['<action id>']}`; the validators are the trust boundary
+  (raw JSON in, typed value out) and `tsc --noEmit` enforces the contract.
+- macOS: runners keep validating raw input inline and are deliberately not typed as the
+  normalized contract (an untrusted boundary must not be disguised as trusted data); the
+  contract interfaces are the documentation/future-typing target.
+- CI still runs `build --check → typecheck → npm test → verify:build → verify`.
