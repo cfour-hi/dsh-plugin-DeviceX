@@ -32,6 +32,8 @@
     "src/client/jsx.js",
     "src/client/components/*.tsx",
     "src/client/hooks.js",
-    "src/client/action-helpers.tsx"
+    "src/client/action-helpers.tsx",
+    "src/client/page.tsx",
+    "src/client/use-device-metrics.js"
   ]
 }

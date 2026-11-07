@@ -655,3 +655,13 @@ The browser half is no longer hand-edited as one file:
 - Both build engines (B esbuild, C concat+TS transpile) render the same DOM; every
   extraction was verified with the 215-assertion 10-tab suite and the 32-assertion
   Windows-data scenario.
+
+## 1.4.1 core.js -> page.tsx (P2-b finished, frozen)
+
+- `page.tsx` owns the page render tree (`DeviceXPage`, `DeviceXIcon`), the tab rail, body
+  dispatch, modal content and toasts; `components/Guard.tsx` owns the lazy error boundary;
+  `use-device-metrics.js` owns the polling/sample hooks.
+- `core.js` is registration-only (57 lines: dictionaries, stylesheet, main panel, sidebar).
+- No `h()` calls remain in the client source: all UI modules are `.tsx` (helpers/styles/dicts
+  are data/JS modules).
+- Both build engines (B esbuild, C concat + TypeScript transpile) render the same DOM.

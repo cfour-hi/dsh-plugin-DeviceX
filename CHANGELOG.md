@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.1 — page.tsx: the last core.js chunk migrates to TSX
+
+No visible UI change.
+
+- `src/client/page.tsx` now hosts `DeviceXPage` (header, tab rail, section bodies, modal
+  construction, toasts) and `DeviceXIcon`; the whole render tree is JSX.
+- `src/client/components/Guard.tsx` hosts the lazy error boundary (the class is created on
+  first render, after the loader injects React).
+- `src/client/use-device-metrics.js` hosts the reduced-motion and 2500 ms metrics hooks with
+  the sample ring buffer.
+- `src/client/core.js` shrank to **57 lines**: locale registration, stylesheet injection and
+  the two slot registrations only. No `h()` calls remain in the client source.
+- Both build engines render identically (215 + 32 assertions each); `plugin/client.js`:
+  202,532 → 202,359 bytes; typecheck/tests/build/offline suites green.
+
 ## 1.4.0 — complete UI migration to TSX
 
 The browser UI is now fully modular and type-checked; no visible UI change.
