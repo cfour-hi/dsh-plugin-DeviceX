@@ -258,6 +258,10 @@ check('client passes the app uninstall id through', client.includes('uninstallId
 check('client receives the platform for tab-specific copy', client.includes('platform: catalog.platform'));
 check('client kill dialog derives signals from the catalogue', client.includes('killSignals.map'));
 check('client uses Explorer wording for reveal on Windows', client.includes('sw.revealWin'));
+check('client persists the catalogue platform from /devicex/api/actions', client.includes('platform: typeof result.platform === "string"'));
+check('client prefetches sections after mount', client.includes('prefetchStarted'));
+check('client retries a failed cold section once', client.includes('sectionRetried'));
+check('client renders a localized loading hint', client.includes('dx-loadingHint') && client.includes('loading.sectionHint'));
 check(
   'client shows Windows security card titles',
   client.includes('sec.bitlocker') && client.includes('sec.secureBoot') && client.includes('sec.defender'),

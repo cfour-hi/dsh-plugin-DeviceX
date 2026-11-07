@@ -169,12 +169,12 @@ curl -sN -m 2 http://127.0.0.1:50732/plugins/events | head -c 200               
 `dsh.profile.bundles`）：
 
 ```sh
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.0.tgz
+dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.1.tgz
 # 或：dsh plugin --profile desktop add /绝对路径/plugin
 ```
 
 运行中的 Desktop/Web 也可以直接在会话里用 `plugin_manager action=install_bundle target=<绝对路径>` 热安装
-（返回 `application: applied`，无需重启）。分发件为 `dist/local-dsh-devicex-1.1.0.tgz`（仅含运行文件；随代码提交，代码改动后需重新 `npm pack`）。
+（返回 `application: applied`，无需重启）。分发件为 `dist/local-dsh-devicex-1.1.1.tgz`（仅含运行文件；随代码提交，代码改动后需重新 `npm pack`）。
 完整步骤、前提（macOS 或 Windows 10/11、web 形态 profile）、npm/Git 分发、卸载与注意事项见
 [`docs/INSTALL.md`](docs/INSTALL.md)。
 

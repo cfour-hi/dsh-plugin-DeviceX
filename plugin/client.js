@@ -876,6 +876,7 @@ window.__ModuleLoader__.load({
 			"guard.title": "这一块内容出错了",
 			"guard.retry": "重新渲染",
 			"loading.title": "正在连接设备服务…",
+			"loading.sectionHint": "正在加载该分区数据…首次打开可能需要几秒（Windows 的 PowerShell 采集较慢）。",
 
 			"aria.tabs": "设备分区",
 			"aria.status": "连接状态",
@@ -1409,6 +1410,7 @@ window.__ModuleLoader__.load({
 			"guard.title": "This widget hit an error",
 			"guard.retry": "Remount",
 			"loading.title": "Connecting to the device service…",
+			"loading.sectionHint": "Loading this section… the first open can take a few seconds while Windows PowerShell providers warm up.",
 
 			"aria.tabs": "Device sections",
 			"aria.status": "Connection status",
@@ -1560,6 +1562,7 @@ window.__ModuleLoader__.load({
 	scrollbar-color: var(--dsw-alias-border-l2) transparent;
 }
 .dx-tabpanel { animation: dx-fadein .18s ease both; }
+.dx-loadingHint { margin: 2px 0 0; color: var(--dsw-alias-label-secondary); font-size: 11.5px; }
 
 /* --------------------------------------------------------------- banners */
 .dx-banner {
@@ -3317,7 +3320,14 @@ window.__ModuleLoader__.load({
 			const t = props.t;
 			const state = asObject(props.state);
 			const status = strOr(state.status, "idle");
-			if (status === "idle" || (status === "loading" && !state.data)) return h(Skeleton, { cards: numOr(props.skeletonCards, 3) });
+			if (status === "idle" || (status === "loading" && !state.data)) {
+				return h(
+					Fragment,
+					null,
+					h(Skeleton, { cards: numOr(props.skeletonCards, 3) }),
+					h("p", { className: "dx-loadingHint", role: "status" }, t("loading.sectionHint")),
+				);
+			}
 			if (status === "error" && !state.data) {
 				const detail = safeErrorText(state.error);
 				return h(ErrorState, {
@@ -5053,7 +5063,7 @@ window.__ModuleLoader__.load({
 			const [activeTab, setActiveTab] = useState("overview");
 			const [threeD, setThreeD] = useState(true);
 			const [sections, setSections] = useState({});
-			const [catalog, setCatalog] = useState({ status: "idle", actions: [], history: [], error: null });
+			const [catalog, setCatalog] = useState({ status: "idle", actions: [], history: [], platform: null, error: null });
 			const [liveHistory, setLiveHistory] = useState([]);
 			const [modal, setModal] = useState(null);
 			const [modalBusy, setModalBusy] = useState(false);
@@ -5062,6 +5072,9 @@ window.__ModuleLoader__.load({
 			const [pending, setPending] = useState({});
 			const [refreshing, setRefreshing] = useState(false);
 			const sectionsInFlight = useRef({});
+			const sectionRetried = useRef({});
+			const prefetchStarted = useRef(false);
+			const retryTimers = useRef([]);
 			const catalogInFlight = useRef(null);
 			const toastId = useRef(0);
 			const tabRefs = useRef([]);
@@ -5149,7 +5162,13 @@ window.__ModuleLoader__.load({
 				const promise = api
 					.actions()
 					.then((result) => {
-						setCatalog({ status: "ready", actions: normalizeActions(result.actions), history: normalizeHistory(result.history), error: null });
+						setCatalog({
+							status: "ready",
+							actions: normalizeActions(result.actions),
+							history: normalizeHistory(result.history),
+							platform: typeof result.platform === "string" ? result.platform : null,
+							error: null,
+						});
 					})
 					.catch((error) => {
 						setCatalog((previous) => Object.assign({}, previous, { status: previous.actions.length > 0 ? "ready" : "error", error }));
@@ -5162,12 +5181,52 @@ window.__ModuleLoader__.load({
 			}, []);
 
 			// Lazy section fetch per tab; the cache survives tab switches.
+			// A transient failure on the very first (cold) request is retried once
+			// automatically, so a slow Windows PowerShell start does not leave the
+			// tab stuck on an error until the user navigates away and back.
 			useEffect(() => {
 				const section = SECTION_TABS[activeTab];
 				if (!section) return;
 				const current = sections[section];
-				if (!current || current.status === "idle") loadSection(section, false);
+				if (!current || current.status === "idle") {
+					loadSection(section, false);
+					return;
+				}
+				if (current.status === "error" && !current.data && sectionRetried.current[section] !== true) {
+					sectionRetried.current[section] = true;
+					const timer = setTimeout(() => {
+						loadSection(section, true);
+					}, 1500);
+					retryTimers.current.push(timer);
+				}
 			}, [activeTab, sections, loadSection]);
+
+			useEffect(() => {
+				return () => {
+					for (const timer of retryTimers.current) clearTimeout(timer);
+					retryTimers.current = [];
+				};
+			}, []);
+
+			// Warm every section once after the panel appears. On Windows the first
+			// PowerShell sample of a section can take seconds; prefetching means the
+			// first click on a tab usually renders already-cached data instead of
+			// showing a long loading state. Requests are staggered and the Host
+			// deduplicates them against its own warmup.
+			useEffect(() => {
+				if (prefetchStarted.current) return;
+				prefetchStarted.current = true;
+				const timers = [];
+				Object.values(SECTION_TABS).forEach((section, index) => {
+					const timer = setTimeout(() => {
+						if (!sectionsInFlight.current[section]) loadSection(section, false);
+					}, 150 + index * 250);
+					timers.push(timer);
+				});
+				return () => {
+					for (const timer of timers) clearTimeout(timer);
+				};
+			}, [loadSection]);
 
 			// The catalogue also supplies action metadata (pane allowlists) used by
 			// other tabs, so warm it once; the Actions tab offers its own retry.
@@ -5554,6 +5613,14 @@ window.__ModuleLoader__.load({
 									tabIndex: activeTab === tab ? 0 : -1,
 									className: "dx-railTab",
 									onClick: () => setActiveTab(tab),
+									onMouseEnter: () => {
+										const section = SECTION_TABS[tab];
+										if (section && (!sections[section] || sections[section].status === "idle")) loadSection(section, false);
+									},
+									onFocus: () => {
+										const section = SECTION_TABS[tab];
+										if (section && (!sections[section] || sections[section].status === "idle")) loadSection(section, false);
+									},
 								},
 								h("span", { className: "dx-railIcon" }, h(Icon, { name: TAB_ICONS[tab], size: 15 })),
 								h("span", { className: "dx-railLabel" }, t(TAB_LABEL_KEYS[tab])),

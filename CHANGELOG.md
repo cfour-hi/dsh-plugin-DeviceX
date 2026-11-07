@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.1 - first-open fixes (Windows)
+
+- Client kept the platform returned by `/devicex/api/actions` out of its catalogue state, so
+  Windows-only UI branches (winget card, BitLocker/Secure Boot/Defender labels, "Startup items",
+  Windows Security pane button) silently rendered the macOS variants. The platform is now persisted.
+- First open of a tab could sit on the loading state for a long time on Windows (each cold section
+  costs a PowerShell start). The panel now prefetches every section after mount (staggered, the Host
+  deduplicates against its own warmup), prefetches on tab hover/focus, retries a failed cold section
+  once automatically, and shows a localized loading hint under the skeleton.
+- Real-Chrome screenshots with mapped Windows data confirm the Windows Security/Software/system
+  branches render correctly; the Windows-data jsdom pass covers all eight tabs (32/32) with no
+  console errors or error-boundary fallbacks.
+
 ## 1.1.0 — Windows adaptation
 
 - Host halves become platform implementations behind dispatchers: `collector.js` / `actions.js`

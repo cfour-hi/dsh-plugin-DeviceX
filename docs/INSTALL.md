@@ -27,13 +27,13 @@ Device X 是一个 **DSH 持久插件**，安装到某个 DSH profile 后，该 
 
 ```sh
 # 从打包文件安装（推荐分发形式）
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.0.tgz
+dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.1.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
 
 # Windows（PowerShell / cmd）
-dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.0.tgz
+dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.1.tgz
 dsh plugin --profile desktop add C:\path\plugin
 ```
 
@@ -59,7 +59,7 @@ dsh plugin --profile desktop add C:\path\plugin
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.0.tgz
+plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.1.tgz
 ```
 
 - 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到两个工具，无需重启；
@@ -69,7 +69,7 @@ plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.
 
 ## 方式三：分发包
 
-仓库里的 `dist/local-dsh-devicex-1.1.0.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
+仓库里的 `dist/local-dsh-devicex-1.1.1.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
 
 - 对方拿到后按方式一或方式二安装即可；
 - 更新同理：重新 `npm pack`（在 `plugin/` 下 `npm pack --pack-destination ../dist`）后用新 tgz 覆盖安装。
