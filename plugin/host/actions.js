@@ -15,6 +15,7 @@ import * as win32 from './actions-win32.js';
 /** Action groups, in UI order. */
 export const GROUPS = ['process', 'app', 'system', 'network', 'software', 'power'];
 
+/** @type {import('../../types/contracts.js').PlatformActions} */
 const impl = process.platform === 'win32' ? win32 : darwin;
 
 /**

@@ -1,4 +1,12 @@
 // Generated source split of the Device X client: Host payload normalizers.
+//
+// Type-only contract references (P0): the browser half is still checked by
+// esbuild rather than tsc, but these typedefs point editors at the frozen
+// shapes in types/contracts.ts. They are comments, so they add no runtime.
+/** @typedef {import("../../types/contracts.js").Metrics} Metrics */
+/** @typedef {import("../../types/contracts.js").CleanupPayload} CleanupPayload */
+/** @typedef {import("../../types/contracts.js").BenchmarkRun} BenchmarkRun */
+/** @typedef {import("../../types/contracts.js").ActionResult} ActionResult */
 import { asArray, asObject, isFiniteNumber, isObj, numOr, numOrNull, strOr } from "./helpers.js";
 
 		// ------------------------------------------------------------------

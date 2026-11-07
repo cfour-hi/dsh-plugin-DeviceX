@@ -90,8 +90,8 @@ function guarded(handler) {
 
 /**
  * Register every Device X route as one disposable effect.
- * @param ctx - the plugin context carrying `webServer` and `connection`.
- * @param operations - the shared operation surface.
+ * @param {import('../../types/contracts.js').PluginContext} ctx - the plugin context carrying `webServer` and `connection`.
+ * @param {import('../../types/contracts.js').PluginOperations} operations - the shared operation surface.
  * @returns the disposer removing every route.
  */
 export function registerRoutes(ctx, operations) {

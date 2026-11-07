@@ -21,7 +21,8 @@
   },
   "include": [
     "plugin/index.js",
-    "plugin/host/**/*.js"
+    "plugin/host/**/*.js",
+    "types/contracts.ts"
   ],
   "exclude": [
     "node_modules",

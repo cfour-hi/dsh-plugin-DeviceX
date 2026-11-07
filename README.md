@@ -140,6 +140,7 @@ HTTP API（同一来源，`cache-control: no-store`）：
   - **D（零构建资产）**：仓库提交的 `plugin/client.js` 是自包含产物——安装、加载、运行都不需要构建，也不需要 devDependencies；esbuild/TypeScript/jsdom 只在开发与 CI 中使用。
   - `npm run verify:build`（37 项）验证三者：两个引擎各自确定、结构与 loader 契约一致、注册面（inject/slots/615 个 zh/en 词条）逐项相等，并让 **B 与 C 各跑一遍 215 条 10 标签页渲染 + 32 条 Windows 数据渲染**。
 - **静态类型**：`tsconfig.json` 开启 `allowJs + checkJs`（`strictNullChecks` 打开，其余渐进放松），覆盖 `plugin/index.js` 与 `plugin/host/**/*.js`；JSDoc 描述数据契约与返回类型，`npm run typecheck`（`tsc --noEmit`）为 0 error，CI 强制。
+- **类型契约层（P0）**：[types/contracts.ts](types/contracts.ts) 是纯类型文件（不参与运行时、不打进 bundle、不随包分发），定义 Host 采集 ↔ 动作/HTTP API ↔ 浏览器客户端之间的冻结形状：`Metrics`、六个 section、`Inventory`、19 个动作的 `ActionId`/`Action`/`ActionResult`、cleanup/benchmark、`ExecResult`，以及最小的 DSH 契约（`PluginContext`/`ToolDefinition`/`WebRoute`）。**平台适配器接口** `PlatformCollector`/`PlatformActions` 在 `collector.js`/`actions.js` 的 dispatcher 处编译期校验——任一平台漏实现或签名漂移都会让 `tsc` 报错。Host 用 JSDoc `import type` 引用，client 源码用 JSDoc typedef 指向同一文件。
 - **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
 - **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
 - 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。

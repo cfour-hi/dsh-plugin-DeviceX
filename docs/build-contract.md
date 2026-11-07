@@ -501,3 +501,18 @@ The browser half is no longer hand-edited as one file:
   the 32-assertion Windows scenario.
 - **Supplements**: JSDoc + `tsc --noEmit` (host, `checkJs`) and GitHub Actions CI remain
   mandatory; CI order: `npm ci → build --check → typecheck → verify:build → verify`.
+
+## 1.3.2 type contract layer (frozen, P0)
+
+- `types/contracts.ts` is types-only: no runtime import, no bundle content, not in `files`.
+  It is the single written source for `Metrics`, the six section payloads, `Inventory`, the action
+  catalogue types, cleanup/benchmark payloads, `ExecResult`, and the minimal DSH plugin surface
+  (`PluginContext`, `PluginOperations`, `WebRoute`, `ToolDefinition`).
+- Host JS consumes it from JSDoc (`@type {import('../types/contracts.js').Metrics}`); NodeNext
+  resolution maps `.js` to the `.ts` source. Browser source uses comment-level `@typedef` imports
+  only, so minified bundle output is unchanged.
+- `PlatformCollector`/`PlatformActions` are applied at the platform dispatchers; both
+  `collector-darwin.js`/`collector-win32.js` and `actions-darwin.js`/`actions-win32.js` are checked
+  structurally by `tsc --noEmit`.
+- Deliberately deferred: per-action parameter discriminated unions (runners still validate at
+  runtime), client `checkJs`, and `.tsx` components.

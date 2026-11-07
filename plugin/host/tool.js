@@ -68,8 +68,8 @@ function capJson(value, budget = 24000) {
 
 /**
  * Register both tools on the plugin's context.
- * @param ctx - the plugin context carrying the `tools` service.
- * @param operations - the shared operation surface.
+ * @param {import('../../types/contracts.js').PluginContext} ctx - the plugin context carrying the `tools` service.
+ * @param {import('../../types/contracts.js').PluginOperations} operations - the shared operation surface.
  * @returns an array of disposers removing the registrations.
  */
 export function registerTools(ctx, operations) {

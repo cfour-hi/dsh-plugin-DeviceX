@@ -17,11 +17,13 @@ import * as darwin from './collector-darwin.js';
 import * as win32 from './collector-win32.js';
 
 /** Host platform. */
-export const PLATFORM = process.platform;
+/** @type {import('../../types/contracts.js').Platform} */
+export const PLATFORM = /** @type {import('../../types/contracts.js').Platform} */ (process.platform);
 
 /** Frozen section identifiers, in UI order. */
 export const SECTIONS = ['hardware', 'system', 'software', 'network', 'security', 'processes'];
 
+/** @type {import('../../types/contracts.js').PlatformCollector} */
 const impl = process.platform === 'win32' ? win32 : darwin;
 
 /**

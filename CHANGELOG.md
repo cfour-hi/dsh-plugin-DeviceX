@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.2 — type-only contract layer (P0)
+
+Implements the first step of the "contracts, not full TS" plan. No runtime or UI change.
+
+- **`types/contracts.ts`**: a types-only file (never imported at runtime, never bundled, not
+  shipped in the tarball) documenting the frozen boundary shapes: `Platform`, `SectionName`,
+  `Metrics` (+ CPU/memory/disk/network/battery/thermal/processes), the six section payloads,
+  `Inventory`, the 19-id `ActionId` union + `Action`/`ActionParam`/`ActionResult`, cleanup and
+  benchmark payloads, `ExecResult`, and the minimal DSH plugin contracts
+  (`PluginContext`, `PluginOperations`, `WebRoute`, `ToolDefinition`).
+- **Platform adapter interfaces** (`PlatformCollector`, `PlatformActions`) are now applied to the
+  `collector.js` / `actions.js` dispatchers, so a missing or drifting platform implementation fails
+  in `tsc` instead of at runtime.
+- Host JS references the types from JSDoc (`import('../types/contracts.js').X`); the browser
+  source only carries comment-level typedefs, so the generated bundle is byte-identical.
+- `tsconfig.json` includes the new file; `npm run typecheck` remains 0 errors; CI unchanged.
+- This is deliberately P0 only: per-action discriminated unions for the 38 runners, client `.tsx`,
+  and parser unit tests stay on the P1/P2 roadmap.
+
 ## 1.3.1 — B/C/D build engines verified side by side
 
 Continues 1.3.0's lightweight engineering. No runtime or UI change.

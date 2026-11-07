@@ -32,6 +32,7 @@ export const name = 'devicex';
 export const inject = ['webServer', 'connection', 'tools'];
 
 /** The one shared operation surface both callers use. */
+/** @type {import('../types/contracts.js').PluginOperations} */
 const operations = {
   SECTIONS,
   PLATFORM,
@@ -49,7 +50,7 @@ const operations = {
 /**
  * Register the browser API and the agent tools, keeping the slow collectors
  * warm so the first panel view is fast.
- * @param ctx - the plugin's Cordis context.
+ * @param {import('../types/contracts.js').PluginContext} ctx - the plugin's Cordis context.
  */
 export function apply(ctx) {
   warmup();
