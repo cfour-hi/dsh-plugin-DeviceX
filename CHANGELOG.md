@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.2 — install from a GitHub repository URL
+
+- Installing the plugin straight from its GitHub link failed: the plugin package lives in `plugin/`
+  and the repository root had no `package.json`, so pnpm installed the repository as a `0.0.0`
+  placeholder package. DSH then rejected it (`not-bundle` in the Plugins page / "declares no
+  dsh.bundle — installed as a plain dependency" from the CLI), because a bundle must be declared by
+  the package at the installed (repository-root) path.
+- Add a thin root `package.json` as the Git-install manifest: it declares `dsh.bundle` / `dsh.client`
+  like the plugin manifest and maps `exports` (`.`, `./client`, `./locale/*.json`, `./icon`,
+  `./package.json`) into `plugin/`. `plugin/package.json` remains the local-link and tarball
+  manifest; local installs, the tarball layout and the Windows/macOS code are unchanged.
+- `scripts/verify.mjs` now checks that both manifests stay in sync and that every exported resource
+  actually resolves through the root manifest (70 checks, up from 66).
+- Docs: README / `docs/INSTALL.md` add GitHub-link installation (CLI, in-app `install_bundle`, the
+  Plugins page) and describe the root-manifest requirement; `docs/build-contract.md` records it.
+- Refresh `dist/local-dsh-devicex-1.1.2.tgz`.
+
 ## 1.1.1 - first-open fixes (Windows)
 
 - Client kept the platform returned by `/devicex/api/actions` out of its catalogue state, so

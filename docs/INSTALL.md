@@ -23,17 +23,43 @@ Device X 是一个 **DSH 持久插件**，安装到某个 DSH profile 后，该 
 | PowerShell（Windows） | 需要 `powershell.exe`（Windows PowerShell 5.1，系统自带）或 `pwsh.exe`（PowerShell 7+）。插件会自动探测，无需额外安装模块 |
 | 权限 | 安装 Host 代码需要 `danger-full-access` 或当次批准；执行时按提示确认 |
 
-## 方式一：官方 CLI（推荐给其他机器 / 其他 profile）
+## 方式一：从 GitHub 仓库安装（推荐，对方不需要源码）
+
+DSH（pnpm）把仓库**根目录**当作要安装的包，本仓库根部的 `package.json` 就是给 Git 安装的入口清单：
+它声明 `dsh.bundle` / `dsh.client`，并用 `exports` 把入口映射到 `plugin/` 下的真实代码；
+`plugin/package.json` 继续服务本地 link 安装与 tgz 分发。安装目标直接填仓库地址即可：
 
 ```sh
-# 从打包文件安装（推荐分发形式）
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.1.tgz
+# CLI
+dsh plugin --profile desktop add https://github.com/cfour-hi/DSHP-DeviceX
+```
+
+或运行中的 Desktop/Web 里让 Agent / 自己调用：
+
+```
+plugin_manager action=install_bundle target=https://github.com/cfour-hi/DSHP-DeviceX
+```
+
+- 公开仓库即可，**不需要**发布 npm、不需要改包名、也不需要去掉 `private`；pnpm 拉取默认分支的最新 commit。
+- 仓库根必须保留 `package.json` 且逐项声明 `dsh.bundle` / `dsh.client`。若根目录没有清单，pnpm 会把它
+  装成 `0.0.0` 占位包，DSH 激活时会报 “declares no dsh.bundle / not-bundle”，安装随之失败。
+- 不要把 `plugin/` 子目录的裸地址当安装目标：GitHub 直装固定取仓库根；需要子目录布局时请发
+  GitHub Release 的 `.tgz` 直链（见方式四）或 npm 包。pnpm 的 `#path:/plugin` 片段可以让 `plugin/`
+  自身作为包安装（记录下来是 `github:cfour-hi/DSHP-DeviceX#path:/plugin`），可作为临时绕过手段，
+  但有了仓库根清单后裸仓库地址即可用。
+- 更新：重新执行同一条 `add` / `install_bundle`（必要时先 `remove` 再安装），见“卸载 / 更新”。
+
+## 方式二：官方 CLI（本地 tgz / 源码目录）
+
+```sh
+# 从打包文件安装（适合离线或分发给别人）
+dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.2.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
 
 # Windows（PowerShell / cmd）
-dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.1.tgz
+dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.2.tgz
 dsh plugin --profile desktop add C:\path\plugin
 ```
 
@@ -49,41 +75,47 @@ dsh plugin --profile desktop add C:\path\plugin
 注意：
 
 - 对 **`desktop`** profile：应用会用它自己的 CLI（`manageDesktopProfile`），官方提示建议**先完全退出 Desktop**
-  再执行，避免安装过程与运行中的 Host 争用；装完重新打开应用即可。若不想退出，直接在应用内用方式二，安装会热生效。
+  再执行，避免安装过程与运行中的 Host 争用；装完重新打开应用即可。若不想退出，直接在应用内用方式三，安装会热生效。
 - 对 **其他 profile**（如自建 `web` profile）：装完用 `dsh --profile <profile>` 启动即可加载；tui/headless 这类
   没有 `webServer` 的 profile 不会激活本插件。
 - 目录安装是 `link:` 依赖，之后**不要移动/删除**该目录，否则插件失效。
+- Git 仓库安装见方式一；它与本地安装共用同一个包名 `@local/dsh-devicex`，同一 profile 只保留一种来源。
 
-## 方式二：应用内 `plugin_manager`（运行中热安装）
+## 方式三：应用内 `plugin_manager`（运行中热安装）
 
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.1.tgz
+plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.2.tgz
+# 也可以直接填仓库地址：target=https://github.com/cfour-hi/DSHP-DeviceX
 ```
 
 - 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到两个工具，无需重启；
   若返回 `restart-required` 则重启 DSH。
+- 直接在 **Plugins 页面**粘贴包名/仓库地址/本地路径时，DSH 会先装再等一次确认：安装成功后需要点
+  **Enable now** 才会启用（`plugin_manager` 工具默认 `enabled: true`，装完自动启用并加进
+  `dsh.profile.bundles`）。
 - 这个入口在 CLI 的能力之上还多了：registry 回退计划、GitHub 预检、构建脚本批准（`approvedBuilds`）、
   以及给界面的安装进度/激活结果；Plugins 页面也用它做启用/停用/卸载。
 
-## 方式三：分发包
+## 方式四：分发包
 
-仓库里的 `dist/local-dsh-devicex-1.1.1.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
+仓库里的 `dist/local-dsh-devicex-1.1.2.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
 
-- 对方拿到后按方式一或方式二安装即可；
+- 对方拿到后按方式二或方式三安装即可；
 - 更新同理：重新 `npm pack`（在 `plugin/` 下 `npm pack --pack-destination ../dist`）后用新 tgz 覆盖安装。
 
-## 方式四：npm registry / Git 仓库
+## 方式五：npm registry 发布
 
-`dsh plugin add` 与 `install_bundle` 都接受 registry 包名和 git 地址（如 `git+https://...`）。
-发布前需要：
+`dsh plugin add` 与 `install_bundle` 都接受 registry 包名。要给所有人用 `npm i` 式安装时：
 
-1. 把 `plugin/package.json` 的 `name` 改成自己的包名（例如 `@yourscope/dsh-devicex`），删除 `"private": true`；
-2. `npm publish` 或推送到 Git；
+1. 把 `plugin/package.json` **与仓库根 `package.json`** 的 `name` 一起改成自己的包名
+   （例如 `@yourscope/dsh-devicex`），删除 `"private": true`；
+2. `npm publish`（在 `plugin/` 下发布，分发清单以它为准）；
 3. 安装：`dsh plugin --profile <p> add @yourscope/dsh-devicex`（或 `install_bundle` 同样的 target）。
 
-包名同时是浏览器模块 id：改名时 `plugin/client.js` 里的模块 id 与 `plugin/cordis.patch.yml` 的 `name` 也要同步。
+包名同时是浏览器模块 id：改名时 `plugin/client.js` 里的模块 id、`plugin/cordis.patch.yml` 的 `name`
+以及仓库根 `package.json` 的导出都要同步。
 
 ## 安装后确认
 
@@ -106,11 +138,19 @@ dsh plugin --profile <profile> remove @local/dsh-devicex
 plugin_manager action=remove_bundle target=@local/dsh-devicex
 ```
 
-更新：用新 tgz（或新目录/新版本）重新执行 add / install_bundle。
+更新：
+
+- tgz / 目录安装：用新 tgz（或新目录/新版本）重新执行 add / install_bundle；
+- GitHub 仓库安装：重新执行同一条 `install_bundle` / `dsh plugin add <仓库地址>` 拉取默认分支最新 commit；
+  若 DSH 认为“已安装”而未更新，先 `remove` 再安装。
+- 早期用裸仓库地址安装失败时，CLI 可能留下一个名为 `DSHP-DeviceX` 的 **0.0.0 普通依赖**（没有 bundle）。
+  升级到带仓库根清单的版本前，先用 `dsh plugin --profile <profile> remove DSHP-DeviceX` 清掉它。
 
 ## 注意事项
 
 - 这是**本机设备管理**插件，数据不出本机；每个用户的机器各自采集、各自操作，不会互相同步。
+- GitHub 直装读取的是仓库**根** `package.json`；`plugin/package.json` 只服务本地 link 与 tgz 分发。
+  改清单（包名 / `dsh.bundle` / `dsh.client` / 导出）时两份要同步，`node scripts/verify.mjs` 会检查。
 - `device_control` 对 Agent 开放了结束进程、卸载软件、改主机名、防火墙、DNS 等高权限动作；装到共享账号的
   profile 前请确认这是预期行为。
 - 需管理员权限的动作（防火墙、DNS、系统级启动项、改主机名、Wi-Fi 开关）失败时会把命令 stderr 返回给界面：

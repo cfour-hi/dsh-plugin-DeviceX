@@ -18,6 +18,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -82,6 +83,48 @@ check(
   manifest.exports?.['./icon'] === './icon.svg' &&
     manifest.exports?.['./locale/*.json'] === './locale/*.json' &&
     manifest.exports?.['./client'] === './client.js',
+);
+// A Git install (`dsh plugin add <github-url>`) fetches the repository root as
+// the package, so the root manifest is what DSH reads for `dsh.bundle`; the real
+// code stays in plugin/ and plugin/package.json remains the local-dev/tarball
+// manifest. These checks keep the two manifests and the export map in sync.
+const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+check(
+  'root package.json is a Git-installable copy of the plugin manifest',
+  rootManifest.name === manifest.name && rootManifest.version === manifest.version,
+  `${rootManifest.name}@${rootManifest.version}`,
+);
+check(
+  'root package.json carries the same bundle/client declarations',
+  JSON.stringify(rootManifest.dsh?.bundle?.platforms) === JSON.stringify(manifest.dsh?.bundle?.platforms) &&
+    rootManifest.dsh?.bundle?.patch === `./plugin/${String(manifest.dsh?.bundle?.patch ?? '').replace(/^\.\//, '')}` &&
+    JSON.stringify(rootManifest.dsh?.client) === JSON.stringify(manifest.dsh?.client),
+);
+check(
+  'root package.json exports point into plugin/',
+  rootManifest.exports?.['.'] === './plugin/index.js' &&
+    rootManifest.exports?.['./client'] === './plugin/client.js' &&
+    rootManifest.exports?.['./locale/*.json'] === './plugin/locale/*.json' &&
+    rootManifest.exports?.['./icon'] === './plugin/icon.svg' &&
+    rootManifest.exports?.['./package.json'] === './package.json',
+);
+const requireFromRoot = createRequire(pathToFileURL(join(root, 'package.json')));
+check(
+  'every exported resource resolves through the root manifest',
+  [
+    '@local/dsh-devicex',
+    '@local/dsh-devicex/client',
+    '@local/dsh-devicex/package.json',
+    '@local/dsh-devicex/locale/en.json',
+    '@local/dsh-devicex/locale/zh.json',
+    '@local/dsh-devicex/icon',
+  ].every((specifier) => {
+    try {
+      return statSync(requireFromRoot.resolve(specifier)).isFile();
+    } catch {
+      return false;
+    }
+  }),
 );
 const patch = readFileSync(join(pluginDir, 'cordis.patch.yml'), 'utf8');
 check('patch inserts the devicex row', /- id: devicex[\s\S]*name: '@local\/dsh-devicex'/.test(patch));

@@ -8,7 +8,9 @@
 - **平台**：**macOS** 与 **Windows 10/11**。Host 采集/动作按 `process.platform` 自动选择实现
   （`darwin` 用系统命令，`win32` 用 PowerShell/CIM）；浏览器 UI、HTTP API、Agent 工具在两个平台完全一致。
 
-- 已安装到当前 `desktop` profile（本地 link 安装，包目录 `plugin/`），安装结果 `application: applied`。
+- 已安装到当前 `desktop` profile（本地 link 安装，包目录 `plugin/`），安装结果 `application: applied`；
+  也支持把 GitHub 仓库地址直接当安装目标（仓库根 `package.json` 是 Git 安装入口，见
+  [分享给其他人安装](#分享给其他人安装)）。
 - UI 入口：左侧栏底部的 **Device X 面板图标**（在 Plugins、Schedules 图标之后）→ 中央主面板。
 - 失败动作只在对应卡片/弹窗内报错，不会让页面或插件崩溃。
 
@@ -165,21 +167,35 @@ curl -sN -m 2 http://127.0.0.1:50732/plugins/events | head -c 200               
 
 ## 分享给其他人安装
 
-官方安装命令是 CLI（底层与插件管理器同一套操作，安装 pnpm 依赖并自动把 bundle 写进 profile 的
-`dsh.profile.bundles`）：
+**从 GitHub 仓库直接安装（推荐，对方无需本地源码）** —— 在 Plugins 页面粘贴仓库地址，
+或用 CLI / Agent 工具：
 
 ```sh
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.1.tgz
+dsh plugin --profile desktop add https://github.com/cfour-hi/DSHP-DeviceX
+# 应用内等价操作：plugin_manager action=install_bundle target=https://github.com/cfour-hi/DSHP-DeviceX
+```
+
+DSH（pnpm）把仓库**根目录**当作要安装的包，所以仓库根部保留一份薄 `package.json`：它声明
+`dsh.bundle` / `dsh.client`，并用 `exports` 把入口映射到 `plugin/` 下的真实代码；
+`plugin/package.json` 仍然是本地 link 安装与 tgz 分发包用的清单。两份清单必须保持同步，
+`node scripts/verify.mjs` 会逐项检查，并且会校验每个导出资源都能真正解析到文件。
+
+**本地文件 / tgz 安装（开发或离线分发）**：
+
+```sh
+dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.2.tgz
 # 或：dsh plugin --profile desktop add /绝对路径/plugin
 ```
 
-运行中的 Desktop/Web 也可以直接在会话里用 `plugin_manager action=install_bundle target=<绝对路径>` 热安装
-（返回 `application: applied`，无需重启）。分发件为 `dist/local-dsh-devicex-1.1.1.tgz`（仅含运行文件；随代码提交，代码改动后需重新 `npm pack`）。
-完整步骤、前提（macOS 或 Windows 10/11、web 形态 profile）、npm/Git 分发、卸载与注意事项见
+运行中的 Desktop/Web 也可以直接在会话里用 `plugin_manager action=install_bundle target=<绝对路径或仓库地址>`
+热安装（返回 `application: applied`，无需重启）。分发件为 `dist/local-dsh-devicex-1.1.2.tgz`
+（仅含运行文件；随代码提交，代码改动后需重新 `npm pack`）。
+完整步骤、前提（macOS 或 Windows 10/11、web 形态 profile）、GitHub/npm 分发、卸载与注意事项见
 [`docs/INSTALL.md`](docs/INSTALL.md)。
 
 ## 二次开发
 
 修改 `plugin/` 下任意文件后，重新执行 `plugin_manager install_bundle`（target 同上）即可；
-或者重启 Harness。随后运行 `node scripts/verify.mjs` / `node scripts/verify-windows.mjs` 做离线回归，
+或者重启 Harness。改动插件清单时记得同步仓库根的 `package.json`（GitHub 安装读取它）。
+随后运行 `node scripts/verify.mjs` / `node scripts/verify-windows.mjs` 做离线回归，
 并用上面的 `curl` 探测实时路由。

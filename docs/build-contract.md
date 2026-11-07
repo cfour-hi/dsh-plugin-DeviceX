@@ -28,6 +28,10 @@ charts drawn with SVG, and a tasteful CSS-3D device visual. No external librarie
 ## Environment facts
 
 - Working directory: `~/GitHub/DSHP-DeviceX` (the repository root). The plugin package is `plugin/`.
+  The repository root also carries a thin `package.json`: it is the manifest a Git install reads
+  (`dsh.bundle` / `dsh.client` plus `exports` mapped into `plugin/`), because DSH/pnpm treat the
+  repository root as the package. `plugin/package.json` stays the source of truth for the plugin's
+  own files; keep the two in sync (`scripts/verify.mjs` checks it).
 - Target machine: macOS (darwin, Apple Silicon). Node 24 available. Host half runs in the DSH Host
   process (Node). `plugin/package.json` is already written; the bundle is installed later by Lead.
 - Unpacked DSH sources for reference (read-only): `/tmp/dshx/asar/dsh/node_modules/@deepseek-ai/`.
