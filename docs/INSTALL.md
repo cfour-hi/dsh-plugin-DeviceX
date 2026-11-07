@@ -53,13 +53,13 @@ plugin_manager action=install_bundle target=https://github.com/cfour-hi/DSHP-Dev
 
 ```sh
 # 从打包文件安装（适合离线或分发给别人；先在 plugin/ 下 npm pack 生成，见方式四）
-dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.4.tgz
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.5.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
 
 # Windows（PowerShell / cmd）
-dsh plugin --profile desktop add C:\path\cfour-hi-dsh-devicex-1.1.4.tgz
+dsh plugin --profile desktop add C:\path\cfour-hi-dsh-devicex-1.1.5.tgz
 dsh plugin --profile desktop add C:\path\plugin
 ```
 
@@ -86,7 +86,7 @@ dsh plugin --profile desktop add C:\path\plugin
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1.1.4.tgz
+plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1.1.5.tgz
 # 也可以直接填仓库地址：target=https://github.com/cfour-hi/DSHP-DeviceX
 ```
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.5 — cheaper 3D motion
+
+- The overview 3D scene's core pulse animated `box-shadow` on every frame. Inside the
+  `preserve-3d` scene that forced a continuous repaint and was the dominant cost of the scene
+  (measured in headless Chrome: the scene alone sustained ~58% of one CPU core, and removing just
+  the pulse dropped it to ~36%). The pulse now animates the **opacity of a dedicated halo**
+  (`.dx-chipGlow`), which the compositor can run without repainting; the transform-animated layers
+  (orbits, chip float, particles) get `will-change: transform` to stay on the compositor.
+- The scene pauses itself through `IntersectionObserver` + `visibilitychange` when the card is
+  scrolled out of view or the window is hidden, in addition to the existing reduce-motion and 3D
+  toggle.
+- Same benchmark scene after the change: ~58% → ~37% of one core (software raster) and ~34% → ~14%
+  (GPU path). A fixed-phase before/after render is visually equivalent (only the glow halo is
+  slightly softer).
+- `scripts/verify.mjs` guards the no-`box-shadow`-animation rule and the visibility pause
+  (73 checks).
+
 ## 1.1.4 — visible switch thumb in both themes
 
 - The switch thumb used `--dsw-alias-label-primary`, which equals `--dsw-alias-brand-primary` in

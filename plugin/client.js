@@ -1659,7 +1659,7 @@ window.__ModuleLoader__.load({
 	-webkit-mask-image: linear-gradient(to top, rgba(0,0,0,.85), transparent 78%);
 	pointer-events: none;
 }
-.dx-orbit { position: absolute; inset: 0; transform-style: preserve-3d; animation: dx-orbit 26s linear infinite; }
+.dx-orbit { position: absolute; inset: 0; transform-style: preserve-3d; animation: dx-orbit 26s linear infinite; will-change: transform; }
 .dx-orbit[data-layer="2"] { animation-duration: 34s; animation-direction: reverse; }
 .dx-orbit[data-layer="3"] { animation-duration: 18s; }
 .dx-ring {
@@ -1684,7 +1684,7 @@ window.__ModuleLoader__.load({
 	margin-top: -4px; border-radius: 50%; background: #67e8f9;
 	box-shadow: 0 0 14px #22d3ee, 0 0 34px rgba(34, 211, 238, .55);
 }
-.dx-chipScene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; animation: dx-float 7s ease-in-out infinite; }
+.dx-chipScene { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; transform-style: preserve-3d; animation: dx-float 7s ease-in-out infinite; will-change: transform; }
 .dx-chipBody {
 	position: relative; width: 116px; height: 116px; border-radius: 16px;
 	transform: rotateX(52deg) rotateZ(-38deg);
@@ -1709,7 +1709,15 @@ window.__ModuleLoader__.load({
 	border-radius: 10px;
 	background: radial-gradient(circle at 38% 32%, #bff3ff 0%, #38bdf8 36%, #6366f1 78%, #4338ca 100%);
 	box-shadow: 0 0 18px rgba(56, 189, 248, .75), 0 0 44px rgba(99, 102, 241, .5);
-	animation: dx-corePulse 3.2s ease-in-out infinite;
+}
+/* The pulse animates opacity (compositor-friendly) on this halo instead of the
+ * core's box-shadow, whose per-frame repaint was the scene's biggest CPU cost. */
+.dx-chipGlow {
+	position: absolute; left: 50%; top: 50%; width: 112px; height: 112px; margin: -56px 0 0 -56px;
+	border-radius: 50%;
+	background: radial-gradient(closest-side, rgba(56, 189, 248, .6) 0%, rgba(99, 102, 241, .34) 46%, rgba(99, 102, 241, 0) 76%);
+	animation: dx-coreGlow 3.2s ease-in-out infinite;
+	pointer-events: none;
 }
 .dx-chipCore::after {
 	content: ""; position: absolute; inset: 9px; border-radius: 6px;
@@ -1738,7 +1746,7 @@ window.__ModuleLoader__.load({
 .dx-particle {
 	position: absolute; width: 4px; height: 4px; border-radius: 50%;
 	background: #67e8f9; box-shadow: 0 0 10px rgba(34, 211, 238, .9);
-	animation: dx-drift 9s ease-in-out infinite;
+	animation: dx-drift 9s ease-in-out infinite; will-change: transform;
 }
 .dx-particle[data-p="1"] { left: 16%; top: 30%; animation-delay: -1s; }
 .dx-particle[data-p="2"] { left: 78%; top: 24%; width: 3px; height: 3px; background: #a78bfa; box-shadow: 0 0 10px rgba(167, 139, 250, .9); animation-delay: -3s; }
@@ -1750,7 +1758,9 @@ window.__ModuleLoader__.load({
 	letter-spacing: .14em; text-transform: uppercase;
 }
 .dx-root[data-motion="off"] .dx-scene *,
-.dx-root[data-motion="off"] .dx-scene { animation-play-state: paused !important; }
+.dx-root[data-motion="off"] .dx-scene,
+.dx-scene[data-motion="off"] *,
+.dx-scene[data-motion="off"] { animation-play-state: paused !important; }
 
 /* ------------------------------------------------------------------- KPIs */
 .dx-kpiGrid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
@@ -2099,7 +2109,7 @@ window.__ModuleLoader__.load({
 @keyframes dx-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @keyframes dx-orbit { from { transform: rotateX(58deg) rotateZ(0deg); } to { transform: rotateX(58deg) rotateZ(360deg); } }
 @keyframes dx-float { 0%, 100% { transform: translateY(-4px); } 50% { transform: translateY(5px); } }
-@keyframes dx-corePulse { 0%, 100% { box-shadow: 0 0 16px rgba(56, 189, 248, .6), 0 0 38px rgba(99, 102, 241, .4); } 50% { box-shadow: 0 0 24px rgba(56, 189, 248, .9), 0 0 56px rgba(99, 102, 241, .62); } }
+@keyframes dx-coreGlow { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 @keyframes dx-drift { 0%, 100% { transform: translate3d(0, 0, 0); opacity: .55; } 50% { transform: translate3d(0, -12px, 0); opacity: 1; } }
 
 /* ------------------------------------------------------------ responsive */
@@ -3060,12 +3070,36 @@ window.__ModuleLoader__.load({
 			return alerts;
 		}
 
-		/** Pure-CSS layered device core; decorative only (hidden from the a11y tree). */
+		/**
+		 * Pure-CSS layered device core; decorative only (hidden from the a11y tree).
+		 * Motion pauses when the window is hidden or the scene scrolls out of view,
+		 * so the always-running CSS animation stops costing CPU when nobody sees it.
+		 */
 		function DeviceScene(props) {
+			const sceneRef = useRef(null);
+			const [inView, setInView] = useState(true);
+			const [pageVisible, setPageVisible] = useState(true);
+			useEffect(() => {
+				const node = sceneRef.current;
+				if (!node || typeof IntersectionObserver !== "function") return void 0;
+				const observer = new IntersectionObserver((entries) => {
+					for (const entry of entries) setInView(entry.isIntersecting === true);
+				}, { threshold: 0 });
+				observer.observe(node);
+				return () => observer.disconnect();
+			}, []);
+			useEffect(() => {
+				if (typeof document === "undefined") return void 0;
+				const onChange = () => setPageVisible(document.hidden !== true);
+				onChange();
+				document.addEventListener("visibilitychange", onChange);
+				return () => document.removeEventListener("visibilitychange", onChange);
+			}, []);
 			const ring = (layer, id) => h("div", { className: "dx-orbit", "data-layer": String(layer) }, h("div", { className: "dx-ring", "data-ring": String(id) }));
+			const motion = props.animated !== false && inView && pageVisible ? "on" : "off";
 			return h(
 				"div",
-				{ className: "dx-scene", "data-motion": props.animated === false ? "off" : "on", "aria-hidden": "true" },
+				{ className: "dx-scene", "data-motion": motion, "aria-hidden": "true", ref: sceneRef },
 				h("div", { className: "dx-sceneGlow" }),
 				h("div", { className: "dx-sceneGrid" }),
 				ring(1, 1),
@@ -3078,6 +3112,7 @@ window.__ModuleLoader__.load({
 						"div",
 						{ className: "dx-chipBody" },
 						h("div", { className: "dx-chipPins" }, Array.from({ length: 12 }).map((_ignored, index) => h("span", { key: index }))),
+						h("div", { className: "dx-chipGlow" }),
 						h("div", { className: "dx-chipCore" }),
 					),
 				),

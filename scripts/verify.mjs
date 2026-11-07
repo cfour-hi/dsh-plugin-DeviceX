@@ -314,6 +314,21 @@ check(
   clientSource.includes('var(--dsw-alias-label-primary-foreground)') &&
     clientSource.includes('.dx-switch[aria-checked="false"] .dx-switchThumb { background: var(--dsw-alias-switch-thumb); }'),
 );
+// The 3D core pulse must not animate box-shadow (per-frame repaint, the scene's
+// biggest CPU cost): it animates the opacity of a dedicated halo instead.
+check(
+  '3D core pulse animates a halo opacity, not box-shadow',
+  clientSource.includes('.dx-chipGlow') &&
+    clientSource.includes('animation: dx-coreGlow') &&
+    !clientSource.includes('animation: dx-corePulse') &&
+    !clientSource.includes('@keyframes dx-corePulse'),
+);
+check(
+  '3D scene pauses its animation off-screen and when the page is hidden',
+  clientSource.includes('IntersectionObserver') &&
+    clientSource.includes('visibilitychange') &&
+    clientSource.includes('.dx-scene[data-motion="off"]'),
+);
 class Component {
   constructor(props) {
     this.props = props ?? {};
