@@ -306,6 +306,14 @@ section('4. Browser module (stubbed platform)');
 const clientSource = readFileSync(join(pluginDir, 'client.js'), 'utf8');
 check('module loader id matches the package name', clientSource.includes(`id: "${manifest.name}"`));
 check('only react is required', !/require\("(?!react")/.test(clientSource));
+// The switch thumb must contrast with its track in both themes. `label-primary`
+// equals `brand-primary` in the shipped themes, which makes the knob invisible
+// on an enabled switch; the theme exposes dedicated tokens for this.
+check(
+  'switch thumb uses the harness contrast tokens',
+  clientSource.includes('var(--dsw-alias-label-primary-foreground)') &&
+    clientSource.includes('.dx-switch[aria-checked="false"] .dx-switchThumb { background: var(--dsw-alias-switch-thumb); }'),
+);
 class Component {
   constructor(props) {
     this.props = props ?? {};

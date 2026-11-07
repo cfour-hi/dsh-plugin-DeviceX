@@ -184,8 +184,8 @@ DSH（pnpm）把仓库**根目录**当作要安装的包，所以仓库根部保
 
 ```sh
 # 需要 tgz 时先生成（dist/ 是构建产物，不随仓库提交）：
-cd plugin && npm pack --pack-destination ../dist   # dist/cfour-hi-dsh-devicex-1.1.3.tgz
-dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.3.tgz
+cd plugin && npm pack --pack-destination ../dist   # dist/cfour-hi-dsh-devicex-1.1.4.tgz
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.1.4.tgz
 # 或：dsh plugin --profile desktop add /绝对路径/plugin
 ```
 

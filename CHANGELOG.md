@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.4 — visible switch thumb in both themes
+
+- The switch thumb used `--dsw-alias-label-primary`, which equals `--dsw-alias-brand-primary` in
+  both shipped themes, so an enabled switch rendered as a featureless solid pill (no knob) and the
+  disabled thumb was the brightest element. It now mirrors the harness's own switch:
+  `--dsw-alias-label-primary-foreground` for the enabled thumb and `--dsw-alias-switch-thumb` for the
+  disabled one (track off state uses `--dsw-alias-border-l3`). Affected the Launch agents "Loaded"
+  column and every boolean parameter switch in action forms.
+- `scripts/verify.mjs` guards the two theme tokens (71 checks).
+
 ## 1.1.3 — publish under the @cfour-hi scope; dist/ untracked
 
 - Rename the plugin package from `@local/dsh-devicex` to `@cfour-hi/dsh-devicex` in both manifests,

@@ -1932,19 +1932,25 @@ window.__ModuleLoader__.load({
 .dx-segBtn[aria-pressed="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-layer-1); box-shadow: 0 1px 2px color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); }
 
 /* ---------------------------------------------------------------- switch */
+/* Mirrors the harness's own switch: the thumb must contrast with the track in
+ * BOTH states. label-primary equals brand-primary in the shipped themes, so
+ * using it made the knob invisible on an enabled (brand-filled) switch; the
+ * theme provides label-primary-foreground for the enabled thumb and
+ * switch-thumb for the disabled one. */
 .dx-switch {
 	position: relative; flex: none; width: 36px; height: 20px; padding: 2px;
 	border: 0; border-radius: 999px; cursor: pointer;
-	background: var(--dsw-alias-border-l2);
+	background: var(--dsw-alias-border-l3);
 	transition: background-color .18s ease;
 }
 .dx-switch[aria-checked="true"] { background: var(--dsw-alias-brand-primary); }
 .dx-switch:disabled { cursor: default; opacity: .5; }
 .dx-switchThumb {
 	display: block; width: 16px; height: 16px; border-radius: 50%;
-	background: var(--dsw-alias-label-primary);
-	transition: transform .18s ease;
+	background: var(--dsw-alias-label-primary-foreground);
+	transition: transform .18s ease, background-color .18s ease;
 }
+.dx-switch[aria-checked="false"] .dx-switchThumb { background: var(--dsw-alias-switch-thumb); }
 .dx-switch[aria-checked="true"] .dx-switchThumb { transform: translateX(16px); }
 
 /* ---------------------------------------------------------- states / empty */
