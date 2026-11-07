@@ -43,6 +43,16 @@ const MODULE_ORDER = [
   'components/Card.tsx',
   'components/Pill.tsx',
   'components/SignalBars.tsx',
+  'components/Switch.tsx',
+  'components/Donut.tsx',
+  'components/Sparkline.tsx',
+  'components/Bar.tsx',
+  'components/SectionHead.tsx',
+  'components/SubCard.tsx',
+  'components/SearchField.tsx',
+  'components/SegmentedControl.tsx',
+  'components/ErrorState.tsx',
+  'components/KpiCard.tsx',
   'core.js',
 ];
 

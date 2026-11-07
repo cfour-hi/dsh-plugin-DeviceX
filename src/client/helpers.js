@@ -7,6 +7,7 @@
 		const isObj = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 		const asObject = (value) => (isObj(value) ? value : {});
 		const asArray = (value) => (Array.isArray(value) ? value : []);
+		/** @type {(value: unknown) => value is number} */
 		const isFiniteNumber = (value) => typeof value === "number" && isFinite(value);
 		const numOr = (value, fallback) => (isFiniteNumber(value) ? value : fallback);
 		const numOrNull = (value) => (isFiniteNumber(value) ? value : null);

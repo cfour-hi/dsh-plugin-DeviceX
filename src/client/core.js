@@ -16,6 +16,16 @@ import { EmptyState } from "./components/EmptyState";
 import { Fact } from "./components/Fact";
 import { FactGrid } from "./components/FactGrid";
 import { DataTable } from "./components/DataTable";
+import { Switch } from "./components/Switch";
+import { Donut } from "./components/Donut";
+import { Sparkline } from "./components/Sparkline";
+import { Bar } from "./components/Bar";
+import { SectionHead } from "./components/SectionHead";
+import { SubCard } from "./components/SubCard";
+import { SearchField } from "./components/SearchField";
+import { SegmentedControl } from "./components/SegmentedControl";
+import { ErrorState } from "./components/ErrorState";
+import { KpiCard } from "./components/KpiCard";
 import {
 	NS,
 	PANEL_ID,
@@ -208,197 +218,6 @@ export function createClient() {
 		// ------------------------------------------------------------------
 		// Small presentational primitives.
 		// ------------------------------------------------------------------
-		function Switch(props) {
-			return h(
-				"button",
-				{
-					type: "button",
-					className: "dx-switch",
-					role: "switch",
-					"aria-checked": props.checked === true,
-					"aria-label": props.label,
-					disabled: props.disabled === true,
-					onClick: props.onChange,
-				},
-				h("span", { className: "dx-switchThumb", "aria-hidden": "true" }),
-			);
-		}
-
-		function Donut(props) {
-			const size = numOr(props.size, 62);
-			const stroke = numOr(props.stroke, 7);
-			const percent = isFiniteNumber(props.value) ? clamp(props.value, 0, 100) : null;
-			const radius = (size - stroke) / 2;
-			const circumference = 2 * Math.PI * radius;
-			const filled = percent === null ? 0 : (percent / 100) * circumference;
-			return h(
-				"div",
-				{ className: "dx-donutWrap", style: { width: size, height: size }, role: "img", "aria-label": strOr(props.label, fmtPercent(percent)) },
-				h(
-					"svg",
-					{ width: size, height: size, viewBox: "0 0 " + size + " " + size, "aria-hidden": "true" },
-					h("circle", {
-						cx: size / 2,
-						cy: size / 2,
-						r: radius,
-						fill: "none",
-						stroke: "var(--dsw-alias-border-l1)",
-						strokeWidth: stroke,
-					}),
-					h("circle", {
-						cx: size / 2,
-						cy: size / 2,
-						r: radius,
-						fill: "none",
-						stroke: strOr(props.color, "var(--dsw-alias-brand-primary)"),
-						strokeWidth: stroke,
-						strokeLinecap: "round",
-						strokeDasharray: filled.toFixed(2) + " " + circumference.toFixed(2),
-						transform: "rotate(-90 " + size / 2 + " " + size / 2 + ")",
-						style: { transition: "stroke-dasharray .55s ease" },
-					}),
-				),
-				props.centerText === undefined || props.centerText === null ? null : h("div", { className: "dx-donutCenter" }, props.centerText),
-			);
-		}
-
-		function Sparkline(props) {
-			const height = numOr(props.height, 26);
-			const series = asArray(props.series).filter((entry) => isObj(entry) && asArray(entry.values).length >= 2);
-			if (series.length === 0) return h("div", { className: "dx-spark dx-sparkEmpty", "aria-hidden": "true" });
-			let max = numOr(props.domainMax, 0);
-			if (!(max > 0)) {
-				for (const entry of series) {
-					for (const value of entry.values) {
-						if (isFiniteNumber(value) && value > max) max = value;
-					}
-				}
-			}
-			if (!(max > 0)) max = 1;
-			const innerHeight = Math.max(4, height - 4);
-			const parts = [];
-			series.forEach((entry, seriesIndex) => {
-				const values = asArray(entry.values).filter(isFiniteNumber);
-				if (values.length < 2) return;
-				const step = 100 / (values.length - 1);
-				const points = values.map((value, index) => {
-					const x = index * step;
-					const y = height - 2 - (clamp(value, 0, max) / max) * innerHeight;
-					return x.toFixed(2) + "," + y.toFixed(2);
-				});
-				const color = strOr(entry.color, "var(--dsw-alias-brand-primary)");
-				if (seriesIndex === 0) {
-					parts.push(
-						h("path", {
-							key: "area-" + seriesIndex,
-							d: "M0," + height + " L" + points.join(" L") + " L100," + height + " Z",
-							fill: color,
-							opacity: 0.1,
-							stroke: "none",
-						}),
-					);
-				}
-				parts.push(
-					h("polyline", {
-						key: "line-" + seriesIndex,
-						points: points.join(" "),
-						fill: "none",
-						stroke: color,
-						strokeWidth: 1.5,
-						strokeLinecap: "round",
-						strokeLinejoin: "round",
-						vectorEffect: "non-scaling-stroke",
-					}),
-				);
-			});
-			if (parts.length === 0) return h("div", { className: "dx-spark dx-sparkEmpty", "aria-hidden": "true" });
-			return h(
-				"svg",
-				{
-					className: "dx-spark",
-					viewBox: "0 0 100 " + height,
-					preserveAspectRatio: "none",
-					"aria-hidden": "true",
-					focusable: "false",
-				},
-				parts,
-			);
-		}
-
-		function Bar(props) {
-			const percent = isFiniteNumber(props.percent) ? clamp(props.percent, 0, 100) : 0;
-			return h(
-				"div",
-				{ className: "dx-barRow" },
-				h(
-					"div",
-					{ className: "dx-barHead" },
-					h("span", { className: "dx-truncate" }, props.label),
-					h("span", null, isFiniteNumber(props.percent) ? fmtPercent(percent) : "—"),
-				),
-				h("div", { className: "dx-barTrack", role: "presentation" }, h("div", { className: "dx-barFill", style: { width: percent + "%", background: strOr(props.color, usageTone(percent)) } })),
-			);
-		}
-
-		function ErrorState(props) {
-			return h(
-				"div",
-				{ className: "dx-error", role: "alert" },
-				h("span", { className: "dx-errorIcon" }, h(Icon, { name: "warning", size: 24 })),
-				props.title ? h("p", { className: "dx-errorTitle" }, props.title) : null,
-				props.text ? h("p", { className: "dx-errorText" }, props.text) : null,
-				props.onRetry
-					? h("button", { type: "button", className: "dx-btn", "data-variant": "primary", onClick: props.onRetry }, h(Icon, { name: "refresh", size: 14 }), props.retryLabel || props.t("common.retry"))
-					: null,
-			);
-		}
-
-		function SectionHead(props) {
-			return h(
-				"div",
-				{ className: "dx-sectionHead" },
-				h("h2", { className: "dx-sectionTitle" }, props.title),
-				props.subtitle ? h("span", { className: "dx-sectionSub" }, props.subtitle) : null,
-			);
-		}
-
-		function SearchField(props) {
-			return h(
-				"div",
-				{ className: "dx-searchWrap" },
-				h("span", { className: "dx-searchIcon" }, h(Icon, { name: "search", size: 14 })),
-				h("input", {
-					type: "search",
-					className: "dx-input",
-					value: strOr(props.value, ""),
-					placeholder: props.placeholder,
-					"aria-label": props.label || props.placeholder,
-					onChange: (event) => props.onChange(event.target.value),
-				}),
-			);
-		}
-
-		function SegmentedControl(props) {
-			const options = asArray(props.options);
-			return h(
-				"div",
-				{ className: "dx-segmented", role: "group", "aria-label": props.label },
-				options.map((option) =>
-					h(
-						"button",
-						{
-							key: option.value,
-							type: "button",
-							className: "dx-segBtn",
-							"aria-pressed": props.value === option.value,
-							onClick: () => props.onChange(option.value),
-						},
-						option.label,
-					),
-				),
-			);
-		}
-
 		class Guard extends React.Component {
 			constructor(props) {
 				super(props);
@@ -705,26 +524,6 @@ export function createClient() {
 			);
 		}
 
-		function KpiCard(props) {
-			return h(
-				"div",
-				{ className: "dx-kpi" },
-				h(
-					"div",
-					{ className: "dx-kpiTop" },
-					props.donut,
-					h(
-						"div",
-						{ className: "dx-kpiMeta" },
-						h("div", { className: "dx-kpiLabel" }, props.label),
-						h("div", { className: "dx-kpiValue" }, props.value),
-						props.sub ? h("div", { className: "dx-kpiSub", title: props.subTitle || undefined }, props.sub) : null,
-					),
-				),
-				h("div", { className: "dx-kpiSpark" }, props.spark),
-			);
-		}
-
 		function OverviewTab(props) {
 			const t = props.t;
 			const metrics = props.metrics;
@@ -990,21 +789,6 @@ export function createClient() {
 				h("span", { className: "dx-bannerIcon" }, h(Icon, { name: "info", size: 14 })),
 				h("span", { className: "dx-bannerText" }, props.labelKey ? t(props.labelKey) : t("error.sectionHint")),
 				h("span", { className: "dx-small dx-muted", title: errors.join("\n") }, errors[0]),
-			);
-		}
-
-		function SubCard(props) {
-			return h(
-				"div",
-				{ className: "dx-subcard" },
-				h(
-					"div",
-					{ className: "dx-subcardHead" },
-					props.icon ? h("span", { className: "dx-muted" }, h(Icon, { name: props.icon, size: 14 })) : null,
-					h("span", { className: "dx-subcardTitle" }, props.title),
-					props.badge || null,
-				),
-				props.meta ? h("div", { className: "dx-subcardMeta" }, props.meta) : null,
 			);
 		}
 

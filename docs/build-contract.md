@@ -585,3 +585,13 @@ The browser half is no longer hand-edited as one file:
   concatenation; module order in `scripts/build-client-concat.mjs` follows the component
   dependency chain.
 - Remaining `h()` components convert incrementally; new UI components should be `.tsx`.
+
+## 1.3.8 TSX form/chart primitives (P2-b, frozen)
+
+- `src/client/components/` now hosts 19 `.tsx` components: the nine presentation primitives
+  from 1.3.7 plus `Switch`, `Donut`, `Sparkline`, `Bar`, `SectionHead`, `SubCard`,
+  `SearchField`, `SegmentedControl`, `ErrorState`, `KpiCard`.
+- `helpers.js` exports `isFiniteNumber` as a `value is number` predicate so TSX chart math
+  narrows without per-site casts.
+- Remaining `h()` code is the page/tab/modal layer; it converts module by module and the
+  render suites (215 assertions, both build engines) remain the behaviour guard.

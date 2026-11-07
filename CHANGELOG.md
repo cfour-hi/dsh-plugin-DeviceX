@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.8 — TSX migration of form/chart primitives
+
+No visible UI change.
+
+- Ten more components moved from `core.js` into typed `.tsx` modules: `Switch`, `Donut`,
+  `Sparkline`, `Bar`, `SectionHead`, `SubCard`, `SearchField`, `SegmentedControl`,
+  `ErrorState`, `KpiCard` (19 `.tsx` components in total, alongside the 9 from 1.3.6/1.3.7).
+- `helpers.js` `isFiniteNumber` is now a type predicate (`value is number`), so the
+  sparkline/donut/bar math narrows correctly under `checkJs`.
+- concat (C) fallback module order covers the new component files; both build engines keep
+  producing equivalent artifacts (`verify:build` 37 checks).
+- `plugin/client.js` regenerated (202,667 → 202,703 bytes); render suites still pass for
+  both engines (215 + 32 assertions each) and all type/test/offline suites stay green.
+
 ## 1.3.7 — TSX migration of the presentation primitives
 
 No visible UI change.
