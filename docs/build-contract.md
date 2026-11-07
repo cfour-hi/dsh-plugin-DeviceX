@@ -483,3 +483,21 @@ The browser half is no longer hand-edited as one file:
   jsdom (devDependencies) and are part of CI.
 - UI code stays in the `h()` style for now; the esbuild entry supports a future incremental
   migration to `.jsx` without changing the loader contract.
+
+## 1.3.1 build engines (frozen: B + C + D)
+
+- **B — esbuild (primary)**: `scripts/build-client.mjs` → minified IIFE `plugin/client.js`
+  (single file, only the loader `react` seed, no sibling imports). `--check` fails on a
+  stale artifact; `--out <file>` writes elsewhere for verification.
+- **C — no-bundler fallback**: `scripts/build-client-concat.mjs` concatenates
+  `src/client/*.js` in dependency order (`runtime → constants → helpers → dicts → styles →
+  normalizers → api → core`), strips `import`/`export`, rejects duplicate top-level
+  declarations, and appends the same loader registration. Pure Node, zero dependencies.
+  The generated file is a dev/verification artifact, not the committed one.
+- **D — zero-build artifact**: `plugin/client.js` stays committed and self-contained; install
+  (GitHub/tgz/link) and runtime load never invoke a build and never need devDependencies.
+- **Conformance**: `scripts/verify-build.mjs` proves determinism, loader contract, identical
+  registration surface, and renders both B and C through the 215-assertion 10-tab suite and
+  the 32-assertion Windows scenario.
+- **Supplements**: JSDoc + `tsc --noEmit` (host, `checkJs`) and GitHub Actions CI remain
+  mandatory; CI order: `npm ci → build --check → typecheck → verify:build → verify`.

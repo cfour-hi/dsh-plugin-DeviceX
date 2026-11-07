@@ -133,10 +133,15 @@ HTTP API（同一来源，`cache-control: no-store`）：
 
 ## 工程化（1.3）
 
-- **源码/产物分离**：浏览器端源码在 `src/client/`（ESM 模块：`entry.js` 负责 module-loader 注册，`core.js` 是页面与组件，`dicts.js`/`styles.js`/`helpers.js`/`constants.js`/`normalizers.js`/`api.js` 各自独立）。`plugin/client.js` 是 esbuild 生成的**单文件 IIFE bundle**（minify，仍只通过 loader 的 `require("react")` 取运行时而外部不引入依赖），`npm run build` 重新生成，`npm run build:check` 校验提交产物与源码一致（CI 强制）。
+- **源码/产物分离**：浏览器端源码在 `src/client/`（ESM 模块：`entry.js` 负责 module-loader 注册，`core.js` 是页面与组件，`dicts.js`/`styles.js`/`helpers.js`/`constants.js`/`normalizers.js`/`api.js` 各自独立）。`plugin/client.js` 是 **B（esbuild）** 生成的单文件 IIFE bundle（minify，仍只通过 loader 的 `require("react")` 取运行时，外部零依赖），`npm run build` 重新生成，`npm run build:check` 校验提交产物与源码一致（CI 强制）。
+- **B+C+D 三轨并存**：
+  - **B（推荐主路径）**：esbuild 打包 → 202 KB minified bundle；
+  - **C（无打包器回退）**：`npm run build:concat` 用纯 Node（零 devDependencies）按依赖顺序拼接 `src/client/` 并剥掉 `import`/`export`，产物 282 KB、行为与 B 等价；
+  - **D（零构建资产）**：仓库提交的 `plugin/client.js` 是自包含产物——安装、加载、运行都不需要构建，也不需要 devDependencies；esbuild/TypeScript/jsdom 只在开发与 CI 中使用。
+  - `npm run verify:build`（37 项）验证三者：两个引擎各自确定、结构与 loader 契约一致、注册面（inject/slots/615 个 zh/en 词条）逐项相等，并让 **B 与 C 各跑一遍 215 条 10 标签页渲染 + 32 条 Windows 数据渲染**。
 - **静态类型**：`tsconfig.json` 开启 `allowJs + checkJs`（`strictNullChecks` 打开，其余渐进放松），覆盖 `plugin/index.js` 与 `plugin/host/**/*.js`；JSDoc 描述数据契约与返回类型，`npm run typecheck`（`tsc --noEmit`）为 0 error，CI 强制。
 - **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
-- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → 两个渲染测试 → 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查。
+- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
 - 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。
 
 ## 验证
@@ -153,8 +158,9 @@ node scripts/verify-benchmark.mjs # 基准专项（46 项）：形状、确定�
 # 工程化门禁（等价 CI）
 npm run build:check   # 提交的 client.js 与 src/client 一致
 npm run typecheck     # tsc --noEmit，覆盖 Host，0 error
-node scripts/render-check.mjs          # 215 条渲染断言
-node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言
+node scripts/verify-build.mjs          # B/C/D 构建一致性（37 项，含两个引擎的渲染回归）
+node scripts/render-check.mjs          # 215 条渲染断言（对提交产物）
+node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交产物）
 ```
 
 `verify.mjs` 覆盖：语法/清单/locale/图标、指标与六大分区真实采集、动作目录与守卫、伪造 Cordis 上下文下的
@@ -241,5 +247,5 @@ dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
 
 修改 `plugin/` 下任意文件后，重新执行 `plugin_manager install_bundle`（target 同上）即可；
 或者重启 Harness。改动插件清单时记得同步仓库根的 `package.json`（GitHub 安装读取它）。
-首次开发先 `npm ci`（esbuild/TypeScript/jsdom/react 均为 devDependencies）。改 `plugin/client.js` 时请改 `src/client/` 并 `npm run build`（CI 会拒绝过期产物），随后 `npm run typecheck`、`node scripts/render-check.mjs`、`npm run verify`（或直接 `npm run verify:ci`）做完整回归，
+首次开发先 `npm ci`（esbuild/TypeScript/jsdom/react 均为 devDependencies）。改 `plugin/client.js` 时请改 `src/client/` 并 `npm run build`（CI 会拒绝过期产物；无 devDependencies 的环境可用 `npm run build:concat` 生成同契约回退产物），随后 `npm run typecheck`、`npm run verify:build`、`npm run verify`（或直接 `npm run verify:ci`）做完整回归，
 并用上面的 `curl` 探测实时路由。

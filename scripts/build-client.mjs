@@ -10,6 +10,7 @@
  * Usage:
  *   node scripts/build-client.mjs           # (re)generate plugin/client.js
  *   node scripts/build-client.mjs --check   # verify the committed bundle is current
+ *   node scripts/build-client.mjs --out <file>  # write elsewhere (verification)
  */
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,8 +19,12 @@ import { build } from 'esbuild';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = dirname(here);
-const outfile = join(root, 'plugin', 'client.js');
-const check = process.argv.includes('--check');
+const argv = process.argv.slice(2);
+const check = argv.includes('--check');
+const outIndex = argv.indexOf('--out');
+const outfile = outIndex >= 0 && argv[outIndex + 1]
+  ? argv[outIndex + 1]
+  : join(root, 'plugin', 'client.js');
 
 const result = await build({
   entryPoints: [join(root, 'src', 'client', 'entry.js')],

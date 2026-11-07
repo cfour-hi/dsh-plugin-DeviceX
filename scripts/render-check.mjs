@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 import { JSDOM } from "jsdom";
 import {
   metricsFixture,
@@ -59,7 +60,9 @@ function takeConsoleErrors() {
 
 // ------------------------------------------------------------------ load plugin module
 import { fileURLToPath } from "node:url";
-const FILE = fileURLToPath(new URL("../plugin/client.js", import.meta.url));
+const FILE = process.env.DEVICEX_CLIENT_FILE
+  ? path.resolve(process.env.DEVICEX_CLIENT_FILE)
+  : fileURLToPath(new URL("../plugin/client.js", import.meta.url));
 const source = fs.readFileSync(FILE, "utf8");
 let registration = null;
 domWindow.__ModuleLoader__ = {

@@ -1,5 +1,6 @@
 // Render every tab with real mapped Windows data; catch runtime/error-boundary failures.
 import fs from "node:fs";
+import path from "node:path";
 import { JSDOM } from "jsdom";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -21,7 +22,9 @@ const consoleErrors = [];
 console.error = (...args) => { const t = args.map((v) => String(v && v.stack ? v.stack : v)).join(' '); if (!/deprecated|Could not parse CSS/.test(t)) consoleErrors.push(t); };
 
 import { fileURLToPath } from 'node:url';
-const FILE = fileURLToPath(new URL('../plugin/client.js', import.meta.url));
+const FILE = process.env.DEVICEX_CLIENT_FILE
+  ? path.resolve(process.env.DEVICEX_CLIENT_FILE)
+  : fileURLToPath(new URL('../plugin/client.js', import.meta.url));
 const DATA = JSON.parse(fs.readFileSync(fileURLToPath(new URL('./fixtures/windows-mapped.json', import.meta.url)), 'utf8'));
 
 let registration = null;

@@ -21,9 +21,7 @@ jobs:
         run: node scripts/build-client.mjs --check
       - name: JSDoc/TypeScript check (host)
         run: npm run typecheck
-      - name: Client render smoke test (10 tabs, 215 assertions)
-        run: node scripts/render-check.mjs
-      - name: Windows render scenario
-        run: node scripts/render-windows-check.mjs
+      - name: Build-engine conformance (B esbuild + C concat + D committed artifact)
+        run: npm run verify:build
       - name: Offline verification suites
         run: npm run verify

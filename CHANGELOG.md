@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.1 — B/C/D build engines verified side by side
+
+Continues 1.3.0's lightweight engineering. No runtime or UI change.
+
+- **C engine added**: `scripts/build-client-concat.mjs` builds the same loader bundle
+  from `src/client/` with **no bundler and no devDependencies** (ordered concatenation,
+  import/export stripping, duplicate-declaration guard). `npm run build:concat`.
+- **D preserved explicitly**: the committed `plugin/client.js` remains a self-contained
+  artifact — installs and runtime never build, and devDependencies are not required to
+  install or load the plugin.
+- **`scripts/verify-build.mjs` (37 checks)**: both engines are deterministic, keep the
+  single-file loader contract (only the `react` seed, no sibling imports), expose the same
+  registration surface (inject, main key, sidebar id/order, 615 zh + 615 en dictionary keys),
+  and each engine is rendered through the real 10-tab suite (215 assertions) and the mapped
+  Windows scenario (32 assertions).
+- **CI** now runs the B/C/D conformance step between typecheck and the five offline suites.
+- Implements the review's "B + C + D (supplements ×2)" outcome: esbuild primary, no-bundler
+  fallback, zero-build artifact, plus JSDoc/tsc and GitHub Actions CI.
+
 ## 1.3.0 — light-weight engineering: module split, bundle build, type check, CI
 
 No user-facing behaviour change; the delivery pipeline was made maintainable.
