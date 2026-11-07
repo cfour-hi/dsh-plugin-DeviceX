@@ -1,5 +1,12 @@
 # Device X — build contract
 
+> **Platform note (2026-11, Windows adaptation):** the macOS implementation of this contract lives in
+> `plugin/host/collector-darwin.js` / `actions-darwin.js`; `plugin/host/collector.js` / `actions.js` are
+> platform dispatchers (`darwin` | `win32`). The Windows implementation keeps every JSON shape and the
+> action/tool surface below, with platform equivalents documented in
+> [`windows-contract.md`](windows-contract.md). `dsh.bundle.platforms` limits installation to
+> `darwin` + `win32`.
+
 Single source of truth for the three build workstreams. Do not edit files outside your assigned scope.
 Lead owns integration, installation and end-to-end verification.
 

@@ -46,7 +46,12 @@ const jsFiles = [
   'index.js',
   'client.js',
   'host/collector.js',
+  'host/collector-darwin.js',
+  'host/collector-win32.js',
   'host/actions.js',
+  'host/actions-darwin.js',
+  'host/actions-win32.js',
+  'host/win.js',
   'host/proc.js',
   'host/transport.js',
   'host/tool.js',
@@ -63,6 +68,14 @@ for (const file of jsFiles) {
 }
 const manifest = JSON.parse(readFileSync(join(pluginDir, 'package.json'), 'utf8'));
 check('package.json declares a bundle patch', manifest.dsh?.bundle?.patch === './cordis.patch.yml');
+check(
+  'package.json limits the bundle to macOS + Windows',
+  JSON.stringify(manifest.dsh?.bundle?.platforms) === JSON.stringify(['darwin', 'win32']),
+);
+check(
+  'package.json ships the bundled PowerShell scripts',
+  Array.isArray(manifest.files) && manifest.files.includes('host/win/*.ps1'),
+);
 check('package.json declares a web client', manifest.dsh?.client?.platform === 'web');
 check(
   'package.json exports icon + locales + client',

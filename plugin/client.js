@@ -149,6 +149,7 @@ window.__ModuleLoader__.load({
 			"power.sleep": { group: "power", danger: "low", requiresAdmin: false, icon: "sleep", labelKey: "action.power.sleep", descKey: "action.power.sleep.desc" },
 			"power.lock": { group: "power", danger: "low", requiresAdmin: false, icon: "lock", labelKey: "action.power.lock", descKey: "action.power.lock.desc" },
 			"software.brewUninstall": { group: "software", danger: "medium", requiresAdmin: false, icon: "software", labelKey: "action.software.brewUninstall", descKey: "action.software.brewUninstall.desc" },
+			"software.wingetUninstall": { group: "software", danger: "medium", requiresAdmin: false, icon: "software", labelKey: "action.software.wingetUninstall", descKey: "action.software.wingetUninstall.desc" },
 		};
 		/** Inline stroke icons. All inherit `currentColor`; no external assets. */
 		const ICONS = {
@@ -549,6 +550,7 @@ window.__ModuleLoader__.load({
 			"sys.users": "用户账户",
 			"sys.currentUser": "当前用户",
 			"sys.launchAgents": "启动代理",
+			"sys.startupItems": "启动项",
 			"sys.loginItems": "登录项",
 			"sys.environment": "环境变量",
 			"sys.locale": "区域设置",
@@ -604,6 +606,7 @@ window.__ModuleLoader__.load({
 			"sw.source.user": "用户",
 			"sw.source.other": "其他",
 			"sw.reveal": "在访达中显示",
+			"sw.revealWin": "在资源管理器中显示",
 			"sw.uninstall": "卸载…",
 			"sw.uninstallTitle": "卸载 {name}？",
 			"sw.uninstallBody": "应用会移入废纸篓，之后可以随时恢复。",
@@ -685,6 +688,9 @@ window.__ModuleLoader__.load({
 			"sec.fileVault": "文件保险箱",
 			"sec.sip": "系统完整性保护",
 			"sec.gatekeeper": "Gatekeeper",
+			"sec.bitlocker": "BitLocker 磁盘加密",
+			"sec.secureBoot": "安全启动",
+			"sec.defender": "Windows Defender",
 			"sec.firewall": "防火墙",
 			"sec.tcc": "隐私权限",
 			"sec.admins": "管理员账户",
@@ -696,6 +702,8 @@ window.__ModuleLoader__.load({
 			"sec.stealth": "隐身模式",
 			"sec.paneTitle": "系统设置面板",
 			"sec.openFileVault": "打开文件保险箱设置",
+			"sec.openPrivacyWin": "打开隐私设置",
+			"sec.openSecurityWin": "打开 Windows 安全中心",
 			"sec.openFirewall": "打开防火墙设置",
 			"sec.openSharing": "打开共享设置",
 			"sec.openUsers": "打开用户与群组",
@@ -713,6 +721,7 @@ window.__ModuleLoader__.load({
 			"sec.confirmFirewallOnBody": "将启用 macOS 内置防火墙。",
 			"sec.tccReadable": "以下应用拥有这些权限",
 			"sec.tccUnreadable": "无法读取隐私权限数据库（需要完全磁盘访问权限）。",
+			"sec.tccUnreadableWin": "Windows 不提供逐应用的授权数据库；请在系统设置中查看隐私权限。",
 			"sec.tccReason": "原因：{reason}",
 			"sec.service": "权限",
 			"sec.client": "应用",
@@ -840,6 +849,13 @@ window.__ModuleLoader__.load({
 			"action.power.lock.desc": "立即锁定当前屏幕会话。",
 			"action.software.brewUninstall": "卸载 Homebrew 包",
 			"action.software.brewUninstall.desc": "通过 Homebrew 卸载指定软件包。",
+			"action.software.wingetUninstall": "卸载 winget 软件包",
+			"action.software.wingetUninstall.desc": "通过 winget 卸载指定 ID 的软件包（Windows）。",
+			"sw.uninstallBodyWin": "将调用该应用自带的卸载程序（可能需要管理员确认），卸载后无法从废纸篓恢复。",
+			"sw.winget": "winget 包管理器",
+			"sw.wingetAvailable": "winget 可用",
+			"sw.wingetUnavailable": "winget 不可用",
+			"sw.wingetHint": "可在「操作」页用 software.wingetUninstall 卸载指定 ID 的软件包。",
 
 			"dialog.title": "请确认",
 			"dialog.details": "操作详情",
@@ -1067,6 +1083,7 @@ window.__ModuleLoader__.load({
 			"sys.users": "User accounts",
 			"sys.currentUser": "Current user",
 			"sys.launchAgents": "Launch agents",
+			"sys.startupItems": "Startup items",
 			"sys.loginItems": "Login items",
 			"sys.environment": "Environment",
 			"sys.locale": "Locale",
@@ -1122,6 +1139,7 @@ window.__ModuleLoader__.load({
 			"sw.source.user": "User",
 			"sw.source.other": "Other",
 			"sw.reveal": "Reveal in Finder",
+			"sw.revealWin": "Show in Explorer",
 			"sw.uninstall": "Uninstall…",
 			"sw.uninstallTitle": "Uninstall {name}?",
 			"sw.uninstallBody": "The app will be moved to the Trash and can be restored at any time.",
@@ -1203,6 +1221,9 @@ window.__ModuleLoader__.load({
 			"sec.fileVault": "FileVault",
 			"sec.sip": "System Integrity Protection",
 			"sec.gatekeeper": "Gatekeeper",
+			"sec.bitlocker": "BitLocker drive encryption",
+			"sec.secureBoot": "Secure Boot",
+			"sec.defender": "Windows Defender",
 			"sec.firewall": "Firewall",
 			"sec.tcc": "Privacy permissions",
 			"sec.admins": "Admin accounts",
@@ -1214,6 +1235,8 @@ window.__ModuleLoader__.load({
 			"sec.stealth": "Stealth mode",
 			"sec.paneTitle": "System Settings panes",
 			"sec.openFileVault": "Open FileVault Settings",
+			"sec.openPrivacyWin": "Open privacy settings",
+			"sec.openSecurityWin": "Open Windows Security",
 			"sec.openFirewall": "Open Firewall Settings",
 			"sec.openSharing": "Open Sharing Settings",
 			"sec.openUsers": "Open Users & Groups",
@@ -1231,6 +1254,7 @@ window.__ModuleLoader__.load({
 			"sec.confirmFirewallOnBody": "This enables the built-in macOS firewall.",
 			"sec.tccReadable": "These apps hold these permissions",
 			"sec.tccUnreadable": "The privacy database cannot be read (Full Disk Access is required).",
+			"sec.tccUnreadableWin": "Windows does not expose a per-app consent store; review privacy permissions in Settings.",
 			"sec.tccReason": "Reason: {reason}",
 			"sec.service": "Permission",
 			"sec.client": "App",
@@ -1358,6 +1382,13 @@ window.__ModuleLoader__.load({
 			"action.power.lock.desc": "Lock the current screen session immediately.",
 			"action.software.brewUninstall": "Uninstall Homebrew package",
 			"action.software.brewUninstall.desc": "Remove a package through Homebrew.",
+			"action.software.wingetUninstall": "Uninstall winget package",
+			"action.software.wingetUninstall.desc": "Remove a package by its winget id (Windows).",
+			"sw.uninstallBodyWin": "The application's own uninstaller runs (it may ask for administrator confirmation). This cannot be restored from the Recycle Bin.",
+			"sw.winget": "winget package manager",
+			"sw.wingetAvailable": "winget available",
+			"sw.wingetUnavailable": "winget unavailable",
+			"sw.wingetHint": "Use software.wingetUninstall on the Actions tab to remove a package by id.",
 
 			"dialog.title": "Confirm",
 			"dialog.details": "Details",
@@ -3681,6 +3712,7 @@ window.__ModuleLoader__.load({
 
 		function SystemTab(props) {
 			const t = props.t;
+			const isWindows = props.platform === "win32";
 			const pending = asObject(props.pending);
 			const agentPending = pending["system.launchAgent"] === true;
 			return h(TabShell, {
@@ -3774,14 +3806,14 @@ window.__ModuleLoader__.load({
 							}),
 						}),
 						h(Card, {
-							title: t("sys.launchAgents"),
+							title: isWindows ? t("sys.startupItems") : t("sys.launchAgents"),
 							icon: "agent",
 							subtitle: String(launchAgents.length),
 							flush: true,
 							actions: agentPending ? h("span", { className: "dx-pill", "data-tone": "brand" }, t("common.pending")) : null,
 							children: h(DataTable, {
 								t,
-								ariaLabel: t("sys.launchAgents"),
+								ariaLabel: isWindows ? t("sys.startupItems") : t("sys.launchAgents"),
 								columns: [
 									{ key: "label", label: t("common.name"), render: (row) => strOr(row.label, "—") },
 									{
@@ -3886,6 +3918,8 @@ window.__ModuleLoader__.load({
 				errorsKey: "sw.errors",
 				children: (data) => {
 					const homebrew = asObject(data.homebrew);
+					const winget = asObject(data.winget);
+					const isWindows = props.platform === "win32";
 					const applications = asArray(data.applications).filter(isObj);
 					const query = search.trim().toLowerCase();
 					const filtered = applications
@@ -3973,7 +4007,9 @@ window.__ModuleLoader__.load({
 											align: "right",
 											render: (row) => {
 												const path = strOr(row.path, "");
+												const uninstallId = strOr(row.uninstallId, "");
 												const isSystemApp = strOr(row.source, "") === "system" || path.indexOf("/System/") === 0;
+												const canUninstall = isWindows ? uninstallId.length > 0 || (path.length > 0 && !isSystemApp) : path.length > 0 && !isSystemApp;
 												return h(
 													"div",
 													{ className: "dx-rowActions" },
@@ -3984,8 +4020,8 @@ window.__ModuleLoader__.load({
 															className: "dx-btn",
 															"data-size": "sm",
 															disabled: !path || pending["app.reveal"] === true,
-															title: t("sw.reveal"),
-															"aria-label": t("sw.reveal") + " " + strOr(row.name, ""),
+															title: isWindows ? t("sw.revealWin") : t("sw.reveal"),
+															"aria-label": (isWindows ? t("sw.revealWin") : t("sw.reveal")) + " " + strOr(row.name, ""),
 															onClick: () => props.onAction("app.reveal", { path }),
 														},
 														h(Icon, { name: "reveal", size: 13 }),
@@ -3997,17 +4033,17 @@ window.__ModuleLoader__.load({
 															className: "dx-btn",
 															"data-size": "sm",
 															"data-variant": "danger",
-															disabled: !path || isSystemApp || pending["app.uninstall"] === true,
+															disabled: !canUninstall || pending["app.uninstall"] === true,
 															title: isSystemApp ? t("sw.systemAppNote") : t("sw.uninstall"),
 															"aria-label": t("sw.uninstall") + " " + strOr(row.name, ""),
 															onClick: () =>
 																props.openConfirm({
 																	title: t("sw.uninstallTitle", { name: strOr(row.name, "—") }),
-																	description: t("sw.uninstallBody"),
+																	description: uninstallId.length > 0 ? t("sw.uninstallBodyWin") : t("sw.uninstallBody"),
 																	confirmLabel: t("sw.uninstall"),
 																	danger: true,
 																	actionId: "app.uninstall",
-																	params: { path, mode: "trash" },
+																	params: { path, id: uninstallId, mode: "trash" },
 																}),
 														},
 														h(Icon, { name: "trash", size: 13 }),
@@ -4022,13 +4058,23 @@ window.__ModuleLoader__.load({
 							),
 						}),
 						h(Card, {
-							title: t("sw.homebrew"),
+							title: isWindows ? t("sw.winget") : t("sw.homebrew"),
 							icon: "database",
-							subtitle: homebrew.available === true ? strOr(homebrew.prefix, "") : t("sw.brewNotAvailable"),
+							subtitle: isWindows
+								? winget.available === true
+									? t("sw.wingetAvailable") + (strOr(winget.version, "") ? " · " + strOr(winget.version, "") : "")
+									: t("sw.wingetUnavailable")
+								: homebrew.available === true
+									? strOr(homebrew.prefix, "")
+									: t("sw.brewNotAvailable"),
 							flush: true,
-							children:
-								homebrew.available !== true
-									? h(EmptyState, { icon: "database", title: t("sw.brewNotAvailable") })
+							children: isWindows
+									? h(EmptyState, {
+											icon: "database",
+											title: winget.available === true ? t("sw.wingetHint") : t("sw.wingetUnavailable"),
+										})
+									: homebrew.available !== true
+										? h(EmptyState, { icon: "database", title: t("sw.brewNotAvailable") })
 									: h(DataTable, {
 											t,
 											ariaLabel: t("sw.homebrew"),
@@ -4066,7 +4112,7 @@ window.__ModuleLoader__.load({
 											empty: h(EmptyState, { icon: "database", title: t("sw.noBrew") }),
 										}),
 						}),
-						outdated.length > 0
+						!isWindows && outdated.length > 0
 							? h(
 									"div",
 									{ className: "dx-banner", "data-tone": "warn" },
@@ -4322,6 +4368,7 @@ window.__ModuleLoader__.load({
 		function SecurityTab(props) {
 			const t = props.t;
 			const pending = asObject(props.pending);
+			const isWindows = props.platform === "win32";
 			return h(TabShell, {
 				t,
 				state: props.state,
@@ -4344,9 +4391,9 @@ window.__ModuleLoader__.load({
 						h(
 							"div",
 							{ className: "dx-grid3" },
-							h(SecurityStatusCard, { t, title: t("sec.fileVault"), icon: "lock", info: fileVault }),
-							h(SecurityStatusCard, { t, title: t("sec.sip"), icon: "security", info: sip }),
-							h(SecurityStatusCard, { t, title: t("sec.gatekeeper"), icon: "firewall", info: gatekeeper }),
+							h(SecurityStatusCard, { t, title: isWindows ? t("sec.bitlocker") : t("sec.fileVault"), icon: "lock", info: fileVault }),
+							h(SecurityStatusCard, { t, title: isWindows ? t("sec.secureBoot") : t("sec.sip"), icon: "security", info: sip }),
+							h(SecurityStatusCard, { t, title: isWindows ? t("sec.defender") : t("sec.gatekeeper"), icon: "firewall", info: gatekeeper }),
 							h(SecurityStatusCard, {
 								t,
 								title: t("sec.firewall"),
@@ -4390,7 +4437,7 @@ window.__ModuleLoader__.load({
 								"button",
 								{ type: "button", className: "dx-btn", "data-size": "sm", onClick: () => props.openPane(["privacy", "security"], "privacy") },
 								h(Icon, { name: "gear", size: 13 }),
-								t("sec.openFileVault"),
+								isWindows ? t("sec.openPrivacyWin") : t("sec.openFileVault"),
 							),
 							children:
 								tcc.readable === true
@@ -4408,7 +4455,7 @@ window.__ModuleLoader__.load({
 											"div",
 											{ className: "dx-empty" },
 											h("span", { className: "dx-emptyIcon" }, h(Icon, { name: "lock", size: 22 })),
-											h("p", { className: "dx-emptyTitle" }, t("sec.tccUnreadable")),
+											h("p", { className: "dx-emptyTitle" }, isWindows ? t("sec.tccUnreadableWin") : t("sec.tccUnreadable")),
 											tcc.reason ? h("p", { className: "dx-emptyText" }, t("sec.tccReason", { reason: tcc.reason })) : null,
 										),
 						}),
@@ -4465,20 +4512,26 @@ window.__ModuleLoader__.load({
 									"button",
 									{ type: "button", className: "dx-btn", onClick: () => props.openPane(["privacy", "security", "filevault"], "privacy") },
 									h(Icon, { name: "lock", size: 13 }),
-									t("sec.openFileVault"),
+									isWindows ? t("sec.openPrivacyWin") : t("sec.openFileVault"),
 								),
 								h(
 									"button",
-									{ type: "button", className: "dx-btn", onClick: () => props.openPane(["firewall"], "firewall") },
+									{
+										type: "button",
+										className: "dx-btn",
+										onClick: isWindows ? () => props.openPane(["windowsdefender", "windowssecurity"], "windowsdefender") : () => props.openPane(["firewall"], "firewall"),
+									},
 									h(Icon, { name: "firewall", size: 13 }),
-									t("sec.openFirewall"),
+									isWindows ? t("sec.openSecurityWin") : t("sec.openFirewall"),
 								),
-								h(
-									"button",
-									{ type: "button", className: "dx-btn", onClick: () => props.openPane(["sharing"], "sharing") },
-									h(Icon, { name: "network", size: 13 }),
-									t("sec.openSharing"),
-								),
+								isWindows
+									? null
+									: h(
+											"button",
+											{ type: "button", className: "dx-btn", onClick: () => props.openPane(["sharing"], "sharing") },
+											h(Icon, { name: "network", size: 13 }),
+											t("sec.openSharing"),
+										),
 								h(
 									"button",
 									{ type: "button", className: "dx-btn", onClick: () => props.openPane(["users", "accounts"], "users") },
@@ -5334,6 +5387,12 @@ window.__ModuleLoader__.load({
 				if (modal.kind === "kill") {
 					const signal = strOr(asObject(modal.values).signal, "TERM");
 					const pid = numOr(modal.pid, 0);
+					// The Host catalogue is authoritative: macOS exposes five signals,
+					// Windows only TERM/KILL/INT. Fall back to the full set before load.
+					const signalAction = asArray(catalog.actions).find((entry) => entry.id === "process.signal");
+					const signalParam = signalAction ? asArray(signalAction.params).find((param) => param.name === "signal") : null;
+					const catalogSignals = signalParam ? asArray(signalParam.options).filter((option) => typeof option === "string") : [];
+					const killSignals = catalogSignals.length > 0 ? catalogSignals : SIGNALS;
 					return {
 						title: t("proc.confirmTitle", { name: strOr(modal.name, "—") }),
 						description: t("proc.confirmBody", { name: strOr(modal.name, "—"), pid, signal: optionLabel(t, signal) }),
@@ -5349,7 +5408,7 @@ window.__ModuleLoader__.load({
 								h(
 									"select",
 									{ id: baseId + "-kill-signal", className: "dx-select", value: signal, onChange: (event) => setModalValue("signal", event.target.value) },
-									SIGNALS.map((option) => h("option", { key: option, value: option }, optionLabel(t, option))),
+									killSignals.map((option) => h("option", { key: option, value: option }, optionLabel(t, option))),
 								),
 							),
 						),
@@ -5402,6 +5461,7 @@ window.__ModuleLoader__.load({
 							t,
 							state: sectionState,
 							metrics,
+							platform: catalog.platform,
 							pending,
 							onRetry: () => loadSection(activeTab, true),
 							onRefresh: () => loadSection(activeTab, true),

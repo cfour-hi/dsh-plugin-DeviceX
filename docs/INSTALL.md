@@ -16,20 +16,25 @@ Device X 是一个 **DSH 持久插件**，安装到某个 DSH profile 后，该 
 
 | 条件 | 说明 |
 |---|---|
-| 系统 | **macOS**。Host 端采集与系统动作调用 `system_profiler`、`sw_vers`、`networksetup`、`launchctl`、`pmset`、`osascript` 等 macOS 命令；Linux/Windows 能加载但大部分数据为空、动作会失败 |
+| 系统 | **macOS** 或 **Windows 10/11**。macOS 用 `system_profiler`、`networksetup`、`launchctl`、`pmset` 等系统命令；Windows 用 PowerShell/CIM（powershell.exe 5.1 或 pwsh 7 均可，系统自带）。Linux 不在支持范围内，安装会被 bundle 平台检查拒绝 |
 | DSH 形态 | **Desktop 或 Web** 形态的 profile（需要 `webServer` / `connection` / `tools` 服务）。headless/纯 CLI（如 tui）profile 不会激活本插件 |
-| `dsh` CLI | 需要在 `PATH` 上。Desktop 安装自带 CLI，若未 link，可用绝对路径：`/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh` |
+| `dsh` CLI | 需要在 `PATH` 上。macOS 未 link 时可用绝对路径：`/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`；Windows 使用 Desktop 安装目录下 `resources\runtime\cli` 提供的 `dsh` |
 | pnpm | CLI 使用安装自带的 pnpm；应用内安装需要 `pnpm` 在 `PATH` 上 |
+| PowerShell（Windows） | 需要 `powershell.exe`（Windows PowerShell 5.1，系统自带）或 `pwsh.exe`（PowerShell 7+）。插件会自动探测，无需额外安装模块 |
 | 权限 | 安装 Host 代码需要 `danger-full-access` 或当次批准；执行时按提示确认 |
 
 ## 方式一：官方 CLI（推荐给其他机器 / 其他 profile）
 
 ```sh
 # 从打包文件安装（推荐分发形式）
-dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.0.0.tgz
+dsh plugin --profile desktop add /绝对路径/local-dsh-devicex-1.1.0.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
+
+# Windows（PowerShell / cmd）
+dsh plugin --profile desktop add C:\path\local-dsh-devicex-1.1.0.tgz
+dsh plugin --profile desktop add C:\path\plugin
 ```
 
 它不只是 `pnpm add`，完整流程是：
@@ -54,7 +59,7 @@ dsh plugin --profile desktop add /绝对路径/plugin
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.0.0.tgz
+plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.1.0.tgz
 ```
 
 - 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到两个工具，无需重启；
@@ -64,7 +69,7 @@ plugin_manager action=install_bundle target=/绝对路径/local-dsh-devicex-1.0.
 
 ## 方式三：分发包
 
-仓库里的 `dist/local-dsh-devicex-1.0.0.tgz`（约 91 KB，仅含运行文件）就是给对方的分发件：
+仓库里的 `dist/local-dsh-devicex-1.1.0.tgz`（仅含运行文件与 Windows PowerShell 脚本）就是给对方的分发件：
 
 - 对方拿到后按方式一或方式二安装即可；
 - 更新同理：重新 `npm pack`（在 `plugin/` 下 `npm pack --pack-destination ../dist`）后用新 tgz 覆盖安装。
@@ -108,5 +113,9 @@ plugin_manager action=remove_bundle target=@local/dsh-devicex
 - 这是**本机设备管理**插件，数据不出本机；每个用户的机器各自采集、各自操作，不会互相同步。
 - `device_control` 对 Agent 开放了结束进程、卸载软件、改主机名、防火墙、DNS 等高权限动作；装到共享账号的
   profile 前请确认这是预期行为。
-- 需管理员权限的动作（防火墙、DNS、系统级 LaunchAgent、改主机名）失败时会把命令 stderr 返回给界面。
-- 需要 macOS 自动化授权的动作（退出应用/深色模式/锁定）首次调用可能被 TCC 拒绝，按系统提示授权即可。
+- 需管理员权限的动作（防火墙、DNS、系统级启动项、改主机名、Wi-Fi 开关）失败时会把命令 stderr 返回给界面：
+  - macOS：以管理员身份运行 DSH，或按系统提示授权；
+  - Windows：改用「以管理员身份运行」启动 DeepSeek Harness（UAC 会提示一次），否则相关动作返回权限错误。
+- macOS：需要自动化授权的动作（退出应用/深色模式/锁定）首次调用可能被 TCC 拒绝，按系统提示授权即可。
+- Windows：BitLocker/Defender 等查询可能需要管理员权限，读不到时界面显示未知；Windows 没有等价的逐应用
+  TCC 授权库，隐私面板显示为说明文案。

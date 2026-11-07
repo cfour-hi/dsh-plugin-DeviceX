@@ -1,0 +1,105 @@
+{
+  "generatedAt": 1762516500000,
+  "totalMemoryBytes": 34359738368,
+  "logicalCores": 20,
+  "total": 312,
+  "processes": [
+    {
+      "pid": 1234,
+      "ppid": 880,
+      "name": "chrome",
+      "command": "\"C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe\" --type=renderer",
+      "cpuPercent": 180.5,
+      "workingSetBytes": 734003200,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "running",
+      "creationDateMs": 1762420000000,
+      "elapsed": 96500
+    },
+    {
+      "pid": 5678,
+      "ppid": 4000,
+      "name": "Code",
+      "command": "\"C:\\Users\\alex\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe\"",
+      "cpuPercent": 92.3,
+      "workingSetBytes": 1048576000,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "running",
+      "creationDateMs": 1762430000000,
+      "elapsed": 86500
+    },
+    {
+      "pid": 4,
+      "ppid": 0,
+      "name": "System",
+      "command": "System",
+      "cpuPercent": 31.2,
+      "workingSetBytes": 131072,
+      "user": "NT AUTHORITY\\SYSTEM",
+      "state": "running",
+      "creationDateMs": 1762400000000,
+      "elapsed": 116500
+    },
+    {
+      "pid": 9876,
+      "ppid": 700,
+      "name": "dwm",
+      "command": "C:\\Windows\\system32\\dwm.exe",
+      "cpuPercent": 18.9,
+      "workingSetBytes": 209715200,
+      "user": "DWM-1\\Window Manager",
+      "state": "running",
+      "creationDateMs": 1762400010000,
+      "elapsed": 116490
+    },
+    {
+      "pid": 3456,
+      "ppid": 3400,
+      "name": "explorer",
+      "command": "C:\\Windows\\Explorer.EXE",
+      "cpuPercent": 12.4,
+      "workingSetBytes": 335544320,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "running",
+      "creationDateMs": 1762400100000,
+      "elapsed": 116400
+    },
+    {
+      "pid": 2222,
+      "ppid": 1040,
+      "name": "RuntimeBroker",
+      "command": "C:\\Windows\\System32\\RuntimeBroker.exe -Embedding",
+      "cpuPercent": 4.8,
+      "workingSetBytes": 67108864,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "running",
+      "creationDateMs": 1762401000000,
+      "elapsed": 115500
+    },
+    {
+      "pid": 14232,
+      "ppid": 9000,
+      "name": "node",
+      "command": "\"C:\\Program Files\\nodejs\\node.exe\" app.js",
+      "cpuPercent": 3.1,
+      "workingSetBytes": 125829120,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "running",
+      "creationDateMs": 1762500000000,
+      "elapsed": 16500
+    },
+    {
+      "pid": 8876,
+      "ppid": 7777,
+      "name": "steamwebhelper",
+      "command": "\"C:\\Program Files (x86)\\Steam\\bin\\cef\\cef.win7x64\\steamwebhelper.exe\"",
+      "cpuPercent": 1.2,
+      "workingSetBytes": 419430400,
+      "user": "DESKTOP-8F3K2Q1\\alex",
+      "state": "not responding",
+      "creationDateMs": 1762410000000,
+      "elapsed": 106500
+    }
+  ],
+  "errors": []
+}

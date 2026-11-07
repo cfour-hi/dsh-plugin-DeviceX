@@ -1,0 +1,167 @@
+{
+  "generatedAt": 1762516500000,
+  "cpu": {
+    "name": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "manufacturer": "GenuineIntel",
+    "physicalCores": 14,
+    "logicalCores": 20,
+    "maxClockSpeedMHz": 2300,
+    "architecture": 9,
+    "l2CacheKB": 11776,
+    "l3CacheKB": 24576
+  },
+  "memory": {
+    "totalBytes": 34359738368,
+    "arrayMaxCapacityBytes": 68719476736,
+    "modules": [
+      {
+        "capacityBytes": 17179869184,
+        "speedMHz": 4800,
+        "configuredSpeedMHz": 4800,
+        "manufacturer": "Samsung",
+        "partNumber": "M425R2GA3BB0-CQKOL",
+        "deviceLocator": "BANK 0",
+        "smbiosType": 34
+      },
+      {
+        "capacityBytes": 17179869184,
+        "speedMHz": 4800,
+        "configuredSpeedMHz": 4800,
+        "manufacturer": "Samsung",
+        "partNumber": "M425R2GA3BB0-CQKOL",
+        "deviceLocator": "BANK 2",
+        "smbiosType": 34
+      }
+    ]
+  },
+  "videoControllers": [
+    {
+      "name": "Intel(R) Iris(R) Xe Graphics",
+      "adapterRamBytes": 1073741824,
+      "driverVersion": "31.0.101.4502",
+      "videoProcessor": "Intel(R) Iris(R) Xe Graphics Family",
+      "currentWidth": 1920,
+      "currentHeight": 1200,
+      "currentRefreshHz": 60,
+      "status": "OK",
+      "adapterRamSource": "cim"
+    },
+    {
+      "name": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+      "adapterRamBytes": 6442450944,
+      "driverVersion": "31.0.15.4683",
+      "videoProcessor": "GeForce RTX 3050 Ti Laptop GPU",
+      "currentWidth": null,
+      "currentHeight": null,
+      "currentRefreshHz": null,
+      "status": "OK",
+      "adapterRamSource": "registry"
+    }
+  ],
+  "monitors": [
+    {
+      "name": "DELL XPS 15 9520",
+      "manufacturer": "SDC",
+      "serial": "0A1B2C3D",
+      "active": true
+    }
+  ],
+  "physicalDisks": [
+    {
+      "name": "NVMe PM9A1 Samsung 1TB",
+      "model": "PM9A1 NVMe Samsung 1024GB",
+      "sizeBytes": 1024209543168,
+      "mediaType": "SSD",
+      "smartStatus": "Healthy",
+      "serial": "S6XXNJ0T123456",
+      "interfaceType": "NVMe"
+    }
+  ],
+  "diskDrives": [
+    {
+      "model": "PM9A1 NVMe Samsung 1024GB",
+      "sizeBytes": 1024209543168,
+      "mediaType": "Fixed hard disk media",
+      "interfaceType": "SCSI",
+      "serialNumber": "S6XXNJ0T123456"
+    }
+  ],
+  "volumes": [
+    {
+      "deviceId": "C:",
+      "name": "OS",
+      "fs": "NTFS",
+      "totalBytes": 1024209543168,
+      "freeBytes": 536870912000,
+      "driveType": 3
+    }
+  ],
+  "battery": {
+    "present": true,
+    "percent": 86,
+    "condition": "Normal",
+    "cycleCount": null,
+    "designCapacityMah": 5400,
+    "maxCapacityMah": 5022,
+    "temperatureC": 31.5,
+    "healthPercent": 93
+  },
+  "usb": [
+    {
+      "name": "USB Composite Device",
+      "vendor": "046D",
+      "productId": "C52B",
+      "serial": "1234ABCD",
+      "speed": null,
+      "bus": null
+    },
+    {
+      "name": "USB Mass Storage Device",
+      "vendor": "0781",
+      "productId": "5583",
+      "serial": "4C530001230731116562",
+      "speed": null,
+      "bus": null
+    }
+  ],
+  "bluetoothControllers": [
+    {
+      "name": "Intel(R) Wireless Bluetooth(R)",
+      "address": null,
+      "chipset": "Intel(R) Wireless Bluetooth(R)",
+      "firmware": null,
+      "state": "on"
+    }
+  ],
+  "bluetoothDevices": [
+    {
+      "name": "WH-1000XM5",
+      "address": "AC:80:0A:11:22:33",
+      "connected": true,
+      "batteryPercent": null,
+      "type": "audio"
+    }
+  ],
+  "audio": [
+    {
+      "name": "Speakers (Realtek(R) Audio)",
+      "kind": "output",
+      "manufacturer": null,
+      "default": null
+    },
+    {
+      "name": "Microphone Array (Intel(R) Smart Sound Technology)",
+      "kind": "input",
+      "manufacturer": null,
+      "default": null
+    }
+  ],
+  "cameras": [
+    {
+      "name": "Integrated Webcam",
+      "modelId": null,
+      "uniqueId": "USB\\VID_0BDA&PID_5678\\01"
+    }
+  ],
+  "errors": []
+}

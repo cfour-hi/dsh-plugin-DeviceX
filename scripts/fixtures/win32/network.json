@@ -1,0 +1,148 @@
+{
+  "generatedAt": 1762516500000,
+  "adapters": [
+    {
+      "name": "Wi-Fi",
+      "description": "Intel(R) Wi-Fi 6E AX211 160MHz",
+      "status": "Up",
+      "mac": "F8:1A:67:11:22:33",
+      "mtu": 1500,
+      "ifIndex": 14,
+      "physical": true,
+      "virtual": false,
+      "ndisMedium": 9,
+      "linkSpeedBps": 1201000000,
+      "ipv4": [
+        "192.168.1.87"
+      ],
+      "ipv6": [
+        "2408:8207:1234:5678:aaaa:bbbb:cccc:dddd",
+        "fe80::1a2b:3c4d:5e6f:7a8b"
+      ]
+    },
+    {
+      "name": "Ethernet 2",
+      "description": "Realtek(R) PCIe GbE Family Controller",
+      "status": "Disconnected",
+      "mac": "F8:1A:67:44:55:66",
+      "mtu": 1500,
+      "ifIndex": 6,
+      "physical": true,
+      "virtual": false,
+      "ndisMedium": 14,
+      "linkSpeedBps": 1000000000,
+      "ipv4": [],
+      "ipv6": []
+    },
+    {
+      "name": "vEthernet (WSL)",
+      "description": "Hyper-V Virtual Ethernet Adapter",
+      "status": "Up",
+      "mac": "00:15:5D:AA:BB:CC",
+      "mtu": 1500,
+      "ifIndex": 42,
+      "physical": false,
+      "virtual": true,
+      "ndisMedium": 14,
+      "linkSpeedBps": 10000000000,
+      "ipv4": [
+        "172.20.16.1"
+      ],
+      "ipv6": [
+        "fe80::aaaa:bbbb:cccc:dddd"
+      ]
+    },
+    {
+      "name": "Loopback Pseudo-Interface 1",
+      "description": "Microsoft Loopback Adapter",
+      "status": "Up",
+      "mac": null,
+      "mtu": 4294967295,
+      "ifIndex": 1,
+      "physical": false,
+      "virtual": true,
+      "ndisMedium": 0,
+      "linkSpeedBps": 1073741824,
+      "ipv4": [],
+      "ipv6": []
+    }
+  ],
+  "defaultRoute": {
+    "gateway": "192.168.1.1",
+    "interface": "Wi-Fi",
+    "ifIndex": 14,
+    "routeMetric": 0,
+    "interfaceMetric": 35
+  },
+  "dns": {
+    "servers": [
+      "192.168.1.1",
+      "223.5.5.5",
+      "2400:3200::1"
+    ],
+    "searchDomains": [
+      "lan",
+      "home.arpa"
+    ]
+  },
+  "proxy": {
+    "enable": false,
+    "server": "",
+    "autoConfigUrl": "",
+    "bypass": "<local>"
+  },
+  "wifi": {
+    "name": "Wi-Fi",
+    "ssid": "HomeWLAN",
+    "bssid": "3C:37:12:AA:BB:CC",
+    "signalPercent": 87,
+    "channel": 36,
+    "state": "connected",
+    "authentication": "WPA2-Personal",
+    "radioType": "802.11ax",
+    "receiveRateMbps": 1201,
+    "transmitRateMbps": 1201
+  },
+  "tcpListeners": [
+    {
+      "address": "0.0.0.0",
+      "port": 135,
+      "pid": 1040,
+      "process": "svchost"
+    },
+    {
+      "address": "0.0.0.0",
+      "port": 445,
+      "pid": 4,
+      "process": "System"
+    },
+    {
+      "address": "127.0.0.1",
+      "port": 50732,
+      "pid": 14232,
+      "process": "node"
+    },
+    {
+      "address": "0.0.0.0",
+      "port": 27036,
+      "pid": 8876,
+      "process": "steamwebhelper"
+    }
+  ],
+  "udpListeners": [
+    {
+      "address": "0.0.0.0",
+      "port": 5353,
+      "pid": 1040,
+      "process": "svchost"
+    },
+    {
+      "address": "0.0.0.0",
+      "port": 1900,
+      "pid": 1040,
+      "process": "svchost"
+    }
+  ],
+  "establishedCount": 23,
+  "errors": []
+}

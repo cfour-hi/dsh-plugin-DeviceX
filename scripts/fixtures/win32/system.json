@@ -1,0 +1,135 @@
+{
+  "generatedAt": 1762516500000,
+  "os": {
+    "caption": "Microsoft Windows 11 Pro",
+    "displayVersion": "23H2",
+    "version": "10.0.22631",
+    "build": "22631",
+    "installDateMs": 1650000000000,
+    "lastBootUpTimeMs": 1762400000000,
+    "osArchitecture": "64-bit",
+    "processorArchitecture": "AMD64"
+  },
+  "device": {
+    "hostname": "DESKTOP-8F3K2Q1",
+    "computerName": "DESKTOP-8F3K2Q1",
+    "localHostname": "DESKTOP-8F3K2Q1",
+    "manufacturer": "Dell Inc.",
+    "model": "XPS 15 9520",
+    "modelId": "0A4D",
+    "chip": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "serial": "5CD1234ABCD",
+    "hardwareUuid": "4C4C4544-0044-3510-8058-B6C04F513931"
+  },
+  "boot": {
+    "bootTimeMs": 1762400000000,
+    "uptimeSec": 116500
+  },
+  "users": {
+    "current": {
+      "name": "alex",
+      "fullName": "Alex Chen",
+      "home": "C:\\Users\\alex",
+      "admin": true
+    },
+    "localUsers": [
+      {
+        "name": "alex",
+        "fullName": "Alex Chen",
+        "enabled": true,
+        "sid": "S-1-5-21-1111111111-2222222222-3333333333-1001",
+        "home": "C:\\Users\\alex"
+      },
+      {
+        "name": "Administrator",
+        "fullName": "",
+        "enabled": false,
+        "sid": "S-1-5-21-1111111111-2222222222-3333333333-500",
+        "home": "C:\\Users\\Administrator"
+      },
+      {
+        "name": "Guest",
+        "fullName": "",
+        "enabled": false,
+        "sid": "S-1-5-21-1111111111-2222222222-3333333333-501",
+        "home": null
+      }
+    ],
+    "admins": [
+      "alex",
+      "Administrator"
+    ]
+  },
+  "startup": [
+    {
+      "label": "OneDrive",
+      "path": "startup:HKCU:OneDrive",
+      "scope": "user",
+      "loaded": true,
+      "program": "\"C:\\Users\\alex\\AppData\\Local\\Microsoft\\OneDrive\\OneDrive.exe\" /background",
+      "hive": "HKCU",
+      "location": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "source": "registry"
+    },
+    {
+      "label": "SecurityHealth",
+      "path": "startup:HKLM:SecurityHealth",
+      "scope": "system",
+      "loaded": true,
+      "program": "%windir%\\system32\\SecurityHealthSystray.exe",
+      "hive": "HKLM",
+      "location": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "source": "registry"
+    },
+    {
+      "label": "RtkAudUService",
+      "path": "startup:HKLM:RtkAudUService",
+      "scope": "system",
+      "loaded": true,
+      "program": "\"C:\\Windows\\System32\\DriverStore\\FileRepository\\realtekaudio\\RtkAudUService64.exe\" -background",
+      "hive": "HKLM",
+      "location": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "source": "registry"
+    },
+    {
+      "label": "Discord",
+      "path": "startup:HKCU:Discord",
+      "scope": "user",
+      "loaded": false,
+      "program": "C:\\Users\\alex\\AppData\\Local\\Discord\\Update.exe --processStart Discord.exe",
+      "hive": "HKCU",
+      "location": "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "source": "registry"
+    },
+    {
+      "label": "EpicGamesLauncher",
+      "path": "startup:HKLM32:EpicGamesLauncher",
+      "scope": "system",
+      "loaded": true,
+      "program": "\"C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win32\\EpicGamesLauncher.exe\" -silent",
+      "hive": "HKLM32",
+      "location": "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Run",
+      "source": "registry"
+    }
+  ],
+  "loginItems": [
+    {
+      "name": "Steam",
+      "command": "C:\\Program Files (x86)\\Steam\\steam.exe -silent"
+    }
+  ],
+  "environment": {
+    "PATH": "C:\\Windows\\system32;C:\\Windows;C:\\Windows\\System32\\Wbem;C:\\Program Files\\nodejs\\",
+    "SHELL": null,
+    "HOME": "C:\\Users\\alex",
+    "USER": "alex",
+    "LANG": null,
+    "TERM": null
+  },
+  "locale": {
+    "timezone": "China Standard Time",
+    "locale": "en-US",
+    "language": "en-US"
+  },
+  "errors": []
+}

@@ -1,0 +1,88 @@
+{
+  "generatedAt": 1762516500000,
+  "applications": [
+    {
+      "displayName": "7-Zip 23.01 (x64)",
+      "version": "23.01",
+      "publisher": "Igor Pavlov",
+      "installLocation": "C:\\Program Files\\7-Zip\\",
+      "estimatedSizeKB": 5504,
+      "keyName": "7-Zip",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\7-Zip",
+      "hive": "HKLM",
+      "arch": "x64",
+      "uninstallString": "\"C:\\Program Files\\7-Zip\\uninstall.exe\"",
+      "quietUninstallString": ""
+    },
+    {
+      "displayName": "Git",
+      "version": "2.43.0",
+      "publisher": "The Git Development Community",
+      "installLocation": "C:\\Program Files\\Git\\",
+      "estimatedSizeKB": 312832,
+      "keyName": "Git_is1",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Git_is1",
+      "hive": "HKLM",
+      "arch": "x64",
+      "uninstallString": "\"C:\\Program Files\\Git\\uninstall.exe\"",
+      "quietUninstallString": ""
+    },
+    {
+      "displayName": "Google Chrome",
+      "version": "120.0.6099.130",
+      "publisher": "Google LLC",
+      "installLocation": "C:\\Program Files\\Google\\Chrome\\Application",
+      "estimatedSizeKB": 342016,
+      "keyName": "{9F4C8D2A-1B3C-4D5E-8F90-A1B2C3D4E5F6}",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{9F4C8D2A-1B3C-4D5E-8F90-A1B2C3D4E5F6}",
+      "hive": "HKLM",
+      "arch": "x64",
+      "uninstallString": "MsiExec.exe /I{9F4C8D2A-1B3C-4D5E-8F90-A1B2C3D4E5F6}",
+      "quietUninstallString": ""
+    },
+    {
+      "displayName": "Microsoft Visual Studio Code (User)",
+      "version": "1.85.1",
+      "publisher": "Microsoft Corporation",
+      "installLocation": "C:\\Users\\alex\\AppData\\Local\\Programs\\Microsoft VS Code",
+      "estimatedSizeKB": 402944,
+      "keyName": "{77B4D0C9-0C9F-4E3A-9F11-6D0F3A1B2C44}",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{77B4D0C9-0C9F-4E3A-9F11-6D0F3A1B2C44}",
+      "hive": "HKCU",
+      "arch": "x64",
+      "uninstallString": "\"C:\\Users\\alex\\AppData\\Local\\Programs\\Microsoft VS Code\\unins000.exe\"",
+      "quietUninstallString": ""
+    },
+    {
+      "displayName": "Steam",
+      "version": "2.10.91.91",
+      "publisher": "Valve Corporation",
+      "installLocation": "C:\\Program Files (x86)\\Steam",
+      "estimatedSizeKB": 4198400,
+      "keyName": "Steam",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Steam",
+      "hive": "HKLM",
+      "arch": "x86",
+      "uninstallString": "\"C:\\Program Files (x86)\\Steam\\uninstall.exe\"",
+      "quietUninstallString": ""
+    },
+    {
+      "displayName": "Notepad++ (32-bit x86)",
+      "version": "8.6.2",
+      "publisher": "Notepad++ Team",
+      "installLocation": "C:\\Program Files (x86)\\Notepad++",
+      "estimatedSizeKB": 10240,
+      "keyName": "Notepad++",
+      "keyPath": "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Notepad++",
+      "hive": "HKLM",
+      "arch": "x86",
+      "uninstallString": "\"C:\\Program Files (x86)\\Notepad++\\uninstall.exe\"",
+      "quietUninstallString": ""
+    }
+  ],
+  "winget": {
+    "available": true,
+    "version": "1.6.3482"
+  },
+  "errors": []
+}

@@ -1,0 +1,119 @@
+{
+  "generatedAt": 1762516500000,
+  "hostname": "DESKTOP-8F3K2Q1",
+  "os": {
+    "caption": "Microsoft Windows 11 Pro",
+    "displayVersion": "23H2",
+    "version": "10.0.22631",
+    "build": "22631",
+    "lastBootUpTimeMs": 1762400000000,
+    "osArchitecture": "64-bit"
+  },
+  "cpu": {
+    "name": "12th Gen Intel(R) Core(TM) i7-12700H",
+    "manufacturer": "GenuineIntel",
+    "physicalCores": 14,
+    "logicalCores": 20,
+    "maxClockSpeedMHz": 2300,
+    "architecture": 9
+  },
+  "memory": {
+    "totalBytes": 34359738368,
+    "freeBytes": 12884901888,
+    "cacheBytes": 4294967296,
+    "availableBytes": 16106127360,
+    "committedBytes": 17179869184,
+    "commitLimitBytes": 42949672960,
+    "poolPagedBytes": 1073741824,
+    "poolNonPagedBytes": 536870912,
+    "pageFileTotalBytes": 8589934592,
+    "pageFileUsedBytes": 2147483648
+  },
+  "disk": {
+    "totalBytes": 1024209543168,
+    "freeBytes": 536870912000,
+    "usedBytes": 487338630400
+  },
+  "diskIo": {
+    "read": 123456789012,
+    "write": 98765432109
+  },
+  "network": {
+    "defaultInterface": "Wi-Fi",
+    "defaultGateway": "192.168.1.1",
+    "primaryIpv4": [
+      "192.168.1.87"
+    ],
+    "counters": {
+      "read": 445566778899,
+      "write": 223344556677
+    },
+    "wifi": {
+      "name": "Wi-Fi",
+      "ssid": "HomeWLAN",
+      "bssid": "3C:37:12:AA:BB:CC",
+      "signalPercent": 87,
+      "channel": 36,
+      "state": "connected",
+      "authentication": "WPA2-Personal",
+      "radioType": "802.11ax",
+      "receiveRateMbps": 1201,
+      "transmitRateMbps": 1201
+    }
+  },
+  "battery": {
+    "present": true,
+    "percent": 86,
+    "charging": false,
+    "plugged": false,
+    "powerSource": "Battery Power",
+    "timeRemainingMin": 245,
+    "temperatureC": 31.5,
+    "cycleCount": null,
+    "healthPercent": 93,
+    "designCapacityMah": 5400,
+    "maxCapacityMah": 5022,
+    "status": 1
+  },
+  "processes": {
+    "total": 312,
+    "top": [
+      {
+        "pid": 1234,
+        "name": "chrome",
+        "cpuPercent": 180.5,
+        "workingSetBytes": 734003200,
+        "user": "DESKTOP-8F3K2Q1\\alex"
+      },
+      {
+        "pid": 5678,
+        "name": "Code",
+        "cpuPercent": 92.3,
+        "workingSetBytes": 1048576000,
+        "user": "DESKTOP-8F3K2Q1\\alex"
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpuPercent": 31.2,
+        "workingSetBytes": 131072,
+        "user": "NT AUTHORITY\\SYSTEM"
+      },
+      {
+        "pid": 9876,
+        "name": "dwm",
+        "cpuPercent": 18.9,
+        "workingSetBytes": 209715200,
+        "user": "DWM-1\\Window Manager"
+      },
+      {
+        "pid": 3456,
+        "name": "explorer",
+        "cpuPercent": 12.4,
+        "workingSetBytes": 335544320,
+        "user": "DESKTOP-8F3K2Q1\\alex"
+      }
+    ]
+  },
+  "errors": []
+}

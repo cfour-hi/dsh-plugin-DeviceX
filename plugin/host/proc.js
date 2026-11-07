@@ -68,6 +68,7 @@ function release() {
  * @param {number} [options.maxBuffer] bytes.
  * @param {NodeJS.ProcessEnv} [options.env] full environment replacement.
  * @param {string} [options.cwd]
+ * @param {string} [options.input] bytes to write to the child's stdin, then close it.
  * @returns {Promise<ExecResult>}
  */
 export function run(file, args = [], options = {}) {
@@ -76,6 +77,7 @@ export function run(file, args = [], options = {}) {
     maxBuffer = DEFAULT_MAX_BUFFER,
     env,
     cwd,
+    input,
   } = options;
 
   return acquire().then(
@@ -150,6 +152,15 @@ export function run(file, args = [], options = {}) {
         // Async spawn failures are delivered through the callback; this handler
         // only prevents an unhandled `error` event on the child object.
         child.on('error', () => {});
+        // Optional stdin payload: used by the Windows PowerShell bridge, whose
+        // scripts routinely exceed the Windows 32,767-character command line
+        // (they are streamed to `powershell -Command -` instead of argv).
+        if (typeof input === 'string' && child.stdin !== null) {
+          child.stdin.on('error', () => {});
+          child.stdin.end(input);
+        } else if (child.stdin !== null) {
+          child.stdin.end();
+        }
       }),
   );
 }

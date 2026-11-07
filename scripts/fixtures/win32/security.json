@@ -1,0 +1,34 @@
+{
+  "generatedAt": 1762516500000,
+  "fileVault": {
+    "enabled": true,
+    "raw": "ProtectionStatus=1; VolumeStatus=FullyEncrypted",
+    "volumeStatus": "FullyEncrypted"
+  },
+  "sip": {
+    "enabled": true,
+    "raw": "Secure Boot: True"
+  },
+  "gatekeeper": {
+    "enabled": true,
+    "raw": "RealTimeProtectionEnabled=True; AntivirusEnabled=True; SignatureVersion=1.403.3144.0"
+  },
+  "firewall": {
+    "enabled": true,
+    "raw": "Domain=True, Private=True, Public=True",
+    "stealthMode": null
+  },
+  "users": {
+    "current": "alex",
+    "admins": ["alex", "Administrator"],
+    "total": 3
+  },
+  "remoteLogin": false,
+  "autoLogin": null,
+  "uac": {
+    "enabled": true,
+    "consentPromptBehaviorAdmin": 5,
+    "raw": "EnableLUA=1; ConsentPromptBehaviorAdmin=5"
+  },
+  "errors": []
+}

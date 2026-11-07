@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-devicex",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Inspect every part of this device and control what can be changed.",
+  "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -15,12 +15,17 @@
     "client.js",
     "cordis.patch.yml",
     "host/*.js",
+    "host/win/*.ps1",
     "locale/*.json",
     "icon.svg"
   ],
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": "./cordis.patch.yml",
+      "platforms": [
+        "darwin",
+        "win32"
+      ]
     },
     "client": {
       "platform": "web",
