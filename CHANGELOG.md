@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.10 — Hardware tab to TSX
+
+No visible UI change.
+
+- `HardwareTab.tsx` is the second tab extracted from `core.js`; the large card grid
+  (CPU/memory/GPU/displays/storage/battery/USB/Bluetooth/audio/cameras) is now JSX.
+- `ThermalCard.tsx` and `DriversCard.tsx` moved with it; the thermal translation-key
+  maps and the `normalizeThermal` usage live in the thermal component now.
+- `core.js` keeps only the remaining tabs + action/modal layer on `h()`.
+- concat (C) fallback module order covers the three new files; both build engines render
+  identically (215 + 32 assertions each) and all type/test/build/offline suites stay green.
+- `plugin/client.js` regenerated: 202,945 → 202,822 bytes.
+
 ## 1.3.9 — Tab layer starts moving to TSX
 
 No visible UI change.

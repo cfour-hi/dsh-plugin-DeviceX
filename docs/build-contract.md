@@ -605,3 +605,13 @@ The browser half is no longer hand-edited as one file:
 - `TabShell.tsx` + `SectionErrors.tsx` are the shared shell for every remaining tab.
 - C (concat) fallback transpiles the new `.tsx` files with the TypeScript compiler and its
   module order follows the component dependency chain; both engines stay equivalent.
+
+## 1.3.10 Hardware tab extraction (P2-b continued, frozen)
+
+- `HardwareTab.tsx` + `ThermalCard.tsx` + `DriversCard.tsx` now live in
+  `src/client/components/`; `core.js` imports the tab and no longer defines it.
+- The tab still receives `{ t, state, metrics, onRetry }` and renders through `TabShell`;
+  DOM structure and class names are unchanged (guarded by the 215-assertion render suite).
+- Thermal translation-key lookup and `normalizeThermal()` moved into `ThermalCard`.
+- Remaining `h()` tabs: System/Software/Network/Security/Processes/Cleanup/Benchmark/Actions,
+  plus the actions/modal layer; they migrate with the same pattern.
