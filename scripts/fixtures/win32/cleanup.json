@@ -1,0 +1,98 @@
+{
+  "generatedAt": 1762516500000,
+  "description": "Normalized Windows cleanup allowlist for a typical Windows 11 user profile. Verified on any host by cleanup-win32.__test.normalizeWinItems(environment).",
+  "environment": {
+    "SystemRoot": "C:\\Windows",
+    "windir": "C:\\Windows",
+    "SystemDrive": "C:",
+    "USERPROFILE": "C:\\Users\\Alex",
+    "LOCALAPPDATA": "C:\\Users\\Alex\\AppData\\Local",
+    "TEMP": "C:\\Users\\Alex\\AppData\\Local\\Temp",
+    "TMP": "C:\\Users\\Alex\\AppData\\Local\\Temp"
+  },
+  "expected": {
+    "platform": "win32",
+    "items": [
+      {
+        "id": "user-temp",
+        "label": "User temp files",
+        "detail": "%TEMP%",
+        "category": "temp",
+        "path": "C:\\Users\\Alex\\AppData\\Local\\Temp",
+        "requiresAdmin": false,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "localappdata-temp",
+        "label": "Local app temp files",
+        "detail": "%LOCALAPPDATA%\\Temp",
+        "category": "temp",
+        "path": "C:\\Users\\Alex\\AppData\\Local\\Temp",
+        "requiresAdmin": false,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "crash-dumps",
+        "label": "Crash dumps",
+        "detail": "%LOCALAPPDATA%\\CrashDumps",
+        "category": "logs",
+        "path": "C:\\Users\\Alex\\AppData\\Local\\CrashDumps",
+        "requiresAdmin": false,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "thumbnail-cache",
+        "label": "Explorer thumbnail cache",
+        "detail": "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer",
+        "category": "cache",
+        "path": "C:\\Users\\Alex\\AppData\\Local\\Microsoft\\Windows\\Explorer",
+        "requiresAdmin": false,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "recycle-bin",
+        "label": "Recycle Bin",
+        "detail": "Recycle Bin (all drives)",
+        "category": "trash",
+        "path": "Recycle Bin",
+        "requiresAdmin": false,
+        "kind": "recycle",
+        "mode": "recycle"
+      },
+      {
+        "id": "system-temp",
+        "label": "System temp files",
+        "detail": "%SystemRoot%\\Temp",
+        "category": "temp",
+        "path": "C:\\Windows\\Temp",
+        "requiresAdmin": true,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "windows-update-downloads",
+        "label": "Windows Update downloads",
+        "detail": "%SystemRoot%\\SoftwareDistribution\\Download",
+        "category": "updates",
+        "path": "C:\\Windows\\SoftwareDistribution\\Download",
+        "requiresAdmin": true,
+        "kind": "fs",
+        "mode": "recreate"
+      },
+      {
+        "id": "delivery-optimization",
+        "label": "Delivery Optimization cache",
+        "detail": "%SystemRoot%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization",
+        "category": "updates",
+        "path": "C:\\Windows\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization",
+        "requiresAdmin": true,
+        "kind": "fs",
+        "mode": "recreate"
+      }
+    ]
+  }
+}

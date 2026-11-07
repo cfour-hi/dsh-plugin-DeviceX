@@ -75,6 +75,32 @@
     "maxCapacityMah": 5022,
     "status": 1
   },
+  "thermal": {
+    "zones": [
+      {
+        "name": "ACPI\\ThermalZone\\TZ00",
+        "celsius": 62.5
+      },
+      {
+        "name": "ACPI\\ThermalZone\\TZ01",
+        "celsius": 57.1
+      }
+    ],
+    "cpuCelsius": 62.5,
+    "gpuCelsius": 54,
+    "fans": [
+      {
+        "name": "GPU",
+        "rpm": null,
+        "percent": 38
+      }
+    ],
+    "sources": [
+      "wmi-thermal-zone",
+      "nvidia-smi"
+    ],
+    "note": null
+  },
   "processes": {
     "total": 312,
     "top": [

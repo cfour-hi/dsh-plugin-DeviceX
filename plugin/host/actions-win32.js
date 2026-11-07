@@ -13,6 +13,7 @@ import { statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
+import { cleanupItems, deleteCleanup } from './cleanup-win32.js';
 import { runPS, runPSJson, psString } from './win.js';
 
 /** Action groups, in UI order. */
@@ -374,6 +375,45 @@ function readDnsServers(params) {
   return { ok: true, value: list };
 }
 
+/**
+ * Read the `ids` parameter of `cleanup.delete`: an array (or comma separated
+ * string) of 1-20 unique ids from the cleanup allowlist. Unknown ids, caller
+ * paths, duplicates and oversized batches are refused before any filesystem
+ * call.
+ * @param {object} params
+ */
+function readCleanupIds(params) {
+  const raw = params.ids;
+  let values;
+  if (Array.isArray(raw)) {
+    values = raw;
+  } else if (typeof raw === 'string') {
+    values = raw.split(',');
+  } else {
+    return failure(
+      'Parameter "ids" must be an array of cleanup item ids (or a comma separated string).',
+      'BAD_PARAMS',
+    );
+  }
+  const ids = [];
+  for (const value of values) {
+    if (typeof value !== 'string') return failure('Cleanup item ids must be strings.', 'BAD_PARAMS');
+    const id = value.trim();
+    if (id !== '') ids.push(id);
+  }
+  if (ids.length < 1 || ids.length > 20) {
+    return failure('Parameter "ids" must contain 1 to 20 cleanup item ids.', 'BAD_PARAMS');
+  }
+  const known = new Set(cleanupItems().map((item) => item.id));
+  const seen = new Set();
+  for (const id of ids) {
+    if (seen.has(id)) return failure(`Duplicate cleanup item id: ${id}`, 'BAD_PARAMS');
+    seen.add(id);
+    if (!known.has(id)) return failure(`Unknown cleanup item id: ${id}`, 'BAD_PARAMS');
+  }
+  return { ok: true, value: ids };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Action catalog                                                             */
 /* -------------------------------------------------------------------------- */
@@ -570,6 +610,20 @@ const SPECS = [
     params: [],
     validate() {
       return { ok: true, value: {} };
+    },
+  },
+  {
+    id: 'cleanup.delete',
+    group: 'system',
+    danger: 'high',
+    requiresAdmin: false,
+    params: [
+      { name: 'ids', type: 'string', required: true, multiple: true, placeholder: 'user-temp, crash-dumps' },
+    ],
+    validate(params) {
+      const ids = readCleanupIds(params);
+      if (ids.ok !== true) return ids;
+      return { ok: true, value: { ids: ids.value } };
     },
   },
   {
@@ -990,6 +1044,11 @@ try {
     }
     return success('Emptied the Recycle Bin.');
   },
+  'cleanup.delete': async ({ ids }) => {
+    // The cleanup module owns the allowlist and the fixed absolute paths: the
+    // action passes ids only, never a path, and reports per-item outcomes.
+    return deleteCleanup(ids);
+  },
   'network.setWifiPower': async ({ enabled }) => {
     const script = `${PS_HEAD}
 $enabled = $env:DEVICEX_ARG_ENABLED -eq 'true';
@@ -1162,5 +1221,5 @@ export const __test = {
   validate: Object.fromEntries(
     SPECS.map((spec) => [spec.id, (params) => spec.validate(paramsObject(params))]),
   ),
-  guards: { parseRegistryKey, parseUninstallId, parseLaunchAgentPath, readDnsServers, readExistingPath },
+  guards: { parseRegistryKey, parseUninstallId, parseLaunchAgentPath, readDnsServers, readExistingPath, readCleanupIds },
 };

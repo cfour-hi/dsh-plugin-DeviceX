@@ -85,6 +85,7 @@ const HARDWARE_PROFILER_TYPES = [
   'SPCameraDataType',
   'SPDisplaysDataType',
   'SPPowerDataType',
+  'SPExtensionsDataType',
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -1174,6 +1175,151 @@ function displayConnection(connectionType, displayType, screen) {
 /* Section: hardware                                                          */
 /* -------------------------------------------------------------------------- */
 
+/** Contract cap for `hardware.drivers` (both platforms). */
+const MAX_DRIVERS = 250;
+/** Contract cap for `hardware.driverProblems` (Windows only; empty on macOS). */
+const MAX_DRIVER_PROBLEMS = 50;
+
+/**
+ * Keep only the calendar date part of an ISO timestamp (the driver contract
+ * uses `yyyy-MM-dd`; a full timestamp is not a deviation worth exposing).
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+function isoDateOnly(value) {
+  const text = str(value);
+  if (!text) return null;
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+  return match ? match[1] : null;
+}
+
+/**
+ * Vendor shown in `hardware.drivers[].manufacturer`.
+ *
+ * Apple's own extensions are identified by bundle id / install location; a
+ * third-party extension is either the organisation named in its signing
+ * subject or, when that cannot be parsed, the literal `Third-party` (never a
+ * fabricated company name).
+ * @param {string|null} bundleId
+ * @param {string} extensionPath
+ * @param {string|null} signedBy
+ * @returns {string}
+ */
+function darwinDriverVendor(bundleId, extensionPath, signedBy) {
+  if (
+    (bundleId !== null && bundleId.startsWith('com.apple.')) ||
+    /\/System\/Library\//.test(extensionPath) ||
+    /TeamID:\s*@apple/.test(signedBy ?? '')
+  ) {
+    return 'Apple';
+  }
+  const subject =
+    /Subject:\s*(?:Developer ID Application|Developer ID Installer|Apple Development|Mac Developer):\s*([^,]+)/.exec(
+      signedBy ?? '',
+    );
+  if (subject) {
+    const vendor = subject[1].replace(/\s*\([A-Z0-9]+\)\s*$/, '').trim();
+    if (vendor) return vendor;
+  }
+  return 'Third-party';
+}
+
+/**
+ * Descending version comparison for the driver ordering (`31.0.15` before
+ * `2.4.0`; purely numeric segments so Apple's `1` and `2.4.0` sort sanely).
+ * @param {string|null} left
+ * @param {string|null} right
+ * @returns {number}
+ */
+function compareDriverVersions(left, right) {
+  const segments = (value) =>
+    str(value) === null
+      ? []
+      : String(value)
+          .split(/[^0-9]+/)
+          .filter((part) => part !== '')
+          .map((part) => Number(part));
+  const a = segments(left);
+  const b = segments(right);
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (b[index] ?? 0) - (a[index] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
+ * Map `SPExtensionsDataType` records to the frozen `hardware.drivers` shape.
+ * `kind` is `driverkit` for DriverKit/system extensions and `kext` otherwise.
+ *
+ * The ordering keeps the most useful rows when the 250-entry cap bites:
+ * third-party extensions first, then loaded ones, then version descending.
+ * `truncated` reports whether the raw list exceeded {@link MAX_DRIVERS}.
+ * @param {unknown} entries
+ * @returns {{drivers: Array<{name: string, class: string|null,
+ *   manufacturer: string|null, version: string|null, date: string|null,
+ *   signer: string|null, inf: string|null, deviceId: string|null,
+ *   kind: 'kext'|'driverkit'|'pnp', problem: string|null}>,
+ *   truncated: boolean}}
+ */
+function parseDarwinDrivers(entries) {
+  /** @type {Array<{thirdParty: boolean, loaded: boolean, driver: any}>} */
+  const records = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry || typeof entry !== 'object') continue;
+    const bundleId = str(entry.spext_bundleid);
+    const name = str(entry._name) ?? bundleId;
+    if (name === null) continue;
+    const extensionPath = str(entry.spext_path) ?? '';
+    const signedBy = str(entry.spext_signed_by);
+    const manufacturer = darwinDriverVendor(bundleId, extensionPath, signedBy);
+    records.push({
+      thirdParty: manufacturer !== 'Apple',
+      loaded: str(entry.spext_loaded) === 'spext_yes',
+      driver: {
+        name,
+        class: null,
+        manufacturer,
+        version: str(entry.spext_version) ?? str(entry.version),
+        date: isoDateOnly(entry.spext_lastModified),
+        signer: signedBy,
+        inf: null,
+        // macOS has no PnP instance id; the extension's bundle identifier is
+        // the stable identity we can report honestly.
+        deviceId: bundleId,
+        kind: /\.dext\/?$|DriverExtensions|SystemExtensions/i.test(extensionPath) ? 'driverkit' : 'kext',
+        problem: null,
+      },
+    });
+  }
+  records.sort((left, right) => {
+    if (left.thirdParty !== right.thirdParty) return left.thirdParty ? -1 : 1;
+    if (left.loaded !== right.loaded) return left.loaded ? -1 : 1;
+    const versionDiff = compareDriverVersions(left.driver.version, right.driver.version);
+    if (versionDiff !== 0) return versionDiff;
+    return (left.driver.name ?? '').localeCompare(right.driver.name ?? '');
+  });
+  const truncated = records.length > MAX_DRIVERS;
+  return { drivers: records.slice(0, MAX_DRIVERS).map((record) => record.driver), truncated };
+}
+
+/**
+ * Derive the driver summary from the returned (capped) arrays.
+ * @param {Array<{manufacturer: string|null}>} drivers
+ * @param {Array<object>} problems
+ * @param {boolean} [truncated]
+ * @returns {{total: number, thirdParty: number, problems: number, truncated: boolean}}
+ */
+function driverSummaryOf(drivers, problems, truncated = false) {
+  return {
+    total: drivers.length,
+    thirdParty: drivers.filter((driver) => driver.manufacturer !== 'Apple').length,
+    problems: problems.length,
+    truncated,
+  };
+}
+
 /**
  * @returns {Promise<object>} the frozen hardware section shape.
  */
@@ -1359,6 +1505,14 @@ async function buildHardware() {
     });
   }
 
+  // Installed kernel- and DriverKit extensions (SPExtensionsDataType). macOS
+  // does not expose per-device ConfigManagerErrorCode, so `problem` stays null
+  // and `driverProblems` is empty; matching Windows keeps the section shape.
+  const parsedDrivers = parseDarwinDrivers(sp.SPExtensionsDataType);
+  const drivers = parsedDrivers.drivers;
+  /** @type {Array<{name: string, code: string, class: string|null}>} */
+  const driverProblems = [];
+
   return {
     cpu,
     memory,
@@ -1370,6 +1524,9 @@ async function buildHardware() {
     bluetooth: { controller: bluetoothController, devices: bluetoothDevices },
     audio,
     cameras,
+    drivers,
+    driverSummary: driverSummaryOf(drivers, driverProblems, parsedDrivers.truncated),
+    driverProblems,
     errors,
   };
 }
@@ -2230,6 +2387,215 @@ async function cpuUsage() {
   return compute(previous, current);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Metrics: thermal sensors                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * TTL for the whole thermal probe. The UI polls metrics every 2500 ms; the
+ * pressure probe spawns `osascript`, so it must not run on every poll. A 5 s
+ * cache refreshes roughly every other poll.
+ */
+const THERMAL_TTL = 5_000;
+
+/**
+ * Optional third-party CPU-temperature helpers, in preference order. They are
+ * invoked argv-only with a short timeout; when none is installed the CPU value
+ * stays null and the note explains why (`cpu-needs-admin`).
+ */
+const SMC_HELPERS = [
+  { name: 'osx-cpu-temp', args: [] },
+  { name: 'smctemp', args: ['-c'] },
+  { name: 'istats', args: ['cpu', 'temp', '--value-only'] },
+];
+
+/** Extra install locations searched besides `$PATH`. */
+const HELPER_DIRS = ['/opt/homebrew/bin', '/usr/local/bin'];
+const POWERMETRICS = '/usr/bin/powermetrics';
+/** `NSProcessInfo.thermalState` enum, in order. */
+const THERMAL_PRESSURE_STATES = ['nominal', 'fair', 'serious', 'critical'];
+
+/**
+ * Resolve an installed helper to an absolute path (execFile argv only).
+ * @param {string} name
+ * @returns {string|null}
+ */
+function resolveExecutable(name) {
+  const dirs = [...String(process.env.PATH ?? '').split(path.delimiter), ...HELPER_DIRS].filter(Boolean);
+  for (const dir of new Set(dirs)) {
+    const candidate = path.join(dir, name);
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      /* keep looking */
+    }
+  }
+  return null;
+}
+
+/**
+ * Accept only a physically plausible temperature (guards a garbage sample).
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function plausibleCelsius(value) {
+  const parsed = num(value);
+  if (parsed === null || parsed < -20 || parsed > 150) return null;
+  return round(parsed, 1);
+}
+
+/**
+ * The contract's null-filled thermal object (used by fallbackMetrics and when
+ * the probe cannot produce anything at all).
+ * @param {'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null} [note]
+ * @returns {{available: false, cpuCelsius: null, gpuCelsius: null,
+ *   batteryCelsius: null, nvmeCelsius: null, pressure: null, fans: never[],
+ *   sources: never[], note: 'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null}}
+ */
+function emptyThermal(note = null) {
+  return {
+    available: false,
+    cpuCelsius: null,
+    gpuCelsius: null,
+    batteryCelsius: null,
+    nvmeCelsius: null,
+    pressure: null,
+    fans: [],
+    sources: [],
+    note,
+  };
+}
+
+/**
+ * True when the Host process runs as root (needed for `powermetrics`).
+ * @returns {boolean}
+ */
+function isRootUser() {
+  try {
+    return typeof process.getuid === 'function' && process.getuid() === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Thermal pressure from `NSProcessInfo.thermalState` via JavaScript for
+ * Automation (no admin, no helper). Maps 0/1/2/3 → nominal/fair/serious/
+ * critical; any failure or out-of-range value is null.
+ * @returns {Promise<'nominal'|'fair'|'serious'|'critical'|null>}
+ */
+async function readThermalPressure() {
+  const script = 'ObjC.import("Foundation"); ObjC.unwrap($.NSProcessInfo.processInfo.thermalState)';
+  const result = await run(OSASCRIPT, ['-l', 'JavaScript', '-e', script], { timeout: 1_500 });
+  if (!result.ok) return null;
+  const level = num(lines(result.stdout)[0]);
+  if (level === null || !Number.isInteger(level) || level < 0 || level >= THERMAL_PRESSURE_STATES.length) return null;
+  return /** @type {'nominal'|'fair'|'serious'|'critical'} */ (THERMAL_PRESSURE_STATES[level]);
+}
+
+/**
+ * Run one optional temperature helper (bounded) and parse its first number.
+ * @param {string} executable absolute path
+ * @param {string[]} args
+ * @returns {Promise<number|null>}
+ */
+async function readHelperCelsius(executable, args) {
+  const result = await run(executable, args, { timeout: 2_000, maxBuffer: 256 * 1024 });
+  if (!result.ok) return null;
+  const match = /(-?\d+(?:\.\d+)?)/.exec(result.stdout);
+  return match ? plausibleCelsius(match[1]) : null;
+}
+
+/**
+ * CPU/GPU die temperatures from `powermetrics` — only when the Host is root;
+ * `sudo` would need a password and cannot be used from a service. Never throws.
+ * @returns {Promise<{cpuCelsius: number|null, gpuCelsius: number|null}|null>}
+ */
+async function readPowermetricsTemps() {
+  if (!isRootUser()) return null;
+  const attempts = [
+    ['--samplers', 'smc', '-i', '1', '-n', '1'],
+    ['--samplers', 'thermal', '-i', '1', '-n', '1'],
+  ];
+  for (const args of attempts) {
+    const result = await run(POWERMETRICS, args, { timeout: 4_000, maxBuffer: 1024 * 1024 });
+    if (!result.ok) continue;
+    const cpuMatch = /(?:CPU(?:\s+die)?\s+temperature)\s*:\s*(-?\d+(?:\.\d+)?)/i.exec(result.stdout);
+    const gpuMatch = /(?:GPU(?:\s+die)?\s+temperature)\s*:\s*(-?\d+(?:\.\d+)?)/i.exec(result.stdout);
+    const cpuCelsius = cpuMatch ? plausibleCelsius(cpuMatch[1]) : null;
+    const gpuCelsius = gpuMatch ? plausibleCelsius(gpuMatch[1]) : null;
+    if (cpuCelsius !== null || gpuCelsius !== null) return { cpuCelsius, gpuCelsius };
+  }
+  return null;
+}
+
+/**
+ * The full `metrics.thermal` probe, cached for {@link THERMAL_TTL}.
+ *
+ * `batteryCelsius` reuses the AppleSmartBattery sample the metrics path already
+ * reads (the parser returns the top-level `Temperature` value scaled to °C).
+ * `nvmeCelsius` stays null: on macOS the NVMe temperature is not readable
+ * without root and `ioreg -c AppleEmbeddedNVMeTemperatureSensor` does not expose
+ * a usable temperature, so no source is claimed. `fans` is empty on macOS: the
+ * only fan source (`powermetrics`) is root-only and reports RPM unreliably.
+ *
+ * @param {ReturnType<typeof parseIoregBattery>|null} battery
+ * @returns {Promise<object>} frozen thermal shape
+ */
+async function thermalMetrics(battery) {
+  const cached = await memo('thermal', THERMAL_TTL, async () => {
+    /** @type {string[]} */
+    const sources = [];
+    /** @type {Array<{name: string|null, rpm: number|null}>} */
+    const fans = [];
+    const pressure = await readThermalPressure().catch(() => null);
+    if (pressure !== null) sources.push('nsprocessinfo');
+
+    const batteryCelsius =
+      battery && typeof battery.temperatureC === 'number' ? plausibleCelsius(battery.temperatureC) : null;
+    if (batteryCelsius !== null) sources.push('ioreg-applesmartbattery');
+
+    let cpuCelsius = null;
+    let gpuCelsius = null;
+    for (const helper of SMC_HELPERS) {
+      const executable = resolveExecutable(helper.name);
+      if (executable === null) continue;
+      const value = await readHelperCelsius(executable, helper.args).catch(() => null);
+      if (value !== null) {
+        cpuCelsius = value;
+        sources.push(helper.name);
+        break;
+      }
+    }
+
+    const rootTemps = await readPowermetricsTemps().catch(() => null);
+    if (rootTemps !== null) {
+      if (cpuCelsius === null && rootTemps.cpuCelsius !== null) cpuCelsius = rootTemps.cpuCelsius;
+      if (rootTemps.gpuCelsius !== null) gpuCelsius = rootTemps.gpuCelsius;
+      if (cpuCelsius !== null || gpuCelsius !== null) sources.push('powermetrics');
+    }
+
+    const note = cpuCelsius === null && gpuCelsius === null ? (isRootUser() ? 'unavailable' : 'cpu-needs-admin') : null;
+    const available = [cpuCelsius, gpuCelsius, batteryCelsius].some(
+      (value) => typeof value === 'number' && Number.isFinite(value),
+    );
+    return {
+      available,
+      cpuCelsius,
+      gpuCelsius,
+      batteryCelsius,
+      nvmeCelsius: null,
+      pressure,
+      fans,
+      sources,
+      note,
+    };
+  });
+  if (cached === null || typeof cached !== 'object') return emptyThermal('unavailable');
+  const safe = jsonSafe(cached);
+  return safe && typeof safe === 'object' ? safe : emptyThermal('unavailable');
+}
+
 /**
  * Build one metrics snapshot. Cheap commands only; slow values come from
  * caches and are refreshed in the background.
@@ -2286,6 +2652,8 @@ async function buildMetrics() {
       healthPercent: batteryHealth(batteryIoreg),
     };
   }
+
+  const thermal = await thermalMetrics(batteryIoreg);
 
   const netBytes = parseNetstatBytes(netstatRes.stdout);
   const netRates = rateOf('network', netBytes, ts);
@@ -2354,7 +2722,7 @@ async function buildMetrics() {
       defaultInterface,
     },
     battery,
-    thermal: { cpuTempC: null },
+    thermal,
     processes: {
       total: processes.length,
       top: topProcesses,
@@ -2424,7 +2792,7 @@ function fallbackMetrics() {
       defaultInterface: null,
     },
     battery: null,
-    thermal: { cpuTempC: null },
+    thermal: emptyThermal(),
     processes: { total: 0, top: [] },
   };
 }

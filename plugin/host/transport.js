@@ -206,6 +206,81 @@ export function registerRoutes(ctx, operations) {
     }),
   }));
 
+  disposers.push(ctx.webServer.register({
+    kind: 'exact',
+    path: `${API_PREFIX}/cleanup`,
+    handler: guarded(async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== 'GET') return sendMethodNotAllowed(res, 'GET');
+      const url = requestUrl(req);
+      const fresh = url.searchParams.get('fresh') === '1';
+      const cleanup = await operations.scanCleanup({ fresh });
+      sendJson(res, 200, { ok: true, cleanup });
+    }),
+  }));
+
+  disposers.push(ctx.webServer.register({
+    kind: 'exact',
+    path: `${API_PREFIX}/benchmark`,
+    handler: guarded(async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== 'POST') return sendMethodNotAllowed(res, 'POST');
+      const contentType = String(req.headers['content-type'] ?? '')
+        .split(';', 1)[0]
+        .trim()
+        .toLowerCase();
+      if (contentType !== 'application/json') {
+        sendJson(res, 415, {
+          ok: false,
+          error: { code: 'unsupported-media-type', message: 'content-type must be application/json' },
+        });
+        return;
+      }
+      let text;
+      try {
+        text = await readBoundedBody(req);
+      } catch {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'bad-request', message: 'request body unreadable' },
+        });
+        return;
+      }
+      if (text === null) {
+        sendJson(res, 413, {
+          ok: false,
+          error: { code: 'payload-too-large', message: 'request body is too large' },
+        });
+        return;
+      }
+      let body = {};
+      if (text.trim() !== '') {
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = undefined;
+        }
+      }
+      if (typeof body !== 'object' || body === null) {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'bad-request', message: 'body must be a JSON object' },
+        });
+        return;
+      }
+      const tests = body.tests;
+      if (tests !== undefined && (!Array.isArray(tests) || tests.some((id) => typeof id !== 'string'))) {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'bad-request', message: '"tests" must be an array of test ids' },
+        });
+        return;
+      }
+      const benchmark = await operations.runBenchmark({ tests, repeat: body.repeat === true });
+      sendJson(res, 200, benchmark);
+    }),
+  }));
+
   return () => {
     for (const dispose of disposers.splice(0).reverse()) {
       try {

@@ -1,11 +1,13 @@
 {
   "name": "@cfour-hi/dsh-devicex",
-  "version": "1.1.5",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
   "icon": "plugin/icon.svg",
-  "files": ["plugin"],
+  "files": [
+    "plugin"
+  ],
   "exports": {
     ".": "./plugin/index.js",
     "./client": "./plugin/client.js",
@@ -16,7 +18,10 @@
   "dsh": {
     "bundle": {
       "patch": "./plugin/cordis.patch.yml",
-      "platforms": ["darwin", "win32"]
+      "platforms": [
+        "darwin",
+        "win32"
+      ]
     },
     "client": {
       "platform": "web",
@@ -27,5 +32,8 @@
         "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
+  },
+  "scripts": {
+    "verify": "node scripts/verify.mjs && node scripts/verify-windows.mjs && node scripts/verify-sensors.mjs && node scripts/verify-cleanup.mjs && node scripts/verify-benchmark.mjs"
   }
 }

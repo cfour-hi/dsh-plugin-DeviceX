@@ -175,3 +175,107 @@ catalog and exercise guards without Windows.
 
 Constraints: no installs, no plugin_manager calls, no profile changes, no other workspace files.
 Scratch files under `/tmp/devicex-win-<owner>/`.
+
+## Thermal contract (sensors)
+
+`metrics.thermal` is an additive block on both platforms. It is part of the fast metrics poll and
+**never throws**: every probe is timeout-bounded, cached, and unknown values are `null` — no value is
+ever guessed or fabricated.
+
+```js
+metrics.thermal = {
+  available: boolean,             // true iff at least one *Celsius field below is a finite number
+  cpuCelsius: number|null,        // plausible range enforced (-20..150)
+  gpuCelsius: number|null,
+  batteryCelsius: number|null,    // mirrors battery.temperatureC (same source)
+  nvmeCelsius: number|null,       // darwin: null (no readable source); win32: null
+  pressure: 'nominal'|'fair'|'serious'|'critical'|null,
+  fans: [{ name: string|null, rpm: number|null }],
+  sources: string[],              // what was actually used, e.g. ['nsprocessinfo','ioreg-applesmartbattery']
+  note: 'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null,
+}
+```
+
+`available` is derived from the returned temperatures (`cpuCelsius`, `gpuCelsius`, `batteryCelsius`,
+`nvmeCelsius`) — never from the pressure/fans/note fields — so a panel can distinguish "no sensor
+readable" from "sensor present but zero".
+
+`fallbackMetrics()` on both platforms carries the same object with every value `null`, `fans: []`,
+`sources: []`, `note: null`.
+
+macOS sources (verified on an M-series machine, non-root):
+
+| Field | Source | Notes |
+|---|---|---|
+| `pressure` | `osascript -l JavaScript -e 'ObjC.import("Foundation"); ObjC.unwrap($.NSProcessInfo.processInfo.thermalState)'` | bounded to 1500 ms; 0/1/2/3 → nominal/fair/serious/critical; failure → null. Works unprivileged (returned 0 = nominal on the dev machine). |
+| `batteryCelsius` | existing `ioreg -rn AppleSmartBattery` parser (`Temperature`) | reuses the value the metrics path already reads; null without a battery. |
+| `cpuCelsius` / `gpuCelsius` | optional helpers `osx-cpu-temp`, `smctemp`, `istats` (PATH + `/opt/homebrew/bin`, `/usr/local/bin`), else `powermetrics --samplers smc|thermal` **only when `process.getuid() === 0`** | without a helper and without root both stay null and `note` is `cpu-needs-admin`; `sudo` cannot be used (password prompt), so an unprivileged Host reports null instead of faking a temperature. |
+| `nvmeCelsius` | none | `ioreg -c AppleEmbeddedNVMeTemperatureSensor` does not expose a readable temperature here; never claimed. |
+| `fans` | none on macOS | always `[]`; `powermetrics` fan RPM is root-only and unreliable, so no fan is invented. |
+
+The whole probe is cached for **5000 ms** (`THERMAL_TTL`) because the UI polls metrics every 2500 ms
+and the pressure probe spawns `osascript`.
+
+Windows sources (`.ps1` + `mapMetrics` in `collector-win32.js`):
+
+| Field | Source | Notes |
+|---|---|---|
+| `cpuCelsius` | `Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature` | per-zone °C = `CurrentTemperature/10 - 273.15`; only zones in 0..120 count; `cpuCelsius` = max plausible zone. Empty query / absent class → null + `note: 'wmi-unsupported'`. Zones are kept in the raw script document only (not in the frozen contract). |
+| `gpuCelsius`, `fans` | optional `nvidia-smi --query-gpu=temperature.gpu,fan.speed --format=csv,noheader,nounits` | wrapped in try/catch; absent tool is fine. Fan speed is a percentage, RPM is unknown, so the mapper emits `{ name: 'GPU', rpm: null }` and the percent stays in the script's detail field. |
+| `batteryCelsius` | existing `Win32_Battery` / `root/wmi BatteryStatus` block | mapper mirrors `metrics.battery.temperatureC`. |
+| `pressure` | none | Windows has no thermal-pressure counter → always null. |
+| `nvmeCelsius` | none | null. |
+
+## Driver inventory contract
+
+`hardware.drivers`, `hardware.driverSummary` and `hardware.driverProblems` are additive keys of the
+existing hardware section (all previous keys are unchanged).
+
+```js
+hardware.drivers = [{
+  name: string,                 // required; 'Unknown device' only for a nameless CIM row
+  class: string|null,           // Win32_PnPSignedDriver.DeviceClass / null on macOS
+  manufacturer: string|null,
+  version: string|null,
+  date: string|null,            // yyyy-MM-dd
+  signer: string|null,          // DriverProviderName (win32) / SPExtensionsDataType signer (darwin)
+  inf: string|null,             // InfName (win32); null on macOS
+  deviceId: string|null,        // PnP DeviceID (win32); extension bundle id (darwin)
+  kind: 'kext'|'driverkit'|'pnp',
+  problem: string|null,         // non-zero ConfigManagerErrorCode joined by DeviceID (win32)
+}] // capped at 250 entries on both platforms
+
+hardware.driverSummary = {
+  total: number,
+  thirdParty: number,
+  problems: number,
+  truncated: boolean,           // true when the raw driver list exceeded the 250 cap
+}
+hardware.driverProblems = [{ name: string, code: string, class: string|null }] // capped at 50; [] on darwin
+```
+
+Windows: `drivers` comes from `Get-CimInstance Win32_PnPSignedDriver` (DeviceName, DeviceClass,
+Manufacturer, DriverVersion, DriverDate, DriverProviderName, InfName, DeviceID); `DriverDate` is
+formatted `yyyy-MM-dd` inside the script and re-normalised defensively in the mapper.
+`driverProblems` comes from `Win32_PnPEntity` rows with `ConfigManagerErrorCode != 0` (code 28 =
+drivers not installed); the same code is joined onto the matching `drivers[]` entry by `DeviceID`.
+`driverSummary` is derived in the JS mapper from the capped arrays, so it can never disagree with
+them; `truncated` is set when the raw driver list exceeded 250 (the 250 most useful rows are kept).
+`thirdParty` counts entries whose signer/manufacturer is set and does not start with
+`Microsoft` (empty vendor is not counted as third-party).
+
+macOS: `drivers` comes from `system_profiler -json SPExtensionsDataType` (the `-json` document is an
+array of extension records). `kind` is `driverkit` when the extension lives under
+`/System/Library/DriverExtensions` / `/Library/SystemExtensions` or ends in `.dext`, otherwise `kext`.
+`manufacturer` is `Apple` for Apple-signed/system extensions and otherwise the organisation named in
+the signing subject (or the literal `Third-party`, never an invented company). `inf`, `problem` are
+null and `driverProblems` is `[]` because macOS does not expose a ConfigManagerErrorCode equivalent.
+The macOS drivers list is also capped at 250, so `driverSummary.total` equals the returned array
+length on both platforms. When the raw list is larger, the retained 250 rows are ordered third-party
+first, then loaded extensions, then version descending — the rows a user is most likely to care
+about survive the cap — and `driverSummary.truncated` is `true`.
+
+Both arrays are JSON-safe and defensive: malformed/empty input still yields the documented shape
+(`drivers: []`, `driverSummary: { total: 0, thirdParty: 0, problems: 0, truncated: false }`,
+`driverProblems: []`). `node scripts/verify-sensors.mjs` covers the static guards, the fixture→mapper
+shapes, the caps/ordering and a live darwin probe.

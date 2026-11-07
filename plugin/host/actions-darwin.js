@@ -15,6 +15,7 @@ import * as net from 'node:net';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import { cleanupItems, deleteCleanup } from './cleanup-darwin.js';
 import { run } from './proc.js';
 
 /** Action groups, in UI order. */
@@ -119,6 +120,7 @@ function jsonSafe(value, seen = new Set()) {
  * @property {number} [min]
  * @property {number} [max]
  * @property {string} [placeholder]
+ * @property {boolean} [multiple] true when the client sends an array of values.
  */
 
 /**
@@ -136,6 +138,7 @@ function param(name, type, options = {}) {
   if (typeof options.min === 'number') descriptor.min = options.min;
   if (typeof options.max === 'number') descriptor.max = options.max;
   if (typeof options.placeholder === 'string') descriptor.placeholder = options.placeholder;
+  if (options.multiple === true) descriptor.multiple = true;
   return descriptor;
 }
 
@@ -247,6 +250,13 @@ const SPECS = [
     danger: 'medium',
     requiresAdmin: false,
     params: [],
+  },
+  {
+    id: 'cleanup.delete',
+    group: 'system',
+    danger: 'high',
+    requiresAdmin: false,
+    params: [param('ids', 'string', { multiple: true, placeholder: 'user-caches, user-logs' })],
   },
   {
     id: 'network.setWifiPower',
@@ -449,6 +459,48 @@ function readSelect(params, name, options, fallback) {
 function paramsObject(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value;
   return {};
+}
+
+/**
+ * Read the `ids` parameter of `cleanup.delete`: an array (or comma separated
+ * string) of 1-20 unique ids from the cleanup allowlist. Unknown ids, caller
+ * paths, duplicates and oversized batches are refused before any filesystem
+ * call.
+ * @param {Record<string, unknown>} params
+ * @returns {{ok: true, value: string[]} | {ok: false, message: string}}
+ */
+function readCleanupIds(params) {
+  const raw = params.ids;
+  /** @type {unknown[]} */
+  let values;
+  if (Array.isArray(raw)) {
+    values = raw;
+  } else if (typeof raw === 'string') {
+    values = raw.split(',');
+  } else {
+    return {
+      ok: false,
+      message: 'Parameter "ids" must be an array of cleanup item ids (or a comma separated string).',
+    };
+  }
+  /** @type {string[]} */
+  const ids = [];
+  for (const value of values) {
+    if (typeof value !== 'string') return { ok: false, message: 'Cleanup item ids must be strings.' };
+    const id = value.trim();
+    if (id !== '') ids.push(id);
+  }
+  if (ids.length < 1 || ids.length > 20) {
+    return { ok: false, message: 'Parameter "ids" must contain 1 to 20 cleanup item ids.' };
+  }
+  const known = new Set(cleanupItems().map((item) => item.id));
+  const seen = new Set();
+  for (const id of ids) {
+    if (seen.has(id)) return { ok: false, message: `Duplicate cleanup item id: ${id}` };
+    seen.add(id);
+    if (!known.has(id)) return { ok: false, message: `Unknown cleanup item id: ${id}` };
+  }
+  return { ok: true, value: ids };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -782,6 +834,14 @@ const RUNNERS = {
     return success(`Removed ${removed} item(s) from Trash.`, { removed });
   },
 
+  async 'cleanup.delete'(params) {
+    const idsRead = readCleanupIds(params);
+    if (!idsRead.ok) return failure(idsRead.message, 'BAD_PARAMS');
+    // The cleanup module owns the allowlist and the fixed absolute paths: the
+    // action passes ids only, never a path, and reports per-item outcomes.
+    return deleteCleanup(idsRead.value);
+  },
+
   async 'network.setWifiPower'(params) {
     const enabledRead = readBoolean(params, 'enabled');
     if (!enabledRead.ok) return failure(enabledRead.message, 'BAD_PARAMS');
@@ -984,3 +1044,9 @@ export async function runAction(id, params) {
   recordHistory({ ts, id: actionId, params: requestParams, ok: result.ok === true, message: result.message });
   return jsonSafe(result);
 }
+
+/**
+ * Test seam for `scripts/verify-cleanup.mjs`: the pure cleanup-id validator
+ * (no filesystem access, never deletes anything).
+ */
+export const __test = { readCleanupIds };

@@ -163,5 +163,86 @@
       "uniqueId": "USB\\VID_0BDA&PID_5678\\01"
     }
   ],
+  "drivers": [
+    {
+      "name": "Intel(R) Iris(R) Xe Graphics",
+      "class": "DISPLAY",
+      "manufacturer": "Intel Corporation",
+      "version": "31.0.101.4502",
+      "date": "2023-06-15",
+      "signer": "Intel Corporation",
+      "inf": "oem12.inf",
+      "deviceId": "PCI\\VEN_8086&DEV_46A6&SUBSYS_0B1C1028&REV_0C\\3&11583659&0&10",
+      "kind": "pnp",
+      "problem": null
+    },
+    {
+      "name": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+      "class": "DISPLAY",
+      "manufacturer": "NVIDIA",
+      "version": "31.0.15.4683",
+      "date": "2023-05-24",
+      "signer": "NVIDIA",
+      "inf": "oem21.inf",
+      "deviceId": "PCI\\VEN_10DE&DEV_25A0&SUBSYS_0B1C1028&REV_A1\\4&2B7F5E9A&0&0008",
+      "kind": "pnp",
+      "problem": null
+    },
+    {
+      "name": "Intel(R) Wi-Fi 6E AX211 160MHz",
+      "class": "NET",
+      "manufacturer": "Intel Corporation",
+      "version": "22.220.1.4",
+      "date": "2023-08-03",
+      "signer": "Intel Corporation",
+      "inf": "oem34.inf",
+      "deviceId": "PCI\\VEN_8086&DEV_51F0&SUBSYS_00948086&REV_01\\3&11583659&0&A3",
+      "kind": "pnp",
+      "problem": null
+    },
+    {
+      "name": "Realtek(R) Audio",
+      "class": "MEDIA",
+      "manufacturer": "Realtek Semiconductor Corp.",
+      "version": "6.0.9485.1",
+      "date": "2023-03-10",
+      "signer": "Realtek Semiconductor Corp.",
+      "inf": "oem7.inf",
+      "deviceId": "HDAUDIO\\FUNC_01&VEN_10EC&DEV_0287&SUBSYS_10280B1C&REV_1000\\5&2F3B1A2C&0&0001",
+      "kind": "pnp",
+      "problem": null
+    },
+    {
+      "name": "Standard NVM Express Controller",
+      "class": "SCSIADAPTER",
+      "manufacturer": "Microsoft",
+      "version": "10.0.22621.2070",
+      "date": "2023-07-11",
+      "signer": "Microsoft",
+      "inf": "stornvme.inf",
+      "deviceId": "PCI\\VEN_144D&DEV_A80A&SUBSYS_A801144D&REV_00\\4&1E9B1C3D&0&0008",
+      "kind": "pnp",
+      "problem": null
+    },
+    {
+      "name": "AX88179A USB 3.0 to Gigabit Ethernet Adapter",
+      "class": "Net",
+      "manufacturer": "ASIX",
+      "version": "3.4.0.0",
+      "date": "2022-11-18",
+      "signer": "ASIX",
+      "inf": "oem55.inf",
+      "deviceId": "USB\\VID_0B95&PID_1790&REV_01\\A0B1C2D3E4F5",
+      "kind": "pnp",
+      "problem": "28"
+    }
+  ],
+  "driverProblems": [
+    {
+      "name": "AX88179A USB 3.0 to Gigabit Ethernet Adapter",
+      "code": "28",
+      "class": "Net"
+    }
+  ],
   "errors": []
 }

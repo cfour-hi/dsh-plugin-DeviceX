@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.2.0 — sensors, drivers, cleanup and a repeatable benchmark
+
+New capabilities on top of the 1.1.x Windows/i18n work, all reachable from the panel and the
+Host API/tools:
+
+- **Thermals**: `metrics.thermal` with CPU / GPU / battery / SSD temperatures, fan readings and
+  macOS thermal pressure. macOS reads the battery sensor + `NSProcessInfo` pressure and unlocks
+  CPU/GPU through an optional `smctemp` / `osx-cpu-temp` helper or a root Host (`powermetrics`);
+  Windows reads ACPI thermal zones via WMI plus optional `nvidia-smi`. Unsupported sources degrade
+  to `null` with an explicit `note`, never a fabricated number.
+- **Read-only driver inventory**: `hardware.drivers` / `driverSummary` / `driverProblems` —
+  macOS kernel extensions and DriverKit extensions via `system_profiler` (third-party first,
+  capped at 250), Windows signed PnP drivers + devices with a `ConfigManagerErrorCode`.
+  Searchable card inside the Hardware tab; no update or rollback is attempted.
+- **Cleanup**: new allowlist-only scanner (user caches, logs, trash, developer caches,
+  crash reports) with bounded walking, a 60 s cache, and a `cleanup.delete` action that can only
+  delete fixed allowlisted paths after an explicit confirmation. New **Cleanup** tab shows sizes,
+  categories, admin requirements and per-item errors.
+- **Repeatable benchmark**: fixed-work CPU (single + multi-thread), memory-bandwidth and disk tests
+  behind `POST /devicex/api/benchmark` and a `device_benchmark` agent tool. New **Benchmark** tab
+  shows scores, units, durations, the machine environment and a delta against the previous run.
+  Scores are explicitly local-comparison only.
+- New tabs (10 total), zh/en copy for every new surface, and two new docs
+  (`cleanup-contract.md`, `benchmark-contract.md`) plus thermal/driver sections in the Windows
+  contract.
+- Verification grown from 66 + 155 checks to **91 + 167 + 57 + 130 + 46** offline checks, plus
+  **215** jsdom render assertions over all ten tabs.
+
+
 ## 1.1.5 — cheaper 3D motion
 
 - The overview 3D scene's core pulse animated `box-shadow` on every frame. Inside the

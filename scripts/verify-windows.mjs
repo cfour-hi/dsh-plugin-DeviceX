@@ -198,13 +198,14 @@ const expectedIds = [
   'system.toggleFirewall',
   'system.flushDNS',
   'system.emptyTrash',
+  'cleanup.delete',
   'network.setWifiPower',
   'network.setDns',
   'power.sleep',
   'power.lock',
   'software.wingetUninstall',
 ];
-check('catalog has the frozen 18 Windows actions', JSON.stringify(catalog.map((entry) => entry.id)) === JSON.stringify(expectedIds));
+check('catalog has the frozen 19 Windows actions', JSON.stringify(catalog.map((entry) => entry.id)) === JSON.stringify(expectedIds));
 check('catalog actions carry the frozen fields', catalog.every((entry) => typeof entry.group === 'string' && ['low', 'medium', 'high'].includes(entry.danger) && Array.isArray(entry.params)));
 for (const id of ['system.setHostname', 'system.toggleFirewall', 'network.setWifiPower', 'network.setDns']) {
   check(`${id} is marked requiresAdmin`, catalog.find((entry) => entry.id === id)?.requiresAdmin === true);
@@ -287,9 +288,40 @@ const actionsDispatch = await import(pathToFileURL(join(pluginDir, 'host/actions
 check('dispatcher reports win32 via process.platform', collectorDispatch.PLATFORM === 'win32');
 const winMetrics = await collectorDispatch.collectMetrics();
 check('dispatched metrics come from the Windows implementation', winMetrics.hostname === 'DESKTOP-8F3K2Q1' && String(winMetrics.osVersion).includes('Windows'));
+const winThermal = winMetrics.thermal ?? {};
+check(
+  'dispatched win32 metrics carry the thermal contract',
+  isPlainObject(winThermal) &&
+    typeof winThermal.available === 'boolean' &&
+    (winThermal.cpuCelsius === null || typeof winThermal.cpuCelsius === 'number') &&
+    Array.isArray(winThermal.fans) &&
+    Array.isArray(winThermal.sources) &&
+    ['cpu-needs-admin', 'wmi-unsupported', 'unavailable', null].includes(winThermal.note),
+  JSON.stringify(winThermal).slice(0, 140),
+);
 const winHardware = await collectorDispatch.collectSection('hardware');
 check('dispatched hardware section maps the fixture', hasKeys(winHardware, ['cpu', 'memory', 'gpu', 'displays', 'storage', 'battery', 'usb', 'bluetooth', 'audio', 'cameras', 'errors']));
-check('dispatched action catalog is the Windows 18', actionsDispatch.actionCatalog().length === 18);
+check(
+  'dispatched win32 hardware carries the read-only driver inventory',
+  Array.isArray(winHardware.drivers) &&
+    winHardware.drivers.length > 0 &&
+    winHardware.drivers.length <= 250 &&
+    isPlainObject(winHardware.driverSummary) &&
+    typeof winHardware.driverSummary.total === 'number' &&
+    Array.isArray(winHardware.driverProblems),
+  `${winHardware.drivers?.length} drivers`,
+);
+check(
+  'win32 drivers expose the frozen fields',
+  winHardware.drivers.every(
+    (driver) =>
+      typeof driver.name === 'string' &&
+      (driver.class === null || typeof driver.class === 'string') &&
+      (driver.version === null || typeof driver.version === 'string') &&
+      ['pnp', 'kext', 'driverkit'].includes(driver.kind),
+  ),
+);
+check('dispatched action catalog is the Windows 19', actionsDispatch.actionCatalog().length === 19);
 check('dispatched unknown action fails cleanly', (await actionsDispatch.runAction('nope', {})).ok === false);
 
 const plugin = await import(pathToFileURL(join(pluginDir, 'index.js')));
@@ -307,8 +339,10 @@ const fakeCtx = {
   connection: { requestRejection(req) { return req.headers['x-test-reject'] === '1' ? 403 : undefined; } },
 };
 plugin.apply(fakeCtx);
-check('simulated win32 Host registers four routes + two tools', routes.length === 4 && tools.length === 2);
-check('simulated device_control enum is the Windows catalog', tools[1].parameters.properties.action.enum.length === 18);
+check('simulated win32 Host registers six routes + three tools', routes.length === 6 && tools.length === 3);
+check('simulated device_control enum is the Windows catalog', tools[1].parameters.properties.action.enum.length === 19);
+check('simulated device_info accepts the cleanup section', tools[0].parameters.properties.section.enum.includes('cleanup'));
+check('simulated device_benchmark tool is registered', tools[2].name === 'device_benchmark');
 check('simulated device_control exposes winget uninstall', tools[1].parameters.properties.action.enum.includes('software.wingetUninstall'));
 
 function makeReq(method, url, body, headers = {}) {
@@ -351,7 +385,12 @@ check('win32 metrics route returns fixture-derived data', sim.status === 200 && 
 sim = await call('GET', '/devicex/api/inventory?section=software');
 check('win32 software route returns Windows apps + winget', sim.status === 200 && Array.isArray(sim.json.data.applications) && isPlainObject(sim.json.data.winget));
 sim = await call('GET', '/devicex/api/actions');
-check('win32 actions route reports the win32 platform', sim.status === 200 && sim.json.platform === 'win32' && sim.json.actions.length === 18);
+check('win32 actions route reports the win32 platform', sim.status === 200 && sim.json.platform === 'win32' && sim.json.actions.length === 19);
+check('win32 catalogue exposes cleanup.delete', sim.json.actions.some((action) => action.id === 'cleanup.delete'));
+sim = await call('GET', '/devicex/api/cleanup');
+check('win32 cleanup route answers with the scan shape', sim.status === 200 && sim.json.ok === true && Array.isArray(sim.json.cleanup?.items) && typeof sim.json.cleanup?.totalBytes === 'number');
+sim = await call('POST', '/devicex/api/benchmark', JSON.stringify({ tests: ['memory'] }), { 'content-type': 'application/json' });
+check('win32 benchmark route runs the Node engine', sim.status === 200 && sim.json.ok === true && sim.json.benchmark?.results?.[0]?.id === 'memory');
 const simOverview = await tools[0].execute({}, {});
 check('win32 device_info overview summarises fixture metrics', typeof simOverview.summary === 'string' && simOverview.summary.includes('DESKTOP-8F3K2Q1'));
 check('win32 device_info overview exposes available actions', Array.isArray(simOverview.data.availableActions) && simOverview.data.availableActions.includes('software.wingetUninstall'));

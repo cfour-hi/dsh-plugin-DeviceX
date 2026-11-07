@@ -15,6 +15,7 @@ const READ_SECTIONS = [
   'network',
   'security',
   'processes',
+  'cleanup',
 ];
 
 /** Human byte size helper shared by the tool summaries. */
@@ -77,7 +78,7 @@ export function registerTools(ctx, operations) {
   const info = {
     name: 'device_info',
     description:
-      'Read this machine\'s device facts: hardware (CPU, memory, GPU, displays, storage, battery, USB, Bluetooth, audio, cameras), system (OS, kernel, boot, users, launch agents), software (installed applications, Homebrew), network (interfaces, Wi-Fi, DNS, routes, listening ports), security (FileVault, SIP, Gatekeeper, firewall, permissions), and processes. ' +
+      'Read this machine\'s device facts: hardware (CPU, memory, GPU, displays, storage, battery, USB, Bluetooth, audio, cameras, drivers, temperatures), system (OS, kernel, boot, users, launch agents), software (installed applications, Homebrew/winget), network (interfaces, Wi-Fi, DNS, routes, listening ports), security (FileVault, SIP, Gatekeeper, BitLocker, Secure Boot, Defender, firewall, permissions), processes, and the cleanup scan (cache/log/trash sizes). ' +
       'Use section="overview" (default) for a fast health summary, or one of ' +
       READ_SECTIONS.join('/') +
       ' for details. Set fresh=true to bypass the collector cache.',
@@ -131,6 +132,11 @@ export function registerTools(ctx, operations) {
           availableActions: catalog.map((entry) => entry.id),
         };
         return { section, summary: summarize(metrics), data };
+      }
+      if (section === 'cleanup') {
+        const cleanup = await operations.scanCleanup({ fresh });
+        const summary = `cleanup · ${(cleanup.items ?? []).length} items · ${humanBytes(cleanup.totalBytes)} reclaimable`;
+        return { section, summary, data: cleanup };
       }
       const data = await operations.collectSection(section, { fresh });
       const metrics = await operations.collectMetrics();
@@ -194,5 +200,55 @@ export function registerTools(ctx, operations) {
     },
   };
 
-  return [ctx.tools.register(info), ctx.tools.register(control)];
+  const bench = {
+    name: 'device_benchmark',
+    description:
+      'Run the repeatable Device X benchmark on this machine: CPU (ops/s, single- and multi-thread), memory bandwidth (GB/s) and disk throughput (MB/s, temp file). Fixed work per run, bounded to a few seconds, no network. Scores are only comparable on the same machine over time — they are not an internet rating. ' +
+      'Default runs all three tests; pass tests to select a subset and repeat=true to keep the better of two runs.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        tests: {
+          type: 'array',
+          items: { type: 'string', enum: ['cpu', 'memory', 'disk'] },
+          description: 'Subset of tests to run. Omit for all three.',
+        },
+        repeat: {
+          type: 'boolean',
+          description: 'Run each test twice and keep the better score.',
+        },
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          ok: { type: 'boolean' },
+          summary: { type: 'string' },
+          data: { description: 'The full benchmark payload (JSON).' },
+        },
+        required: ['ok', 'summary', 'data'],
+      },
+      render(_args, value) {
+        return [
+          { type: 'text', text: value.summary },
+          { type: 'text', text: capJson(value.data, 8000) },
+        ];
+      },
+    },
+    async execute(args) {
+      const tests = Array.isArray(args.tests)
+        ? args.tests.filter((id) => typeof id === 'string')
+        : [];
+      const result = await operations.runBenchmark({ tests, repeat: args.repeat === true });
+      const rows = (result.benchmark?.results ?? []).map(
+        (entry) => `${entry.id}: ${entry.score ?? 'n/a'} ${entry.unit ?? ''}`.trim(),
+      );
+      return { ok: result.ok === true, summary: rows.join(' · '), data: result.benchmark };
+    },
+  };
+
+  return [ctx.tools.register(info), ctx.tools.register(control), ctx.tools.register(bench)];
 }

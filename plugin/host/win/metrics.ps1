@@ -377,6 +377,76 @@ try {
   }
 } catch { $errors += ('Win32_Battery: ' + $_.Exception.Message) }
 
+# ----------------------------------------------------------------- thermal --
+# Windows exposes ACPI thermal zones through root/wmi MSAcpi_ThermalZoneTemperature
+# (tenths of Kelvin). Many desktops/VMs simply do not publish any zone, which is
+# reported as a null cpuCelsius plus the note 'wmi-unsupported' - never guessed.
+# nvidia-smi is optional: absent/again-failing tooling just leaves gpuCelsius
+# null. The Node mapper mirrors batteryCelsius from the battery block above.
+$thermal = $null
+try {
+  $thermalSources = @()
+  $thermalZones = @()
+  $cpuCelsius = $null
+  try {
+    $rawZones = @(Get-CimInstance -Namespace 'root/wmi' -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop)
+    foreach ($zone in $rawZones) {
+      if ($null -eq $zone.CurrentTemperature) { continue }
+      $zoneCelsius = [math]::Round(([double]$zone.CurrentTemperature / 10.0) - 273.15, 1)
+      if ($zoneCelsius -lt 0 -or $zoneCelsius -gt 120) { continue }
+      $thermalZones += [ordered]@{
+        name = [string]$zone.InstanceName
+        celsius = $zoneCelsius
+      }
+      if ($null -eq $cpuCelsius -or $zoneCelsius -gt $cpuCelsius) { $cpuCelsius = $zoneCelsius }
+    }
+    if ($null -ne $cpuCelsius) { $thermalSources += 'wmi-thermal-zone' }
+  } catch { $errors += ('MSAcpi_ThermalZoneTemperature: ' + $_.Exception.Message) }
+
+  $gpuCelsius = $null
+  $thermalFans = @()
+  try {
+    $nvidiaSmi = Get-Command -Name 'nvidia-smi' -ErrorAction SilentlyContinue
+    if ($null -ne $nvidiaSmi -and $nvidiaSmi.Source) {
+      $nvidiaSmiPath = [string]$nvidiaSmi.Source
+      $gpuRows = @(& $nvidiaSmiPath '--query-gpu=temperature.gpu,fan.speed' '--format=csv,noheader,nounits' 2>$null)
+      if ($gpuRows.Count -gt 0) {
+        $gpuFields = [string]$gpuRows[0] -split ','
+        $gpuTemp = $null
+        if ($gpuFields.Count -ge 1) {
+          $parsedTemp = 0.0
+          if ([double]::TryParse($gpuFields[0].Trim(), [ref]$parsedTemp)) {
+            if ($parsedTemp -ge -20 -and $parsedTemp -le 150) { $gpuTemp = [math]::Round($parsedTemp, 1) }
+          }
+        }
+        $fanPercent = $null
+        if ($gpuFields.Count -ge 2) {
+          $parsedFan = 0.0
+          if ([double]::TryParse($gpuFields[1].Trim(), [ref]$parsedFan)) { $fanPercent = [int][math]::Round($parsedFan) }
+        }
+        if ($null -ne $gpuTemp) {
+          $gpuCelsius = $gpuTemp
+          # nvidia-smi reports fan speed as a percentage; RPM is not available,
+          # so the mapper keeps name/rpm and drops the percent detail.
+          $thermalFans += [ordered]@{ name = 'GPU'; rpm = $null; percent = $fanPercent }
+          $thermalSources += 'nvidia-smi'
+        }
+      }
+    }
+  } catch { $errors += ('nvidia-smi: ' + $_.Exception.Message) }
+
+  $thermalNote = $null
+  if ($null -eq $cpuCelsius) { $thermalNote = 'wmi-unsupported' }
+  $thermal = [ordered]@{
+    zones = $thermalZones
+    cpuCelsius = $cpuCelsius
+    gpuCelsius = $gpuCelsius
+    fans = $thermalFans
+    sources = $thermalSources
+    note = $thermalNote
+  }
+} catch { $errors += ('thermal metrics: ' + $_.Exception.Message) }
+
 # --------------------------------------------------------------- processes --
 $processInfo = $null
 try {
@@ -457,6 +527,7 @@ $result = [ordered]@{
   diskIo = $diskIo
   network = $networkInfo
   battery = $battery
+  thermal = $thermal
   processes = $processInfo
   errors = $errors
 }

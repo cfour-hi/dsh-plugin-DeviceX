@@ -37,7 +37,7 @@ window.__ModuleLoader__.load({
 		/** Client-side ring buffer length for the Overview sparklines. */
 		const MAX_SAMPLES = 60;
 
-		const TAB_IDS = ["overview", "hardware", "system", "software", "network", "security", "processes", "actions"];
+		const TAB_IDS = ["overview", "hardware", "system", "software", "network", "security", "processes", "cleanup", "benchmark", "actions"];
 		const TAB_LABEL_KEYS = {
 			overview: "tab.overview",
 			hardware: "tab.hardware",
@@ -46,6 +46,8 @@ window.__ModuleLoader__.load({
 			network: "tab.network",
 			security: "tab.security",
 			processes: "tab.processes",
+			cleanup: "tab.cleanup",
+			benchmark: "tab.benchmark",
 			actions: "tab.actions",
 		};
 		const TAB_ICONS = {
@@ -56,6 +58,8 @@ window.__ModuleLoader__.load({
 			network: "network",
 			security: "security",
 			processes: "processes",
+			cleanup: "trash",
+			benchmark: "spark",
 			actions: "actions",
 		};
 		/** Tabs backed by a lazily fetched inventory section (key === section name). */
@@ -270,6 +274,13 @@ window.__ModuleLoader__.load({
 			if (parts.length === 0) parts.push(t("unit.lessThanMinute"));
 			return parts.slice(0, 2).join(" ");
 		}
+		/** Format a millisecond duration for benchmark/scan timings. */
+		function fmtMs(value) {
+			if (!isFiniteNumber(value)) return "—";
+			if (value < 1000) return Math.round(value) + " ms";
+			return (value / 1000).toFixed(value < 10_000 ? 1 : 0) + " s";
+		}
+
 		function fmtTime(ts) {
 			if (!isFiniteNumber(ts) || ts <= 0) return "—";
 			try {
@@ -365,6 +376,8 @@ window.__ModuleLoader__.load({
 			"tab.security": "安全",
 			"tab.processes": "进程",
 			"tab.actions": "操作",
+			"tab.cleanup": "清理",
+			"tab.benchmark": "性能",
 
 			"header.connecting": "正在连接",
 			"header.live": "实时",
@@ -887,6 +900,108 @@ window.__ModuleLoader__.load({
 			"aria.signal": "选择信号",
 			"aria.switch": "开关",
 			"aria.wifiBars": "Wi-Fi 信号强度",
+
+			"overview.kpi.temp": "温度",
+
+			"hw.thermal.title": "温度与散热",
+			"hw.thermal.subtitle": "只读传感器读数",
+			"hw.thermal.cpu": "CPU 温度",
+			"hw.thermal.gpu": "GPU 温度",
+			"hw.thermal.battery": "电池温度",
+			"hw.thermal.nvme": "SSD 温度",
+			"hw.thermal.pressure": "热压力",
+			"hw.thermal.fans": "风扇",
+			"hw.thermal.fan": "风扇 {name}",
+			"hw.thermal.noFans": "未读取到风扇转速",
+			"hw.thermal.none": "当前平台未公开可读温度传感器",
+			"hw.thermal.sources": "数据来源",
+			"hw.thermal.note.cpu-needs-admin": "macOS 不向普通用户公开 CPU / GPU 温度；安装 smctemp 或 osx-cpu-temp，或以管理员身份运行 DSH 可解锁。",
+			"hw.thermal.note.wmi-unsupported": "此主板未通过 WMI 公开 ACPI 热区温度（部分设备或虚拟机不支持），只能显示其它温度来源。",
+			"hw.thermal.note.unavailable": "当前平台没有可用的温度数据源。",
+			"hw.thermal.pressure.nominal": "正常",
+			"hw.thermal.pressure.fair": "偏高",
+			"hw.thermal.pressure.serious": "很高",
+			"hw.thermal.pressure.critical": "临界",
+
+			"hw.drivers.title": "驱动与内核扩展",
+			"hw.drivers.subtitle": "只读清单，不执行更新",
+			"hw.drivers.search": "搜索驱动…",
+			"hw.drivers.total": "共 {n} 个",
+			"hw.drivers.thirdParty": "第三方 {n}",
+			"hw.drivers.problems": "异常设备 {n}",
+			"hw.drivers.name": "设备 / 名称",
+			"hw.drivers.class": "类别",
+			"hw.drivers.vendor": "厂商",
+			"hw.drivers.version": "版本",
+			"hw.drivers.date": "日期",
+			"hw.drivers.signer": "签名方",
+			"hw.drivers.kind": "类型",
+			"hw.drivers.none": "未读取到驱动清单",
+			"hw.drivers.noMatch": "没有匹配的驱动",
+			"hw.drivers.problemCode": "错误码 {code}",
+			"hw.drivers.readOnly": "清单为只读：不提供驱动更新或回滚。",
+
+			"cleanup.intro": "扫描缓存、日志、废纸篓和开发缓存等可安全清理的位置。只扫描，选中并确认后才会删除。",
+			"cleanup.scan": "重新扫描",
+			"cleanup.scanning": "正在扫描…",
+			"cleanup.reclaimable": "可清理",
+			"cleanup.files": "{n} 个文件",
+			"cleanup.selected": "已选 {value}",
+			"cleanup.selectAll": "全选",
+			"cleanup.selectNone": "全不选",
+			"cleanup.delete": "清理所选",
+			"cleanup.deleting": "正在清理…",
+			"cleanup.confirmTitle": "确认清理所选内容？",
+			"cleanup.confirmBody": "将永久删除 {value}（{n} 个文件）。此操作不可撤销。",
+			"cleanup.confirmLabel": "确认清理",
+			"cleanup.cancel": "取消",
+			"cleanup.noneSelected": "请先选择要清理的项目",
+			"cleanup.done": "已清理 {value}",
+			"cleanup.empty": "没有找到可清理的内容",
+			"cleanup.error": "读取清理数据失败",
+			"cleanup.item.cache": "缓存",
+			"cleanup.item.logs": "日志",
+			"cleanup.item.trash": "废纸篓",
+			"cleanup.item.temp": "临时文件",
+			"cleanup.item.developer": "开发缓存",
+			"cleanup.item.updates": "更新缓存",
+			"cleanup.admin": "需要管理员",
+			"cleanup.adminHint": "该项需要以管理员权限运行 DSH 才能清理",
+			"cleanup.path": "位置",
+			"cleanup.updated": "扫描于 {time}",
+			"cleanup.scanEmpty": "没有可清理的项目",
+
+			"bench.intro": "固定工作量、可重复的本机基准测试。分数用于同一台机器前后对比，不与其它机型或跑分软件横向比较。",
+			"bench.run": "运行全部测试",
+			"bench.rerun": "再次运行",
+			"bench.running": "正在测试…",
+			"bench.runningHint": "CPU 多线程与磁盘测试需要几秒钟，请保持页面打开。",
+			"bench.cpu": "CPU",
+			"bench.memory": "内存",
+			"bench.disk": "磁盘",
+			"bench.cpuDesc": "整数混合运算，单核与 {n} 线程多核",
+			"bench.memoryDesc": "两个 32 MiB 数组的固定复制次数",
+			"bench.diskDesc": "64 MiB 临时文件写入 + 读取",
+			"bench.single": "单核",
+			"bench.multi": "多核",
+			"bench.threads": "{n} 线程",
+			"bench.write": "写入",
+			"bench.read": "读取",
+			"bench.score": "得分",
+			"bench.unit": "单位",
+			"bench.duration": "耗时 {value}",
+			"bench.lastRun": "上次运行",
+			"bench.previous": "较上次",
+			"bench.better": "提升 {value}",
+			"bench.worse": "下降 {value}",
+			"bench.flat": "基本持平",
+			"bench.noPrevious": "首次运行，暂无可对比的基线",
+			"bench.env": "运行环境",
+			"bench.cores": "{n} 逻辑核心",
+			"bench.memoryTotal": "{value} 内存",
+			"bench.failed": "测试失败：{message}",
+			"bench.empty": "点击「运行全部测试」开始",
+			"bench.totalDuration": "总耗时 {value}",
 		};
 
 		const en = {
@@ -899,6 +1014,8 @@ window.__ModuleLoader__.load({
 			"tab.security": "Security",
 			"tab.processes": "Processes",
 			"tab.actions": "Actions",
+			"tab.cleanup": "Cleanup",
+			"tab.benchmark": "Benchmark",
 
 			"header.connecting": "Connecting",
 			"header.live": "Live",
@@ -1421,6 +1538,108 @@ window.__ModuleLoader__.load({
 			"aria.signal": "Choose a signal",
 			"aria.switch": "Switch",
 			"aria.wifiBars": "Wi-Fi signal strength",
+
+			"overview.kpi.temp": "Temperature",
+
+			"hw.thermal.title": "Thermals",
+			"hw.thermal.subtitle": "Read-only sensor readings",
+			"hw.thermal.cpu": "CPU temperature",
+			"hw.thermal.gpu": "GPU temperature",
+			"hw.thermal.battery": "Battery temperature",
+			"hw.thermal.nvme": "SSD temperature",
+			"hw.thermal.pressure": "Thermal pressure",
+			"hw.thermal.fans": "Fans",
+			"hw.thermal.fan": "Fan {name}",
+			"hw.thermal.noFans": "No fan readings available",
+			"hw.thermal.none": "This platform exposes no readable temperature sensor",
+			"hw.thermal.sources": "Sources",
+			"hw.thermal.note.cpu-needs-admin": "macOS does not expose CPU / GPU temperature to normal users; install smctemp or osx-cpu-temp, or run DSH as an administrator to unlock it.",
+			"hw.thermal.note.wmi-unsupported": "This board does not expose ACPI thermal-zone temperatures through WMI (some devices and VMs do not); only the other sources are shown.",
+			"hw.thermal.note.unavailable": "No temperature source is available on this platform.",
+			"hw.thermal.pressure.nominal": "Nominal",
+			"hw.thermal.pressure.fair": "Fair",
+			"hw.thermal.pressure.serious": "Serious",
+			"hw.thermal.pressure.critical": "Critical",
+
+			"hw.drivers.title": "Drivers & kernel extensions",
+			"hw.drivers.subtitle": "Read-only inventory, never updates",
+			"hw.drivers.search": "Search drivers…",
+			"hw.drivers.total": "{n} total",
+			"hw.drivers.thirdParty": "{n} third-party",
+			"hw.drivers.problems": "{n} problem devices",
+			"hw.drivers.name": "Device / name",
+			"hw.drivers.class": "Class",
+			"hw.drivers.vendor": "Vendor",
+			"hw.drivers.version": "Version",
+			"hw.drivers.date": "Date",
+			"hw.drivers.signer": "Signer",
+			"hw.drivers.kind": "Kind",
+			"hw.drivers.none": "No driver inventory was read",
+			"hw.drivers.noMatch": "No matching driver",
+			"hw.drivers.problemCode": "Error code {code}",
+			"hw.drivers.readOnly": "Read-only inventory: no driver updates or rollback.",
+
+			"cleanup.intro": "Scans caches, logs, trash and developer caches that are safe to clear. Scanning is read-only; nothing is deleted until you select items and confirm.",
+			"cleanup.scan": "Rescan",
+			"cleanup.scanning": "Scanning…",
+			"cleanup.reclaimable": "Reclaimable",
+			"cleanup.files": "{n} files",
+			"cleanup.selected": "{value} selected",
+			"cleanup.selectAll": "Select all",
+			"cleanup.selectNone": "Clear selection",
+			"cleanup.delete": "Clean selected",
+			"cleanup.deleting": "Cleaning…",
+			"cleanup.confirmTitle": "Clean the selected items?",
+			"cleanup.confirmBody": "This permanently deletes {value} ({n} files). It cannot be undone.",
+			"cleanup.confirmLabel": "Clean now",
+			"cleanup.cancel": "Cancel",
+			"cleanup.noneSelected": "Select at least one item first",
+			"cleanup.done": "Cleaned {value}",
+			"cleanup.empty": "Nothing to clean was found",
+			"cleanup.error": "Failed to read cleanup data",
+			"cleanup.item.cache": "Caches",
+			"cleanup.item.logs": "Logs",
+			"cleanup.item.trash": "Trash",
+			"cleanup.item.temp": "Temporary files",
+			"cleanup.item.developer": "Developer caches",
+			"cleanup.item.updates": "Update caches",
+			"cleanup.admin": "Needs admin",
+			"cleanup.adminHint": "This item requires DSH to run with administrator rights",
+			"cleanup.path": "Location",
+			"cleanup.updated": "Scanned at {time}",
+			"cleanup.scanEmpty": "No cleanable items",
+
+			"bench.intro": "Fixed-work, repeatable local benchmark. Scores are for comparing this machine over time — not against other models or benchmark suites.",
+			"bench.run": "Run all tests",
+			"bench.rerun": "Run again",
+			"bench.running": "Benchmarking…",
+			"bench.runningHint": "The multi-thread CPU and disk tests take a few seconds; keep this page open.",
+			"bench.cpu": "CPU",
+			"bench.memory": "Memory",
+			"bench.disk": "Disk",
+			"bench.cpuDesc": "Integer mix, single core plus {n} threads",
+			"bench.memoryDesc": "Fixed copy passes over two 32 MiB arrays",
+			"bench.diskDesc": "64 MiB temp file write + read",
+			"bench.single": "Single",
+			"bench.multi": "Multi",
+			"bench.threads": "{n} threads",
+			"bench.write": "Write",
+			"bench.read": "Read",
+			"bench.score": "Score",
+			"bench.unit": "Unit",
+			"bench.duration": "Took {value}",
+			"bench.lastRun": "Last run",
+			"bench.previous": "vs previous",
+			"bench.better": "Up {value}",
+			"bench.worse": "Down {value}",
+			"bench.flat": "About the same",
+			"bench.noPrevious": "First run — no baseline yet",
+			"bench.env": "Environment",
+			"bench.cores": "{n} logical cores",
+			"bench.memoryTotal": "{value} memory",
+			"bench.failed": "Test failed: {message}",
+			"bench.empty": "Press \u201cRun all tests\u201d to start",
+			"bench.totalDuration": "Total {value}",
 		};
 
 		// ------------------------------------------------------------------
@@ -2100,6 +2319,39 @@ window.__ModuleLoader__.load({
 .dx-subcardTitle { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
 .dx-subcardMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; margin-top: 3px; overflow-wrap: anywhere; }
 
+/* -------------------------------------------------------------- cleanup */
+.dx-cleanupTop { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.dx-cleanupTotal { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.dx-cleanupMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; margin-top: 2px; }
+.dx-cleanupRows { display: flex; flex-direction: column; margin-top: 10px; }
+.dx-cleanRow { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-top: 0.5px solid var(--dsw-alias-border-l1); }
+.dx-cleanRow:first-child { border-top: none; }
+.dx-cleanCheck { flex: none; width: 16px; height: 16px; accent-color: var(--dsw-alias-brand-primary); }
+.dx-cleanMain { flex: 1 1 auto; min-width: 0; }
+.dx-cleanTitle { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 500; min-width: 0; flex-wrap: wrap; }
+.dx-cleanPath { color: var(--dsw-alias-label-secondary); font-size: 11px; overflow-wrap: anywhere; margin-top: 2px; }
+.dx-cleanSize { flex: none; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dx-cleanSizeSub { color: var(--dsw-alias-label-secondary); font-size: 11px; }
+.dx-cleanActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* ------------------------------------------------------------ benchmark */
+.dx-benchGrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.dx-benchCard {
+	display: flex; flex-direction: column; gap: 8px; min-width: 0;
+	border: 1px solid var(--dsw-alias-border-l1); border-radius: 12px; padding: 14px;
+	background: var(--dsw-alias-bg-layer-1);
+}
+.dx-benchHead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dx-benchTitle { font-weight: 600; font-size: 12.5px; flex: 1 1 auto; }
+.dx-benchScore { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.dx-benchUnit { font-size: 11.5px; color: var(--dsw-alias-label-secondary); margin-left: 4px; }
+.dx-benchMeta { color: var(--dsw-alias-label-secondary); font-size: 11.5px; }
+.dx-benchFacts { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.dx-benchDelta { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-variant-numeric: tabular-nums; flex: none; }
+.dx-benchDelta[data-tone="up"] { color: var(--dsw-alias-state-success-primary); }
+.dx-benchDelta[data-tone="down"] { color: var(--dsw-alias-state-error-primary); }
+.dx-benchDelta[data-tone="flat"] { color: var(--dsw-alias-label-secondary); }
+
 /* ------------------------------------------------------------- keyframes */
 @keyframes dx-spin { to { transform: rotate(360deg); } }
 @keyframes dx-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
@@ -2212,6 +2464,28 @@ window.__ModuleLoader__.load({
 				const result = asObject(body);
 				return { ok: result.ok === true, message: strOr(result.message, ""), data: result.data };
 			},
+			async cleanup(fresh) {
+				const body = await getJson(API_BASE + "/cleanup" + (fresh === true ? "?fresh=1" : ""));
+				return body.cleanup;
+			},
+			async benchmark(options) {
+				let body = null;
+				try {
+					const response = await fetch(API_BASE + "/benchmark", {
+						method: "POST",
+						credentials: "same-origin",
+						cache: "no-store",
+						headers: { accept: "application/json", "content-type": "application/json" },
+						body: JSON.stringify(options && typeof options === "object" ? options : {}),
+					});
+					body = await readResponseBody(response);
+				} catch (error) {
+					return { ok: false, benchmark: null, message: safeErrorText(error) || "Request failed" };
+				}
+				const result = asObject(body);
+				const benchmark = normalizeBenchmark(result.benchmark);
+				return { ok: result.ok === true && benchmark !== null, benchmark, message: bodyError(result, "") };
+			},
 		};
 
 		// ------------------------------------------------------------------
@@ -2293,11 +2567,115 @@ window.__ModuleLoader__.load({
 							healthPercent: numOrNull(battery.healthPercent),
 						}
 					: null,
-				thermal: { cpuTempC: numOrNull(thermal.cpuTempC) },
+				thermal: normalizeThermal(source.thermal),
 				processes: {
 					total: numOrNull(processes.total),
 					top: asArray(processes.top).map(normalizeTopProcess).filter(Boolean),
 				},
+			};
+		}
+		function normalizeThermal(raw) {
+			const source = asObject(raw);
+			const fans = asArray(source.fans)
+				.map((rawFan) => {
+					const fan = asObject(rawFan);
+					return { name: strOr(fan.name, ""), rpm: numOrNull(fan.rpm) };
+				})
+				.filter((fan) => fan.name !== "" || fan.rpm !== null)
+				.slice(0, 4);
+			const cpuCelsius = numOrNull(source.cpuCelsius);
+			const gpuCelsius = numOrNull(source.gpuCelsius);
+			const batteryCelsius = numOrNull(source.batteryCelsius);
+			const nvmeCelsius = numOrNull(source.nvmeCelsius);
+			return {
+				available: source.available === true || [cpuCelsius, gpuCelsius, batteryCelsius, nvmeCelsius].some((value) => value !== null),
+				cpuCelsius,
+				gpuCelsius,
+				batteryCelsius,
+				nvmeCelsius,
+				pressure: ["nominal", "fair", "serious", "critical"].indexOf(source.pressure) >= 0 ? source.pressure : null,
+				fans,
+				sources: asArray(source.sources).filter((entry) => typeof entry === "string").slice(0, 8),
+				note: ["cpu-needs-admin", "wmi-unsupported", "unavailable"].indexOf(source.note) >= 0 ? source.note : null,
+			};
+		}
+		function normalizeCleanup(raw) {
+			const source = asObject(raw);
+			const categories = ["cache", "logs", "trash", "temp", "developer", "updates"];
+			const items = asArray(source.items)
+				.map((rawItem) => {
+					const item = asObject(rawItem);
+					const id = strOr(item.id, "");
+					if (!id) return null;
+					return {
+						id,
+						label: strOr(item.label, id),
+						detail: strOr(item.detail, ""),
+						category: categories.indexOf(item.category) >= 0 ? item.category : "cache",
+						path: strOr(item.path, ""),
+						bytes: numOr(item.bytes, 0),
+						files: numOr(item.files, 0),
+						requiresAdmin: item.requiresAdmin === true,
+						exists: item.exists !== false,
+						error: strOr(item.error, ""),
+					};
+				})
+				.filter(Boolean)
+				.slice(0, 40);
+			return {
+				platform: strOr(source.platform, ""),
+				generatedAt: numOr(source.generatedAt, 0),
+				durationMs: numOr(source.durationMs, 0),
+				items,
+				totalBytes: numOr(source.totalBytes, 0),
+				totalFiles: numOr(source.totalFiles, 0),
+				errors: asArray(source.errors).filter((entry) => typeof entry === "string").slice(0, 8),
+			};
+		}
+		function normalizeBenchmark(raw) {
+			const source = asObject(raw);
+			const env = asObject(source.environment);
+			const results = asArray(source.results)
+				.map((rawResult) => {
+					const entry = asObject(rawResult);
+					const id = strOr(entry.id, "");
+					if (id !== "cpu" && id !== "memory" && id !== "disk") return null;
+					return {
+						id,
+						durationMs: numOrNull(entry.durationMs),
+						score: numOrNull(entry.score),
+						unit: strOr(entry.unit, id === "memory" ? "GB/s" : id === "disk" ? "MB/s" : "ops/s"),
+						details: asObject(entry.details),
+						error: strOr(entry.error, ""),
+					};
+				})
+				.filter(Boolean);
+			const previous = isObj(source.previous)
+				? {
+						at: numOrNull(source.previous.at),
+						results: asArray(source.previous.results)
+							.map((rawPrevious) => {
+								const entry = asObject(rawPrevious);
+								const id = strOr(entry.id, "");
+								return id ? { id, score: numOrNull(entry.score) } : null;
+							})
+							.filter(Boolean),
+					}
+				: null;
+			return {
+				platform: strOr(source.platform, ""),
+				startedAt: numOrNull(source.startedAt),
+				durationMs: numOrNull(source.durationMs),
+				environment: {
+					hostname: strOr(env.hostname, ""),
+					cpuModel: strOr(env.cpuModel, ""),
+					logicalCores: numOrNull(env.logicalCores),
+					physicalCores: numOrNull(env.physicalCores),
+					memoryBytes: numOrNull(env.memoryBytes),
+					osVersion: strOr(env.osVersion, ""),
+				},
+				results,
+				previous,
 			};
 		}
 		function normalizeParam(raw) {
@@ -3063,7 +3441,9 @@ window.__ModuleLoader__.load({
 			if (battery && battery.present && battery.percent !== null && battery.percent <= 20 && !battery.charging) {
 				alerts.push({ key: "battery-low", icon: "battery", tone: "error", text: t("overview.alert.batteryLow", { percent: fmtPercent(battery.percent) }) });
 			}
-			const temperature = metrics.thermal.cpuTempC;
+			const thermal = asObject(metrics.thermal);
+			const readings = [thermal.cpuCelsius, thermal.gpuCelsius].filter((value) => isFiniteNumber(value));
+			const temperature = readings.length > 0 ? Math.max(...readings) : null;
 			if (temperature !== null && temperature >= 90) {
 				alerts.push({ key: "thermal", icon: "warning", tone: "error", text: t("overview.alert.thermal", { temp: Math.round(temperature) }) });
 			}
@@ -3178,6 +3558,19 @@ window.__ModuleLoader__.load({
 					h("strong", null, t(pressureKey(memory.pressure))),
 				),
 			];
+			const thermalNow = asObject(metrics.thermal);
+			const temperatureC = [thermalNow.cpuCelsius, thermalNow.batteryCelsius, thermalNow.gpuCelsius].find((value) => isFiniteNumber(value));
+			if (isFiniteNumber(temperatureC)) {
+				heroChips.push(
+					h(
+						"span",
+						{ className: "dx-chip", key: "temperature" },
+						h(Icon, { name: "spark", size: 13 }),
+						t("overview.kpi.temp"),
+						h("strong", null, fmtNumber(temperatureC, 1) + " °C"),
+					),
+				);
+			}
 			if (network.wifi) {
 				heroChips.push(
 					h("span", { className: "dx-chip", key: "wifi" }, h(Icon, { name: "wifi", size: 13 }), h("strong", null, network.wifi.ssid || t("common.wifi")), h(SignalBars, { level: wifiLevel, label: t("net.signalLevel", { level: wifiLevel }) })),
@@ -3441,6 +3834,9 @@ window.__ModuleLoader__.load({
 					const btDevices = asArray(bluetooth.devices).filter(isObj);
 					const audioDevices = asArray(data.audio).filter(isObj);
 					const cameras = asArray(data.cameras).filter(isObj);
+					const drivers = asArray(data.drivers).filter(isObj);
+					const driverSummary = asObject(data.driverSummary);
+					const driverProblems = asArray(data.driverProblems).filter(isObj);
 					return h(
 						"div",
 						{ className: "dx-section" },
@@ -3655,6 +4051,8 @@ window.__ModuleLoader__.load({
 										)
 									: h(EmptyState, { icon: "battery", title: t("hw.batteryNoData") }),
 							}),
+							h(ThermalCard, { t, thermal: metrics ? metrics.thermal : null }),
+							h(DriversCard, { t, drivers, summary: driverSummary, problems: driverProblems }),
 							h(Card, {
 								title: t("hw.usb"),
 								icon: "usb",
@@ -4744,6 +5142,461 @@ window.__ModuleLoader__.load({
 		// ------------------------------------------------------------------
 		// Action catalogue helpers
 		// ------------------------------------------------------------------
+		// ------------------------------------------------------------------
+		// Hardware: thermals + read-only driver inventory.
+		// ------------------------------------------------------------------
+		const THERMAL_PRESSURE_KEYS = {
+			nominal: "hw.thermal.pressure.nominal",
+			fair: "hw.thermal.pressure.fair",
+			serious: "hw.thermal.pressure.serious",
+			critical: "hw.thermal.pressure.critical",
+		};
+		const THERMAL_NOTE_KEYS = {
+			"cpu-needs-admin": "hw.thermal.note.cpu-needs-admin",
+			"wmi-unsupported": "hw.thermal.note.wmi-unsupported",
+			unavailable: "hw.thermal.note.unavailable",
+		};
+
+		function ThermalCard(props) {
+			const t = props.t;
+			const thermal = normalizeThermal(props.thermal);
+			const pressureLabel = thermal.pressure ? t(THERMAL_PRESSURE_KEYS[thermal.pressure] || THERMAL_PRESSURE_KEYS.nominal) : "";
+			const facts = [
+				thermal.cpuCelsius !== null ? { key: "cpu", label: t("hw.thermal.cpu"), value: fmtNumber(thermal.cpuCelsius, 1) + " °C" } : null,
+				thermal.gpuCelsius !== null ? { key: "gpu", label: t("hw.thermal.gpu"), value: fmtNumber(thermal.gpuCelsius, 1) + " °C" } : null,
+				thermal.batteryCelsius !== null ? { key: "battery", label: t("hw.thermal.battery"), value: fmtNumber(thermal.batteryCelsius, 1) + " °C" } : null,
+				thermal.nvmeCelsius !== null ? { key: "nvme", label: t("hw.thermal.nvme"), value: fmtNumber(thermal.nvmeCelsius, 1) + " °C" } : null,
+				pressureLabel ? { key: "pressure", label: t("hw.thermal.pressure"), value: h(Pill, { tone: thermal.pressure === "nominal" ? "ok" : thermal.pressure === "fair" ? "warn" : "error" }, pressureLabel) } : null,
+				...thermal.fans.map((fan, index) => ({
+					key: "fan-" + index,
+					label: fan.name ? t("hw.thermal.fan", { name: fan.name }) : t("hw.thermal.fans"),
+					value: fan.rpm === null ? "—" : fmtNumber(fan.rpm) + " RPM",
+				})),
+			].filter(Boolean);
+			return h(Card, {
+				title: t("hw.thermal.title"),
+				icon: "spark",
+				subtitle: t("hw.thermal.subtitle"),
+				children: h(
+					Fragment,
+					null,
+					facts.length > 0 ? h(FactGrid, { t, items: facts, emptyText: t("hw.thermal.none") }) : h(EmptyState, { icon: "spark", title: t("hw.thermal.none") }),
+					thermal.note ? h("p", { className: "dx-small dx-muted", style: { marginTop: "10px" } }, t(THERMAL_NOTE_KEYS[thermal.note] || THERMAL_NOTE_KEYS.unavailable)) : null,
+					thermal.sources.length > 0 ? h("p", { className: "dx-small dx-muted", style: { marginTop: "8px" } }, t("hw.thermal.sources") + ": " + thermal.sources.join(", ")) : null,
+				),
+			});
+		}
+
+		function DriversCard(props) {
+			const t = props.t;
+			const [query, setQuery] = useState("");
+			const drivers = asArray(props.drivers).filter(isObj);
+			const summary = asObject(props.summary);
+			const problems = asArray(props.problems).filter(isObj).slice(0, 20);
+			if (drivers.length === 0) {
+				return h(Card, { title: t("hw.drivers.title"), icon: "gear", subtitle: t("hw.drivers.subtitle"), span: 2, children: h(EmptyState, { icon: "gear", title: t("hw.drivers.none") }) });
+			}
+			const needle = query.trim().toLowerCase();
+			const matched = needle
+				? drivers.filter((driver) =>
+						[driver.name, driver.class, driver.manufacturer, driver.signer, driver.deviceId, driver.bundleId].some(
+							(value) => typeof value === "string" && value.toLowerCase().indexOf(needle) >= 0,
+						),
+					)
+				: drivers;
+			const rows = matched.slice(0, 60);
+			const total = numOrNull(summary.total) ?? drivers.length;
+			const badges = [
+				h(Pill, { key: "total", tone: "idle" }, t("hw.drivers.total", { n: total })),
+				numOrNull(summary.thirdParty) ? h(Pill, { key: "third", tone: "brand" }, t("hw.drivers.thirdParty", { n: summary.thirdParty })) : null,
+				numOrNull(summary.problems) && summary.problems > 0 ? h(Pill, { key: "problems", tone: "error" }, t("hw.drivers.problems", { n: summary.problems })) : null,
+			].filter(Boolean);
+			return h(Card, {
+				title: t("hw.drivers.title"),
+				icon: "gear",
+				subtitle: t("hw.drivers.subtitle"),
+				span: 2,
+				actions: h("div", { style: { width: "190px" } }, h(SearchField, { value: query, placeholder: t("hw.drivers.search"), label: t("hw.drivers.search"), onChange: setQuery })),
+				children: h(
+					Fragment,
+					null,
+					h("div", { className: "dx-tagList", style: { marginBottom: "10px" } }, badges),
+					rows.length === 0
+						? h(EmptyState, { icon: "search", title: t("hw.drivers.noMatch") })
+						: h(DataTable, {
+								t,
+								columns: [
+									{ key: "name", label: t("hw.drivers.name"), render: (row) => strOr(row.name, strOr(row.bundleId, "—")) },
+									{ key: "class", label: t("hw.drivers.class"), render: (row) => strOr(row.class, strOr(row.kind, "—")) },
+									{ key: "vendor", label: t("hw.drivers.vendor"), render: (row) => strOr(row.manufacturer, "—") },
+									{ key: "version", label: t("hw.drivers.version"), render: (row) => strOr(row.version, "—") },
+									{ key: "date", label: t("hw.drivers.date"), render: (row) => strOr(row.date, "—") },
+									{ key: "signer", label: t("hw.drivers.signer"), render: (row) => strOr(row.signer, "—") },
+								],
+								rows,
+							}),
+					matched.length > rows.length ? h("p", { className: "dx-small dx-muted", style: { marginTop: "8px" } }, "… " + String(matched.length - rows.length)) : null,
+					problems.length > 0
+						? h(
+								"div",
+								{ style: { marginTop: "12px" } },
+								h("div", { className: "dx-factLabel", style: { marginBottom: "6px" } }, t("hw.drivers.problems", { n: problems.length })),
+								h(
+									"div",
+									{ className: "dx-sublist" },
+									problems.map((problem, index) =>
+										h(SubCard, {
+											key: index,
+											title: strOr(problem.name, "—"),
+											icon: "warning",
+											badge: h(Pill, { tone: "error" }, t("hw.drivers.problemCode", { code: strOr(problem.code, "?") })),
+										}),
+									),
+								),
+							)
+						: null,
+					h("p", { className: "dx-small dx-muted", style: { marginTop: "10px" } }, t("hw.drivers.readOnly")),
+				),
+			});
+		}
+
+		// ------------------------------------------------------------------
+		// Cleanup: allowlisted scan + explicit, confirmed deletion.
+		// ------------------------------------------------------------------
+		const CLEANUP_CATEGORY_KEYS = {
+			cache: "cleanup.item.cache",
+			logs: "cleanup.item.logs",
+			trash: "cleanup.item.trash",
+			temp: "cleanup.item.temp",
+			developer: "cleanup.item.developer",
+			updates: "cleanup.item.updates",
+		};
+
+		function CleanupTab(props) {
+			const t = props.t;
+			const [state, setState] = useState({ status: "loading", data: null, error: null });
+			const [selected, setSelected] = useState({});
+			const [confirming, setConfirming] = useState(false);
+			const [busy, setBusy] = useState(false);
+			const [notice, setNotice] = useState("");
+			const inFlight = useRef(null);
+			const load = useCallback((fresh) => {
+				if (inFlight.current) return inFlight.current;
+				setState((previous) => ({ status: previous.data ? "ready" : "loading", data: previous.data, error: null }));
+				const promise = api
+					.cleanup(fresh === true)
+					.then((raw) => setState({ status: "ready", data: normalizeCleanup(raw), error: null }))
+					.catch((error) => setState((previous) => ({ status: previous.data ? "ready" : "error", data: previous.data, error })))
+					.finally(() => {
+						inFlight.current = null;
+					});
+				inFlight.current = promise;
+				return promise;
+			}, []);
+			useEffect(() => {
+				load(false);
+			}, [load]);
+			const data = state.data;
+			if (state.status === "loading" && !data) {
+				return h(Fragment, null, h(Skeleton, { cards: 3 }), h("p", { className: "dx-loadingHint", role: "status" }, t("cleanup.scanning")));
+			}
+			if (state.status === "error" && !data) {
+				return h(ErrorState, { t, title: t("cleanup.error"), text: safeErrorText(state.error), onRetry: () => load(true), retryLabel: t("common.retry") });
+			}
+			const items = data ? data.items : [];
+			const selectable = items.filter((item) => item.exists !== false && item.bytes > 0);
+			const selectedItems = selectable.filter((item) => selected[item.id] === true);
+			const selectedBytes = selectedItems.reduce((total, item) => total + item.bytes, 0);
+			const selectedFiles = selectedItems.reduce((total, item) => total + item.files, 0);
+			const allSelected = selectable.length > 0 && selectedItems.length === selectable.length;
+			const toggleItem = (id) => {
+				setNotice("");
+				setConfirming(false);
+				setSelected((previous) => Object.assign({}, previous, { [id]: previous[id] !== true }));
+			};
+			const selectAll = () => {
+				setNotice("");
+				setConfirming(false);
+				if (allSelected) {
+					setSelected({});
+					return;
+				}
+				const next = {};
+				for (const item of selectable) next[item.id] = true;
+				setSelected(next);
+			};
+			const runDelete = async () => {
+				if (selectedItems.length === 0) {
+					setNotice(t("cleanup.noneSelected"));
+					return;
+				}
+				setBusy(true);
+				setNotice("");
+				const ids = selectedItems.map((item) => item.id);
+				const result = await props.onAction("cleanup.delete", { ids });
+				setBusy(false);
+				setConfirming(false);
+				if (result && result.ok) {
+					setSelected({});
+					await load(true);
+				}
+			};
+			return h(
+				"div",
+				{ className: "dx-section" },
+				h(Card, {
+					title: t("tab.cleanup"),
+					icon: "trash",
+					subtitle: t("cleanup.intro"),
+					actions: h(
+						"button",
+						{ type: "button", className: "dx-btn", "data-size": "sm", onClick: () => load(true), disabled: state.status === "loading" },
+						h(Icon, { name: "refresh", size: 13 }),
+						t("cleanup.scan"),
+					),
+					children: h(
+						Fragment,
+						null,
+						h(
+							"div",
+							{ className: "dx-cleanupTop" },
+							h(
+								"div",
+								null,
+								h("div", { className: "dx-cleanupTotal" }, fmtBytes(data ? data.totalBytes : 0)),
+								h(
+									"div",
+									{ className: "dx-cleanupMeta" },
+									t("cleanup.reclaimable") +
+										" · " +
+										t("cleanup.files", { n: data ? data.totalFiles : 0 }) +
+										(data && data.generatedAt ? " · " + t("cleanup.updated", { time: fmtTime(data.generatedAt) }) : ""),
+								),
+							),
+							h("span", { className: "dx-grow" }),
+							h(
+								"div",
+								{ className: "dx-cleanActions" },
+								h("button", { type: "button", className: "dx-linkBtn", onClick: selectAll, disabled: selectable.length === 0 }, allSelected ? t("cleanup.selectNone") : t("cleanup.selectAll")),
+								h(
+									"button",
+									{
+										type: "button",
+										className: "dx-btn",
+										"data-variant": "primary",
+										onClick: () => {
+											if (selectedItems.length === 0) {
+												setNotice(t("cleanup.noneSelected"));
+												return;
+											}
+											setConfirming(true);
+										},
+										disabled: busy || selectedItems.length === 0,
+									},
+									h(Icon, { name: "trash", size: 13 }),
+									busy ? t("cleanup.deleting") : t("cleanup.delete"),
+								),
+							),
+						),
+						h("p", { className: "dx-small dx-muted", style: { marginTop: "8px" } }, t("cleanup.selected", { value: fmtBytes(selectedBytes) }) + (selectedItems.length > 0 ? " · " + t("cleanup.files", { n: selectedFiles }) : "")),
+						notice ? h("div", { className: "dx-banner", "data-tone": "warn", role: "status" }, h("span", { className: "dx-bannerText" }, notice)) : null,
+						confirming
+							? h(
+									"div",
+									{ className: "dx-banner", "data-tone": "danger", role: "alert" },
+									h("span", { className: "dx-bannerText" }, t("cleanup.confirmTitle") + " " + t("cleanup.confirmBody", { value: fmtBytes(selectedBytes), n: selectedFiles })),
+									h(
+										"div",
+										{ className: "dx-cleanActions" },
+										h("button", { type: "button", className: "dx-btn", "data-size": "sm", onClick: () => setConfirming(false), disabled: busy }, t("cleanup.cancel")),
+										h("button", { type: "button", className: "dx-btn", "data-variant": "danger", "data-size": "sm", onClick: runDelete, disabled: busy }, t("cleanup.confirmLabel")),
+									),
+								)
+							: null,
+						h(
+							"div",
+							{ className: "dx-cleanupRows" },
+							items.length === 0
+								? h(EmptyState, { icon: "trash", title: t("cleanup.scanEmpty") })
+								: items.map((item) =>
+										h(
+											"div",
+											{ className: "dx-cleanRow", key: item.id },
+											h("input", {
+												type: "checkbox",
+												className: "dx-cleanCheck",
+												checked: selected[item.id] === true,
+												disabled: item.exists === false || item.bytes === 0,
+												"aria-label": item.label,
+												onChange: () => toggleItem(item.id),
+											}),
+											h(
+												"div",
+												{ className: "dx-cleanMain" },
+												h(
+													"div",
+													{ className: "dx-cleanTitle" },
+													item.label,
+													h(Pill, { tone: "idle" }, t(CLEANUP_CATEGORY_KEYS[item.category] || "cleanup.item.cache")),
+													item.requiresAdmin ? h(Pill, { tone: "warn", title: t("cleanup.adminHint") }, t("cleanup.admin")) : null,
+													item.exists === false ? h(Pill, { tone: "idle" }, t("common.na")) : null,
+												),
+												item.detail ? h("div", { className: "dx-cleanPath" }, item.detail) : null,
+												item.path ? h("div", { className: "dx-cleanPath", title: item.path }, item.path) : null,
+												item.error ? h("div", { className: "dx-cleanPath" }, item.error) : null,
+											),
+											h("div", { className: "dx-cleanSize" }, h("div", null, fmtBytes(item.bytes)), h("div", { className: "dx-cleanSizeSub" }, t("cleanup.files", { n: item.files }))),
+										),
+									),
+						),
+					),
+				}),
+			);
+		}
+
+		// ------------------------------------------------------------------
+		// Benchmark: fixed-work, repeatable, on demand.
+		// ------------------------------------------------------------------
+		function BenchmarkDelta(props) {
+			const t = props.t;
+			const previous = props.previous;
+			if (!previous || typeof previous.score !== "number" || typeof props.score !== "number" || previous.score === 0) return null;
+			const percent = ((props.score - previous.score) / previous.score) * 100;
+			if (!isFiniteNumber(percent)) return null;
+			const abs = Math.abs(percent);
+			const tone = abs < 1 ? "flat" : percent > 0 ? "up" : "down";
+			const label = tone === "flat" ? t("bench.flat") : t(tone === "up" ? "bench.better" : "bench.worse", { value: abs.toFixed(1) + "%" });
+			return h(
+				"span",
+				{ className: "dx-benchDelta", "data-tone": tone },
+				tone === "flat" ? null : h(Icon, { name: tone === "up" ? "arrowUp" : "arrowDown", size: 12 }),
+				label,
+			);
+		}
+
+		function BenchmarkTab(props) {
+			const t = props.t;
+			const [state, setState] = useState({ status: "idle", run: null, error: null });
+			const [running, setRunning] = useState(false);
+			const run = async () => {
+				if (running) return;
+				setRunning(true);
+				setState((previous) => ({ status: previous.run ? "ready" : "loading", run: previous.run, error: null }));
+				const result = await api.benchmark({});
+				setRunning(false);
+				if (!result.ok || !result.benchmark) {
+					setState((previous) => ({ status: previous.run ? "ready" : "error", run: previous.run, error: new Error(result.message || "benchmark failed") }));
+					return;
+				}
+				setState({ status: "ready", run: result.benchmark, error: null });
+			};
+			const runData = state.run;
+			const previousScores = {};
+			if (runData && runData.previous) {
+				for (const entry of asArray(runData.previous.results)) previousScores[strOr(entry.id, "")] = entry;
+			}
+			const results = runData ? asArray(runData.results) : [];
+			const env = runData ? asObject(runData.environment) : {};
+			const labelOf = { cpu: "bench.cpu", memory: "bench.memory", disk: "bench.disk" };
+			const iconOf = { cpu: "cpu", memory: "memory", disk: "disk" };
+			return h(
+				"div",
+				{ className: "dx-section" },
+				h(Card, {
+					title: t("tab.benchmark"),
+					icon: "spark",
+					subtitle: t("bench.intro"),
+					actions: h(
+						"button",
+						{ type: "button", className: "dx-btn", "data-variant": "primary", "data-size": "sm", onClick: run, disabled: running },
+						h(Icon, { name: "spark", size: 13 }),
+						running ? t("bench.running") : runData ? t("bench.rerun") : t("bench.run"),
+					),
+					children: h(
+						Fragment,
+						null,
+						running ? h("p", { className: "dx-small dx-muted", role: "status" }, t("bench.runningHint")) : null,
+						state.status === "error" && !runData
+							? h(ErrorState, { t, title: t("error.section"), text: safeErrorText(state.error), onRetry: run, retryLabel: t("common.retry") })
+							: null,
+						!runData && state.status !== "error" ? h(EmptyState, { icon: "spark", title: t("bench.empty") }) : null,
+						results.length > 0
+							? h(
+									"div",
+									{ className: "dx-benchGrid" },
+									results.map((result) => {
+										const details = asObject(result.details);
+										const previous = previousScores[result.id];
+										const body = [];
+										if (result.id === "cpu") {
+											const single = asObject(details.singleThread);
+											const multi = asObject(details.multiThread);
+											body.push(
+												h(
+													"div",
+													{ className: "dx-benchFacts" },
+													isFiniteNumber(single.score) ? h("span", { className: "dx-benchMeta", key: "single" }, t("bench.single") + ": " + fmtNumber(single.score, 0) + " ops/s") : null,
+													isFiniteNumber(multi.score) ? h("span", { className: "dx-benchMeta", key: "multi" }, t("bench.multi") + ": " + fmtNumber(multi.score, 0) + " ops/s" + (isFiniteNumber(multi.threads) ? " · " + t("bench.threads", { n: multi.threads }) : "")) : null,
+												),
+											);
+										} else if (result.id === "disk") {
+											body.push(
+												h(
+													"div",
+													{ className: "dx-benchFacts" },
+													isFiniteNumber(details.writeMBps) ? h("span", { className: "dx-benchMeta", key: "write" }, t("bench.write") + ": " + fmtNumber(details.writeMBps, 1) + " MB/s") : null,
+													isFiniteNumber(details.readMBps) ? h("span", { className: "dx-benchMeta", key: "read" }, t("bench.read") + ": " + fmtNumber(details.readMBps, 1) + " MB/s") : null,
+												),
+											);
+										} else {
+											body.push(
+												h(
+													"div",
+													{ className: "dx-benchFacts" },
+													isFiniteNumber(details.megabytes) ? h("span", { className: "dx-benchMeta", key: "bytes" }, fmtBytes(details.megabytes * 1024 * 1024)) : null,
+												),
+											);
+										}
+										return h(
+											"div",
+											{ className: "dx-benchCard", key: result.id },
+											h(
+												"div",
+												{ className: "dx-benchHead" },
+												h(Icon, { name: iconOf[result.id] || "spark", size: 15 }),
+												h("span", { className: "dx-benchTitle" }, t(labelOf[result.id] || "bench.cpu")),
+												h(BenchmarkDelta, { t, previous, score: result.score }),
+											),
+											result.error
+												? h("div", { className: "dx-small", style: { color: "var(--dsw-alias-state-error-primary)" } }, t("bench.failed", { message: result.error }))
+												: h(
+														Fragment,
+														null,
+														h("div", null, h("span", { className: "dx-benchScore" }, result.score === null ? "—" : fmtNumber(result.score, result.score < 100 ? 1 : 0)), h("span", { className: "dx-benchUnit" }, result.unit)),
+														h("div", { className: "dx-benchMeta" }, t("bench.duration", { value: fmtMs(result.durationMs) })),
+														...body,
+													),
+										);
+									}),
+								)
+							: null,
+						runData
+							? h(
+									"div",
+									{ className: "dx-benchFacts", style: { marginTop: "14px" } },
+									env.cpuModel ? h("span", { className: "dx-benchMeta" }, env.cpuModel) : null,
+									isFiniteNumber(env.logicalCores) ? h("span", { className: "dx-benchMeta" }, t("bench.cores", { n: env.logicalCores })) : null,
+									isFiniteNumber(env.memoryBytes) ? h("span", { className: "dx-benchMeta" }, t("bench.memoryTotal", { value: fmtBytes(env.memoryBytes) })) : null,
+									env.osVersion ? h("span", { className: "dx-benchMeta" }, env.osVersion) : null,
+									isFiniteNumber(runData.durationMs) ? h("span", { className: "dx-benchMeta" }, t("bench.totalDuration", { value: fmtMs(runData.durationMs) })) : null,
+								)
+							: null,
+						runData && runData.previous === null ? h("p", { className: "dx-small dx-muted", style: { marginTop: "8px" } }, t("bench.noPrevious")) : null,
+					),
+				}),
+			);
+		}
+
 		function actionMetaOf(action) {
 			const known = ACTION_META[action.id];
 			if (known) {
@@ -5554,6 +6407,10 @@ window.__ModuleLoader__.load({
 					onRetry: () => loadCatalog(true),
 					openConfirm,
 				});
+			} else if (activeTab === "cleanup") {
+				body = h(CleanupTab, { t, onAction: executeAction });
+			} else if (activeTab === "benchmark") {
+				body = h(BenchmarkTab, { t });
 			} else {
 				const TabComponent = SECTION_COMPONENTS[activeTab];
 				body = TabComponent

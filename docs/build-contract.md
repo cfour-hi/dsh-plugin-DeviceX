@@ -107,7 +107,7 @@ name is unknown). `collectMetrics` must never throw (return best-effort data).
   battery: { present: true, percent: 87, charging: false, plugged: false,
              powerSource: "Battery Power", timeRemainingMin: 250,
              temperatureC: 31.2, cycleCount: 123, healthPercent: 92 } | null,
-  thermal: { cpuTempC: null },       // null when unavailable; do not fake
+  thermal: { /* superseded by the 1.2 additions below: full thermal contract */ },
   processes: {
     total: 512,
     top: [ { pid: 1234, name: "WindowServer", cpu: 14.2, memPercent: 2.8, user: "_windowserver" }, ... ]
@@ -383,3 +383,85 @@ column headers, action group labels, confirmation copy, toast copy, empty/loadin
   design decisions and any contract mismatch.
 - Do not install the plugin. Report: files written, how tested, known limitations, and anything the
   Lead must wire.
+
+## 1.2 additions — sensors, drivers, cleanup, benchmark (frozen)
+
+Added after the initial six-section build; every earlier shape above is unchanged.
+
+### `metrics.thermal` (polled with metrics, cached 5 s in the platform collector)
+
+```js
+thermal: {
+  available: boolean,                 // true iff any Celsius field below is a finite number
+  cpuCelsius: number|null, gpuCelsius: number|null,
+  batteryCelsius: number|null, nvmeCelsius: number|null,
+  pressure: 'nominal'|'fair'|'serious'|'critical'|null,
+  fans: [{ name: string|null, rpm: number|null }],
+  sources: string[],                  // e.g. ['nsprocessinfo','ioreg-applesmartbattery']
+  note: 'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null
+}
+```
+
+macOS: battery °C from `AppleSmartBattery`, thermal pressure from
+`NSProcessInfo.thermalState` (via a bounded `osascript -l JavaScript`), CPU/GPU only when a
+`smctemp` / `osx-cpu-temp` / `istats` helper exists or the Host runs as root (`powermetrics`).
+Windows: ACPI thermal zones from `root/wmi MSAcpi_ThermalZoneTemperature`, optional `nvidia-smi`
+GPU/fan data; `wmi-unsupported` is a normal outcome on boards/VMs without the class.
+
+### `hardware.drivers`, `driverSummary`, `driverProblems` (read-only)
+
+```js
+drivers: [{ name, class, manufacturer, version, date, signer, inf, deviceId,
+            kind: 'kext'|'driverkit'|'pnp', problem }]   // capped at 250
+driverSummary: { total, thirdParty, problems, truncated? }
+driverProblems: [{ name, code, class }]                 // win32 only, capped at 50
+```
+
+macOS: `system_profiler SPExtensionsDataType` (third-party/loaded first, then version desc).
+Windows: `Win32_PnPSignedDriver` + `Win32_PnPEntity.ConfigManagerErrorCode`. No update/rollback is
+attempted anywhere — the inventory is read-only by design.
+
+### Cleanup (`host/cleanup.js`, `cleanup-darwin.js`, `cleanup-win32.js`)
+
+```js
+scanCleanup({ fresh } = {}) -> {
+  platform, generatedAt, durationMs,
+  items: [{ id, label, detail, category: 'cache'|'logs'|'trash'|'temp'|'developer'|'updates',
+            path, bytes, files, requiresAdmin, exists, error }],
+  totalBytes, totalFiles, errors: []
+}
+deleteCleanup(ids) -> { ok, message, data: { deletedBytes, items: [{ id, ok, bytes, message }] } }
+```
+
+Fixed per-platform allowlist only (the client can never supply a path). Recursive `lstat` size walk
+bounded to 150k entries and 5 s per root, symlinks never followed, scan cached 60 s. Deletion resolves
+each id back to its frozen absolute path, removes contents (recreating cache roots), reports per-item
+OS errors, and has a strict `cleanup.delete` action (group `system`, danger `high`, one `ids`
+parameter: 1–20 unique allowlist ids; array or comma-separated string).
+
+### Benchmark (`host/benchmark.js`, platform-agnostic Node engine)
+
+```js
+runBenchmark({ tests = [], repeat = false } = {}) -> { ok: true, benchmark: {
+  platform, startedAt, durationMs,
+  environment: { hostname, cpuModel, logicalCores, physicalCores, memoryBytes, osVersion },
+  results: [{ id: 'cpu'|'memory'|'disk', durationMs, score, unit, details, error? }],
+  previous: null | { at, results: [{ id, score, unit }] }
+} }
+benchmarkHistory() -> last <=5 runs, newest first
+```
+
+Fixed work per run: CPU 70,000,000 integer-mix iterations (one single-thread leg, one
+`min(4, cores)`-thread leg via `worker_threads`, bounded 20 s, single-thread fallback), memory 48
+copy passes over two 32 MiB `Float64Array`s, disk one 64 MiB write+fsync+read under `os.tmpdir()`
+(always unlinked). Scores are only comparable on the same machine over time.
+
+### Routes / tools / actions after 1.2
+
+- Browser routes (6): `GET /devicex/api/metrics`, `GET /devicex/api/inventory`,
+  `GET /devicex/api/actions`, `POST /devicex/api/action`, `GET /devicex/api/cleanup`,
+  `POST /devicex/api/benchmark` — all behind the same Connection trust fence.
+- Agent tools (3): `device_info` (sections gain `cleanup`), `device_control` (catalog now includes
+  `cleanup.delete`), `device_benchmark` (`tests?`, `repeat?`).
+- Action catalogue: 19 ids (the 18 frozen ids plus `cleanup.delete`; Windows swaps
+  `software.brewUninstall` for `software.wingetUninstall` as before).

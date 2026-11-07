@@ -422,6 +422,61 @@ try {
   }
 } catch { $errors += ('Get-PnpDevice Camera/Image: ' + $_.Exception.Message) }
 
+# ---------------------------------------------------------------- drivers --
+# driverProblems: PnP devices whose ConfigManagerErrorCode is non-zero (code 28
+# = drivers not installed is the common "missing driver" case). drivers: the
+# signed-driver inventory, with the same non-zero code joined in by DeviceID.
+$driverProblems = @()
+$problemByDeviceId = @{}
+try {
+  $problemDevices = @(Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction Stop)
+  foreach ($device in $problemDevices) {
+    if ($null -eq $device.ConfigManagerErrorCode) { continue }
+    $errorCode = [int]$device.ConfigManagerErrorCode
+    if ($errorCode -eq 0) { continue }
+    if ($driverProblems.Count -lt 50) {
+      $driverProblems += [ordered]@{
+        name = [string]$device.Name
+        code = [string]$errorCode
+        class = [string]$device.PNPClass
+      }
+    }
+    $problemDeviceId = [string]$device.DeviceID
+    if ($problemDeviceId) { $problemByDeviceId[$problemDeviceId] = [string]$errorCode }
+  }
+} catch { $errors += ('Win32_PnPEntity: ' + $_.Exception.Message) }
+
+$drivers = @()
+try {
+  $signedDrivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop)
+  foreach ($driver in $signedDrivers) {
+    if ($drivers.Count -ge 250) { break }
+    $deviceName = [string]$driver.DeviceName
+    if (-not $deviceName) { continue }
+    $driverDate = $null
+    if ($null -ne $driver.DriverDate) {
+      try { $driverDate = ([datetime]$driver.DriverDate).ToString('yyyy-MM-dd') } catch { $driverDate = $null }
+    }
+    $driverDeviceId = [string]$driver.DeviceID
+    $driverProblem = $null
+    if ($driverDeviceId -and $problemByDeviceId.ContainsKey($driverDeviceId)) {
+      $driverProblem = [string]$problemByDeviceId[$driverDeviceId]
+    }
+    $drivers += [ordered]@{
+      name = $deviceName
+      class = [string]$driver.DeviceClass
+      manufacturer = [string]$driver.Manufacturer
+      version = [string]$driver.DriverVersion
+      date = $driverDate
+      signer = [string]$driver.DriverProviderName
+      inf = [string]$driver.InfName
+      deviceId = $driverDeviceId
+      kind = 'pnp'
+      problem = $driverProblem
+    }
+  }
+} catch { $errors += ('Win32_PnPSignedDriver: ' + $_.Exception.Message) }
+
 # -------------------------------------------------------------------- emit --
 $result = [ordered]@{
   generatedAt = ([DateTimeOffset]::UtcNow).ToUnixTimeMilliseconds()
@@ -438,6 +493,8 @@ $result = [ordered]@{
   bluetoothDevices = $bluetoothDevices
   audio = $audio
   cameras = $cameras
+  drivers = $drivers
+  driverProblems = $driverProblems
   errors = $errors
 }
 

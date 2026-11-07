@@ -56,6 +56,10 @@ const jsFiles = [
   'host/proc.js',
   'host/transport.js',
   'host/tool.js',
+  'host/cleanup.js',
+  'host/cleanup-darwin.js',
+  'host/cleanup-win32.js',
+  'host/benchmark.js',
 ];
 for (const file of jsFiles) {
   const path = join(pluginDir, file);
@@ -157,8 +161,8 @@ const inventory = await collector.collectInventory({
 check('collectInventory carries all six sections', collector.SECTIONS.every((name) => inventory.sections?.[name] !== undefined));
 check('inventory is JSON-safe', typeof JSON.stringify({ inventory }) === 'string');
 const catalog = actions.actionCatalog();
-check('action catalog exposes 18 whitelisted actions', catalog.length === 18, `${catalog.length}`);
-for (const required of ['process.signal', 'app.uninstall', 'system.setHostname', 'network.setDns', 'power.sleep']) {
+check('action catalog exposes 19 whitelisted actions', catalog.length === 19, `${catalog.length}`);
+for (const required of ['process.signal', 'app.uninstall', 'system.setHostname', 'network.setDns', 'power.sleep', 'cleanup.delete']) {
   check(`catalog includes ${required}`, catalog.some((entry) => entry.id === required));
 }
 const guard = await actions.runAction('process.signal', { pid: 1 });
@@ -208,10 +212,10 @@ check(
   'hard dependencies are webServer/connection/tools',
   JSON.stringify(plugin.inject) === JSON.stringify(['webServer', 'connection', 'tools']),
 );
-check('four browser API routes registered', routes.length === 4, routes.map((r) => r.path).join(', '));
-check('two agent tools registered', tools.length === 2, tools.map((t) => t.name).join(', '));
-check('tool names are device_info/device_control', tools.map((t) => t.name).sort().join(',') === 'device_control,device_info');
-check('device_info parameters accept sections', tools[0].parameters.properties.section.enum.length === 7);
+check('six browser API routes registered', routes.length === 6, routes.map((r) => r.path).join(', '));
+check('three agent tools registered', tools.length === 3, tools.map((t) => t.name).join(', '));
+check('tool names are device_info/device_control/device_benchmark', tools.map((t) => t.name).sort().join(',') === 'device_benchmark,device_control,device_info');
+check('device_info parameters accept sections', tools[0].parameters.properties.section.enum.length === 8);
 check('device_control actions mirror the catalog', tools[1].parameters.properties.action.enum.length === catalog.length);
 
 function makeReq(method, url, body, headers = {}) {
@@ -291,6 +295,37 @@ check('device_info keeps the tool result shape', overview.section === 'overview'
 check('tool render produces text content blocks', Array.isArray(tools[0].output.render({}, overview)));
 const controlGuard = await tools[1].execute({ action: 'process.signal', params: { pid: 1 } }, {});
 check('device_control reuses the same guards', controlGuard.ok === false);
+const cleanupSection = await tools[0].execute({ section: 'cleanup' }, {});
+check('device_info cleanup section scans the allowlist', cleanupSection.section === 'cleanup' && Array.isArray(cleanupSection.data?.items) && typeof cleanupSection.data?.totalBytes === 'number');
+check('device_info cleanup summary is human readable', typeof cleanupSection.summary === 'string' && cleanupSection.summary.indexOf('cleanup') === 0);
+const benchTool = await tools[2].execute({ tests: ['memory'] }, {});
+check('device_benchmark runs the requested subset', benchTool.ok === true && benchTool.data?.results?.length === 1 && benchTool.data.results[0].id === 'memory');
+check('device_benchmark summary carries a score', typeof benchTool.summary === 'string' && benchTool.summary.indexOf('memory:') === 0);
+response = await call('GET', '/devicex/api/cleanup');
+check(
+  'GET cleanup envelope',
+  response.status === 200 &&
+    response.json.ok === true &&
+    Array.isArray(response.json.cleanup?.items) &&
+    typeof response.json.cleanup.totalBytes === 'number',
+);
+response = await call('GET', '/devicex/api/cleanup?fresh=1');
+check('GET cleanup fresh flag is accepted', response.status === 200 && response.json.ok === true);
+response = await call('POST', '/devicex/api/benchmark', JSON.stringify({ tests: ['memory'] }), {
+  'content-type': 'application/json',
+});
+check(
+  'POST benchmark envelope',
+  response.status === 200 &&
+    response.json.ok === true &&
+    Array.isArray(response.json.benchmark?.results) &&
+    response.json.benchmark.results[0]?.id === 'memory',
+);
+check('benchmark route requires JSON content type', (await call('POST', '/devicex/api/benchmark', '{}')).status === 415);
+check('benchmark route rejects non-array tests', (await call('POST', '/devicex/api/benchmark', JSON.stringify({ tests: 'cpu' }), { 'content-type': 'application/json' })).status === 400);
+check('cleanup.delete refuses unknown ids', (await actions.runAction('cleanup.delete', { ids: ['../../etc/passwd'] })).ok === false);
+const deleteGuard = await actions.runAction('cleanup.delete', { ids: [] });
+check('cleanup.delete refuses an empty selection', deleteGuard.ok === false);
 const disposeAll = () =>
   effects.forEach((entry) => {
     if (typeof entry.dispose === 'function') entry.dispose();
@@ -305,6 +340,21 @@ check('route and tool registrations are disposable', routes.every((route) => rou
 section('4. Browser module (stubbed platform)');
 const clientSource = readFileSync(join(pluginDir, 'client.js'), 'utf8');
 check('module loader id matches the package name', clientSource.includes(`id: "${manifest.name}"`));
+check(
+  'client ships cleanup + benchmark tabs and endpoints',
+  clientSource.includes('"tab.cleanup"') &&
+    clientSource.includes('"tab.benchmark"') &&
+    clientSource.includes('API_BASE + "/cleanup"') &&
+    clientSource.includes('API_BASE + "/benchmark"') &&
+    clientSource.includes('cleanup.delete'),
+);
+check(
+  'client renders driver and thermal cards plus benchmark deltas',
+  clientSource.includes('hw.drivers.title') &&
+    clientSource.includes('hw.thermal.title') &&
+    clientSource.includes('dx-benchCard') &&
+    clientSource.includes('BenchmarkDelta'),
+);
 check('only react is required', !/require\("(?!react")/.test(clientSource));
 // The switch thumb must contrast with its track in both themes. `label-primary`
 // equals `brand-primary` in the shipped themes, which makes the knob invisible

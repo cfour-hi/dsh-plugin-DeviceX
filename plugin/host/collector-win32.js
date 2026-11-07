@@ -586,6 +586,170 @@ function mapMetricBattery(raw) {
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Mapper: metrics.thermal and hardware.drivers                               */
+/* -------------------------------------------------------------------------- */
+
+/** Contract cap for `hardware.drivers` (both platforms). */
+const MAX_DRIVERS = 250;
+/** Contract cap for `hardware.driverProblems` (Windows only). */
+const MAX_DRIVER_PROBLEMS = 50;
+
+/** Allowed `metrics.thermal.note` values (frozen). */
+const THERMAL_NOTES = ['cpu-needs-admin', 'wmi-unsupported', 'unavailable'];
+
+/**
+ * Accept only a physically plausible temperature (a malformed CIM/nvidia-smi
+ * value must never become a bogus reading).
+ * @param {unknown} value
+ * @returns {number|null}
+ */
+function plausibleTemperature(value) {
+  const parsed = num(value);
+  if (parsed === null || parsed < -20 || parsed > 150) return null;
+  return round(parsed, 1);
+}
+
+/**
+ * The contract's null-filled thermal object (fallback metrics / hard failure).
+ * @param {'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null} [note]
+ * @returns {{available: false, cpuCelsius: null, gpuCelsius: null,
+ *   batteryCelsius: null, nvmeCelsius: null, pressure: null, fans: never[],
+ *   sources: never[], note: 'cpu-needs-admin'|'wmi-unsupported'|'unavailable'|null}}
+ */
+function emptyThermal(note = null) {
+  return {
+    available: false,
+    cpuCelsius: null,
+    gpuCelsius: null,
+    batteryCelsius: null,
+    nvmeCelsius: null,
+    pressure: null,
+    fans: [],
+    sources: [],
+    note,
+  };
+}
+
+/**
+ * Pure mapper for the `thermal` block emitted by metrics.ps1.
+ *
+ * Windows sources: `MSAcpi_ThermalZoneTemperature` (WMI thermal zones, the
+ * script keeps only plausible zones and reports their max as `cpuCelsius`),
+ * optional `nvidia-smi` (GPU temperature + fan percent) and the
+ * `Win32_Battery`/`BatteryStatus` block for `batteryCelsius`. There is no
+ * Windows thermal-pressure counter, so `pressure` is always null.
+ *
+ * @param {unknown} raw thermal sub-document
+ * @param {object|null} battery mapped `metrics.battery`
+ * @returns {object} frozen `metrics.thermal` shape
+ */
+function mapThermal(raw, battery) {
+  const data = isObject(raw) ? raw : {};
+  const fans = asArray(data.fans)
+    .filter(isObject)
+    .slice(0, 8)
+    .map((fan) => ({ name: str(fan.name), rpm: num(fan.rpm) }));
+  const cpuCelsius = plausibleTemperature(data.cpuCelsius);
+  const gpuCelsius = plausibleTemperature(data.gpuCelsius);
+  const batteryCelsius =
+    battery && typeof battery.temperatureC === 'number'
+      ? plausibleTemperature(battery.temperatureC)
+      : plausibleTemperature(data.batteryCelsius);
+  const sources = asArray(data.sources)
+    .map((value) => str(value))
+    .filter((value) => value !== null)
+    .slice(0, 12);
+  const note = THERMAL_NOTES.includes(str(data.note)) ? str(data.note) : cpuCelsius === null ? 'wmi-unsupported' : null;
+  const nvmeCelsius = plausibleTemperature(data.nvmeCelsius);
+  const available = [cpuCelsius, gpuCelsius, batteryCelsius, nvmeCelsius].some(
+    (value) => typeof value === 'number' && Number.isFinite(value),
+  );
+  return {
+    available,
+    cpuCelsius,
+    gpuCelsius,
+    batteryCelsius,
+    nvmeCelsius,
+    pressure: null,
+    fans,
+    sources,
+    note,
+  };
+}
+
+/**
+ * Normalise a driver date into the contract's `yyyy-MM-dd` form. Accepts the
+ * string already formatted by hardware.ps1 as well as defensive alternatives
+ * (ISO timestamps, numeric epoch ms) without ever throwing.
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+function mapDriverDate(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+  }
+  const text = str(value);
+  if (text === null) return null;
+  const iso = /^(\d{4}-\d{2}-\d{2})/.exec(text);
+  if (iso) return iso[1];
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString().slice(0, 10) : null;
+}
+
+/**
+ * Pure mapper for one `Win32_PnPSignedDriver` record.
+ * @param {unknown} raw
+ * @returns {{name: string, class: string|null, manufacturer: string|null,
+ *   version: string|null, date: string|null, signer: string|null,
+ *   inf: string|null, deviceId: string|null, kind: 'kext'|'driverkit'|'pnp',
+ *   problem: string|null}}
+ */
+function mapDriver(raw) {
+  const entry = isObject(raw) ? raw : {};
+  const name = str(entry.name) ?? str(entry.deviceName) ?? str(entry.DeviceName) ?? 'Unknown device';
+  const kind = str(entry.kind);
+  return {
+    name,
+    class: str(entry.class) ?? str(entry.deviceClass),
+    manufacturer: str(entry.manufacturer),
+    version: str(entry.version) ?? str(entry.driverVersion),
+    date: mapDriverDate(entry.date ?? entry.driverDate),
+    signer: str(entry.signer) ?? str(entry.driverProviderName),
+    inf: str(entry.inf) ?? str(entry.infName),
+    deviceId: str(entry.deviceId) ?? str(entry.deviceID),
+    kind: kind === 'kext' || kind === 'driverkit' ? kind : 'pnp',
+    problem: str(entry.problem),
+  };
+}
+
+/**
+ * Pure mapper for one problem PnP device (`ConfigManagerErrorCode != 0`).
+ * @param {unknown} raw
+ * @returns {{name: string, code: string, class: string|null}}
+ */
+function mapDriverProblem(raw) {
+  const entry = isObject(raw) ? raw : {};
+  return {
+    name: str(entry.name) ?? str(entry.deviceName) ?? 'Unknown device',
+    code: str(entry.code) ?? str(entry.configManagerErrorCode) ?? 'unknown',
+    class: str(entry.class) ?? str(entry.deviceClass),
+  };
+}
+
+/**
+ * A driver is third-party unless its provider/manufacturer is Microsoft.
+ * Empty vendors are not counted as third-party (never invent a value).
+ * @param {{signer: string|null, manufacturer: string|null}} driver
+ * @returns {boolean}
+ */
+function isThirdPartyDriver(driver) {
+  const vendor = driver.signer ?? driver.manufacturer;
+  return vendor !== null && !/^microsoft/i.test(vendor);
+}
+
 /**
  * Build the header-style Windows OS version string, e.g.
  * `Windows 11 23H2 (22631)`.
@@ -644,6 +808,7 @@ function mapMetrics(raw, context = {}) {
   const networkRaw = isObject(data.network) ? data.network : {};
   const processRaw = isObject(data.processes) ? data.processes : {};
   const osRaw = isObject(data.os) ? data.os : {};
+  const battery = mapMetricBattery(data.battery);
 
   const logicalCores = num(cpuRaw.logicalCores) ?? safeCpuCount() ?? 0;
   const physicalCores = num(cpuRaw.physicalCores) ?? logicalCores;
@@ -737,8 +902,8 @@ function mapMetrics(raw, context = {}) {
         .filter((value) => value !== null),
       defaultInterface: str(networkRaw.defaultInterface),
     },
-    battery: mapMetricBattery(data.battery),
-    thermal: { cpuTempC: null },
+    battery,
+    thermal: mapThermal(data.thermal, battery),
     processes: {
       total: num(processRaw.total) ?? 0,
       top: topProcesses,
@@ -917,6 +1082,23 @@ function mapHardware(raw, transportError) {
       uniqueId: str(camera.uniqueId),
     }));
 
+  // `drivers` comes from Win32_PnPSignedDriver (cap 250); `driverProblems` from
+  // Win32_PnPEntity rows whose ConfigManagerErrorCode is non-zero (cap 50).
+  // The summary is derived here so it can never disagree with the arrays;
+  // `truncated` flags that the raw driver list exceeded the cap.
+  const rawDrivers = asArray(data.drivers).filter(isObject);
+  const drivers = rawDrivers.slice(0, MAX_DRIVERS).map(mapDriver);
+  const driverProblems = asArray(data.driverProblems)
+    .filter(isObject)
+    .slice(0, MAX_DRIVER_PROBLEMS)
+    .map(mapDriverProblem);
+  const driverSummary = {
+    total: drivers.length,
+    thirdParty: drivers.filter(isThirdPartyDriver).length,
+    problems: driverProblems.length,
+    truncated: rawDrivers.length > MAX_DRIVERS,
+  };
+
   return {
     cpu: {
       model: str(cpuRaw.name),
@@ -939,6 +1121,9 @@ function mapHardware(raw, transportError) {
     bluetooth: { controller: bluetoothController, devices: bluetoothDevices },
     audio,
     cameras,
+    drivers,
+    driverSummary,
+    driverProblems,
     errors,
   };
 }
@@ -1632,7 +1817,7 @@ function fallbackMetrics() {
       defaultInterface: null,
     },
     battery: null,
-    thermal: { cpuTempC: null },
+    thermal: emptyThermal(),
     processes: { total: 0, top: [] },
   };
 }
