@@ -103,25 +103,37 @@ plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1
 `dist/` 是本地构建产物，**不随仓库提交**（已在 `.gitignore` 中）。需要离线分发时在仓库里生成：
 
 ```sh
-cd plugin && npm pack --pack-destination ../dist
-# 生成 dist/cfour-hi-dsh-devicex-<version>.tgz（仅含运行文件与 Windows PowerShell 脚本）
+npm run release:pack
+# 等价于 cd plugin && npm pack --pack-destination ../dist，并额外审计 tarball 内容
+# 生成 dist/cfour-hi-dsh-plugin-devicex-<version>.tgz（仅含运行文件与 Windows PowerShell 脚本）
 ```
 
 - 对方拿到 tgz 后按方式二或方式三安装即可；
-- 也可以把 tgz 作为 GitHub Release 的附件，`install_bundle` 同样支持 Release 的 `.tgz` 直链；
+- 官方版本会自动把同一个 tgz 挂到 GitHub Release 上（见[发布流程](RELEASE.md)），可直接用 Release 附件的直链安装；
 - 更新同理：重新 `npm pack` 后用新 tgz 覆盖安装。
 
 ## 方式五：npm registry 发布
 
-`dsh plugin add` 与 `install_bundle` 都接受 registry 包名。要给所有人用 `npm i` 式安装时：
+`dsh plugin add` 与 `install_bundle` 都接受 registry 包名。本仓库的正式包由
+[release.yml](../.github/workflows/release.yml) 在推 tag 时自动发布（OIDC 可信发布，无需 token，
+详见[发布流程](RELEASE.md)）；日常使用只需：
+
+```sh
+dsh plugin --profile <profile> add @cfour-hi/dsh-plugin-devicex
+npm i @cfour-hi/dsh-plugin-devicex          # 或作为普通依赖
+```
+
+如果你是在自己的 fork 里发布到别的 scope：
 
 1. 把 `plugin/package.json` **与仓库根 `package.json`** 的 `name` 一起改成自己的包名
-   （例如 `@yourscope/dsh-devicex`），删除 `"private": true`；
-2. `npm publish`（在 `plugin/` 下发布，分发清单以它为准）；
+   （例如 `@yourscope/dsh-devicex`）；`plugin/package.json` 已带 `publishConfig.access: public`，
+   根清单保持 `"private": true`（它只用于 Git 直装，不发布）；
+2. 在 `plugin/` 下发布（分发清单以它为准）：`cd plugin && npm publish --access public`，
+   或按 `docs/RELEASE.md` 配置你自己仓库的 Trusted publishing 后推 tag；
 3. 安装：`dsh plugin --profile <p> add @yourscope/dsh-devicex`（或 `install_bundle` 同样的 target）。
 
 包名同时是浏览器模块 id：改名时 `plugin/client.js` 里的模块 id、`plugin/cordis.patch.yml` 的 `name`
-以及仓库根 `package.json` 的导出都要同步。
+以及仓库根 `package.json` 的导出都要同步（`node scripts/verify.mjs` 会检查）。
 
 ## 安装后确认
 
@@ -157,6 +169,7 @@ plugin_manager action=remove_bundle target=@cfour-hi/dsh-plugin-devicex
 
 ## 注意事项
 
+- 本项目以 **MIT** 许可发布（[LICENSE](../LICENSE)）；npm 包内的 `plugin/LICENSE` 是同一份文件的副本。
 - 这是**本机设备管理**插件，数据不出本机；每个用户的机器各自采集、各自操作，不会互相同步。
 - GitHub 直装读取的是仓库**根** `package.json`；`plugin/package.json` 只服务本地 link 与 tgz 分发。
   改清单（包名 / `dsh.bundle` / `dsh.client` / 导出）时两份要同步，`node scripts/verify.mjs` 会检查。

@@ -1,0 +1,222 @@
+name: release
+
+# Tag-driven publishing: `git push origin v1.5.0` runs the full verify gate, then
+# publishes the audited tarball to npm and attaches that same file to a GitHub
+# Release.
+#
+# npm auth uses OIDC "trusted publishing": GitHub mints a short-lived token
+# (`id-token: write`) and npm trusts this repository, so no long-lived secret is
+# needed. Trusted publishing can only be configured for a package that already
+# exists, so the FIRST publish of a brand-new name needs one bootstrap step —
+# see docs/RELEASE.md ("一次性配置"). The optional NPM_TOKEN secret below is that
+# bootstrap escape hatch; unset it and everything runs on OIDC.
+#
+# Manual run (Actions → release → Run workflow) defaults to `dry_run: true`: it
+# verifies and packs, uploads the tarball as a workflow artifact, and never
+# touches npm or the Releases page.
+#
+# Re-runs are safe: if the version is already on npm the publish step is skipped
+# and only the GitHub Release is reconciled (created or its asset replaced).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Verify and pack only — do not publish to npm, do not create a Release'
+        type: boolean
+        default: true
+      version:
+        description: 'Version to validate (e.g. 1.5.0); defaults to the pushed tag, then the manifest'
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# One release at a time: two tags racing would both run the "already published?"
+# pre-check against the same registry state.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # The exact gate that protects main also protects a release; the publish job
+  # cannot start until it is green.
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  publish:
+    needs: verify
+    # OIDC trust is bound to this repository, so forks must never attempt an
+    # npm publish; their `workflow_dispatch` run stops here.
+    if: github.repository == 'cfour-hi/dsh-plugin-devicex'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Human approval gate. The npm trusted publisher must name the same
+    # environment (`npm trust github … --env npm-release`), otherwise the OIDC
+    # claim and the npm-side expectation disagree and publishing is refused.
+    environment: npm-release
+    permissions:
+      contents: write # create the GitHub Release + upload the tarball
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          # Deliberately no `registry-url`: it only writes an `.npmrc` token
+          # placeholder, which OIDC does not need (npm defaults to npmjs.org).
+          node-version: 24
+          cache: npm
+
+      # Pinned on purpose: `npm@latest` is a moving major (12.x at the time of
+      # writing) and a release must not change behaviour because npm shipped a
+      # new major overnight. 11.21.2 has trusted publishing, stage publish and
+      # provenance support.
+      - name: Install a pinned npm
+        run: |
+          npm install --global npm@11.21.2
+          npm --version
+
+      - name: Resolve and validate the release version
+        id: meta
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: node scripts/check-release-version.mjs --github-output
+
+      - name: Tag points at a main-branch commit
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -eu
+          # fetch-depth: 0 normally leaves origin/main available; re-fetch
+          # defensively so the ancestry check never fails on a missing ref.
+          git rev-parse --verify --quiet origin/main >/dev/null || git fetch --no-tags origin main
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "::error::${TAG} is not on top of origin/main; release from a main-branch commit."
+            exit 1
+          }
+
+      - name: Pack and audit the publishable tarball
+        id: pack
+        run: node scripts/pack-release.mjs --github-output
+
+      # The audited tarball is what gets published, so the shipped bytes, the
+      # provenance subject and the Release asset are the same file.
+      - name: Check npm for an existing version
+        id: npm
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -eu
+          if npm view "${NAME}@${VERSION}" version >/dev/null 2>&1; then
+            echo "published=true" >> "${GITHUB_OUTPUT}"
+            echo "::notice::${NAME}@${VERSION} is already on npm — the publish step is skipped."
+          else
+            echo "published=false" >> "${GITHUB_OUTPUT}"
+            latest="$(npm view "${NAME}" dist-tags.latest 2>/dev/null || true)"
+            if [ -n "${latest}" ] && [ "${PRERELEASE}" != "true" ]; then
+              newest="$(printf '%s\n%s\n' "${latest}" "${VERSION}" | sort -V | tail -n 1)"
+              if [ "${newest}" != "${VERSION}" ]; then
+                echo "::error::${NAME}@${VERSION} would move the latest dist-tag backwards (latest is ${latest})."
+                exit 1
+              fi
+            fi
+            echo "${NAME}@${VERSION} is not published yet"
+          fi
+
+      # Generated before publishing: a released version must never be left
+      # without release notes because a later step failed.
+      - name: Prepare the release notes
+        if: github.event_name == 'push'
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -eu
+          {
+            printf 'Install in DSH:\n\n```sh\ndsh plugin add %s\n```\n\n' "${NAME}"
+            printf 'From this Release (offline install): download `%s` and point `install_bundle` at it.\n\n' "${TARBALL}"
+            printf 'See https://github.com/cfour-hi/dsh-plugin-devicex/blob/main/docs/INSTALL.md for every install path.\n\n---\n\n'
+          } > "${RUNNER_TEMP}/release-notes.md"
+          node scripts/check-release-version.mjs --notes >> "${RUNNER_TEMP}/release-notes.md"
+
+      - name: Publish the audited tarball to npm
+        if: (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.dry_run == false)) && steps.npm.outputs.published == 'false'
+        env:
+          # Escape hatch for the very first publish of a package name that does
+          # not exist yet (trusted publishing can only be configured once the
+          # package exists). Leave the secret unset — OIDC is the normal path.
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.meta.outputs.npm_tag }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -eu
+          if [ -n "${NPM_TOKEN}" ]; then
+            echo "::warning::NPM_TOKEN is set: this run authenticates with the bootstrap token, not OIDC. Delete the secret once trusted publishing is configured."
+            printf '//registry.npmjs.org/:_authToken=%s\n' "${NPM_TOKEN}" > "$HOME/.npmrc"
+          fi
+          # `./` prefix is load-bearing: a bare `dist/<name>.tgz` matches npm's
+          # `owner/repo` GitHub shorthand and npm would try to clone it instead.
+          npm publish "./dist/${TARBALL}" --access public --provenance --tag "${DIST_TAG}"
+
+      - name: Keep the tarball for dry runs
+        if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-plugin-devicex-${{ steps.meta.outputs.version }}
+          path: dist/${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 14
+
+      # Idempotent on purpose: a re-run after a publish (or after a failed
+      # `gh release create`) creates the Release if missing, otherwise replaces
+      # the asset, so a published version always ends up with a Release.
+      - name: Ensure the GitHub Release carries the tarball
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          NAME: ${{ steps.meta.outputs.name }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          set -eu
+          asset="dist/${TARBALL}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists — replacing the asset"
+            gh release upload "${TAG}" "${asset}" --clobber
+          else
+            set -- --title "${TAG}" --notes-file "${RUNNER_TEMP}/release-notes.md" --verify-tag
+            if [ "${PRERELEASE}" = "true" ]; then set -- "$@" --prerelease; fi
+            gh release create "${TAG}" "${asset}" "$@"
+          fi
+
+      - name: Summarize the run
+        if: always()
+        env:
+          NAME: ${{ steps.meta.outputs.name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          NPM_TAG: ${{ steps.meta.outputs.npm_tag }}
+          PUBLISHED: ${{ steps.npm.outputs.published }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          {
+            echo "### ${NAME}@${VERSION}"
+            echo
+            echo "| item | value |"
+            echo "| --- | --- |"
+            echo "| tag | \`${TAG}\` |"
+            echo "| npm dist-tag | \`${NPM_TAG}\` |"
+            echo "| already published | \`${PUBLISHED:-unknown}\` |"
+            echo "| dry run | \`${DRY_RUN}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

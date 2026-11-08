@@ -15,6 +15,30 @@ package name follows it.
 - Migration: remove the old bundle before installing this version
   (`plugin_manager action=remove_bundle target=@cfour-hi/dsh-devicex`), then install
   from the new repository URL/path.
+- Automated publishing: pushing a `v*.*.*` tag runs the full verify gate, audits the
+  `plugin/` tarball, publishes **that exact file** to npm through GitHub OIDC trusted
+  publishing (no long-lived token, provenance attached) and attaches the same tarball to
+  a GitHub Release (`.github/workflows/release.yml`; manual dry runs supported). Re-runs
+  are idempotent: an already-published version skips the publish step and only reconciles
+  the Release. `verify.yml` is now a reusable workflow (`workflow_call`), so a release can
+  only ship a commit that passed exactly the `main` gate.
+- Licensed under **MIT**: `LICENSE` at the repository root, mirrored to `plugin/LICENSE` because npm only
+  ships files inside the package directory; both manifests declare `"license": "MIT"`. `release:check` and
+  `release:pack` verify the two manifests agree and that the packaged licence matches the repository one.
+- Publishing is gated by the GitHub Environment **`npm-release`** (required reviewer): a release run parks on
+  *Review deployments* until someone approves it. The npm trusted publisher's Environment must match
+  (`npm trust github … --env npm-release`). Manual runs go through the same gate.
+- Release guards: target version must not exist on npm, must not move `latest` backwards,
+  the tag must sit on `origin/main`, and `repository.url` must match the GitHub repository
+  (npm provenance requirement). The first publish of a brand-new package name needs one
+  bootstrap (trusted publishing cannot be configured before the package exists) — the
+  workflow accepts an optional `NPM_TOKEN` secret for that single run.
+- `plugin/package.json` is publishable (`private` removed, `publishConfig.access: public`);
+  the root manifest stays `private` because it only serves Git/`install_bundle` installs.
+- New release guards: `npm run release:check` (tag / both manifests / CHANGELOG must
+  agree, `scripts/check-release-version.mjs`) and `npm run release:pack`
+  (`scripts/pack-release.mjs`: `npm pack` plus a tarball audit for required and
+  forbidden files and byte-identical `client.js`). Process documented in `docs/RELEASE.md`.
 
 ## 1.4.1 — page.tsx: the last core.js chunk migrates to TSX
 

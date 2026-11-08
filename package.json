@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
+  "license": "MIT",
   "icon": "plugin/icon.svg",
   "files": [
     "plugin"
@@ -41,6 +42,8 @@
     "verify:ci": "node scripts/build-client.mjs --check && npm run typecheck && npm test && node scripts/verify-build.mjs && npm run verify",
     "build:concat": "node scripts/build-client-concat.mjs",
     "verify:build": "node scripts/verify-build.mjs",
+    "release:check": "node scripts/check-release-version.mjs",
+    "release:pack": "node scripts/pack-release.mjs",
     "test": "node --test",
     "typecheck:client": "tsc -p tsconfig.client.json"
   },
@@ -57,5 +60,18 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cfour-hi/dsh-plugin-devicex.git"
-  }
+  },
+  "homepage": "https://github.com/cfour-hi/dsh-plugin-devicex#readme",
+  "bugs": {
+    "url": "https://github.com/cfour-hi/dsh-plugin-devicex/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "device",
+    "system-information",
+    "macos",
+    "windows",
+    "monitoring"
+  ]
 }

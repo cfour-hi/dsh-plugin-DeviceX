@@ -1,9 +1,9 @@
 {
   "name": "@cfour-hi/dsh-plugin-devicex",
   "version": "1.5.0",
-  "private": true,
   "type": "module",
   "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
+  "license": "MIT",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -17,8 +17,13 @@
     "host/*.js",
     "host/win/*.ps1",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml",
@@ -40,5 +45,18 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cfour-hi/dsh-plugin-devicex.git"
-  }
+  },
+  "homepage": "https://github.com/cfour-hi/dsh-plugin-devicex#readme",
+  "bugs": {
+    "url": "https://github.com/cfour-hi/dsh-plugin-devicex/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "device",
+    "system-information",
+    "macos",
+    "windows",
+    "monitoring"
+  ]
 }

@@ -103,9 +103,12 @@ plugin/
 ├── src/client/           # 浏览器端 ESM 源码（模块拆分：entry/runtime/core/dicts/styles/api/normalizers/helpers/constants）
 ├── client.js             # 构建产物：src/client → esbuild 单文件 bundle（勿手改，改源码后 npm run build）
 ├── locale/{en,zh}.json   # 插件管理器里的标题、描述
-└── icon.svg              # 原创图标
+├── icon.svg              # 原创图标
+└── README.md             # 发布到 npm 的包说明（npm pack 自动包含）
 docs/build-contract.md    # 构建契约（数据形状、API、动作表、UI 要求）
 docs/windows-contract.md  # Windows 适配契约（PowerShell 约定、CIM 数据源、Windows 动作表）
+docs/RELEASE.md           # 发布流程（tag → verify → npm 可信发布 → GitHub Release 附件）
+LICENSE                   # MIT 许可证（plugin/LICENSE 是随包发布的副本，两者须一致）
 scripts/build-client.mjs  # esbuild：src/client → plugin/client.js（--check 校验产物是否最新）
 scripts/render-check.mjs  # jsdom + React 18 渲染冒烟（10 个标签页、215 条断言）
 scripts/render-windows-check.mjs # 映射后的 Windows 数据渲染（32 条断言）
@@ -116,8 +119,11 @@ scripts/verify-sensors.mjs # 温度/驱动采集验证（57 项：静态 + fixtu
 scripts/verify-cleanup.mjs # 清理扫描/动作验证（130 项：真实扫描 + 沙箱删除 + 白名单不可变）
 scripts/verify-benchmark.mjs # 基准引擎验证（46 项：形状/确定性/重复性/临时文件清理）
 scripts/fixtures/win32/   # 真实 CIM 输出形态的 fixture
+scripts/check-release-version.mjs # 发布前校验 tag / 两份清单 / CHANGELOG 版本一致
+scripts/pack-release.mjs  # npm pack + tarball 内容审计（发布产物，输出到 dist/）
 tsconfig.json             # JSDoc/checkJs 类型检查配置（覆盖 Host）
 .github/workflows/verify.yml # CI：build 一致性 + tsc + 渲染测试 + 全部离线验证
+.github/workflows/release.yml # 发布：tag 触发 → 复用 verify 门 → npm 可信发布 → GitHub Release
 ```
 
 HTTP API（同一来源，`cache-control: no-store`）：
@@ -147,6 +153,7 @@ HTTP API（同一来源，`cache-control: no-store`）：
 - **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
 - **解析器单元测试（P1）**：`test/` 下用 `node:test` 覆盖高风险纯函数（`npm test`，57 项）：macOS 命令解析（vm_stat/swap/pmset/ioreg/ifconfig/route/scutil/lsof/ps/launchctl/plist/mdls/system_profiler）、Windows CIM mapper 与 cleanup 归一化、动作目录/参数守卫、基准纯函数。测试直接驱动解析器，不 spawn 命令、不修改缓存。
 - **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → npm test → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
+- **发布**：`.github/workflows/release.yml` 由 tag（`v*.*.*`）触发，先用 `workflow_call` 复用上面的 verify 门，再对 `plugin/` 做 `npm pack` + 内容审计，把**同一份 tgz** 以 **OIDC 可信发布**推到 npm（无长效 token、带 provenance），再挂到 GitHub Release；发布会停在 **`npm-release` 环境审批**（reviewer 批准才执行），重跑幂等（已发布则只补 Release），支持手动 dry-run。首次发布一个全新包名需要一次 bootstrap（trusted publishing 不能为尚不存在的包配置），见 [docs/RELEASE.md](docs/RELEASE.md)。
 - 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。
 
 ## 验证
@@ -168,6 +175,13 @@ npm test                               # node:test 解析器/映射器/守卫单
 node scripts/verify-build.mjs          # B/C/D 构建一致性（37 项，含两个引擎的渲染回归）
 node scripts/render-check.mjs          # 215 条渲染断言（对提交产物）
 node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交产物）
+```
+
+发布前预检（详见 [docs/RELEASE.md](docs/RELEASE.md)）：
+
+```sh
+npm run release:check -- --tag v1.5.0   # tag / 两份清单 / CHANGELOG 版本一致
+npm run release:pack                    # npm pack + tarball 内容审计（dist/，不进仓库）
 ```
 
 `verify.mjs` 覆盖：语法/清单/locale/图标、指标与六大分区真实采集、动作目录与守卫、伪造 Cordis 上下文下的
@@ -239,14 +253,15 @@ DSH（pnpm）把仓库**根目录**当作要安装的包，所以仓库根部保
 
 ```sh
 # 需要 tgz 时先生成（dist/ 是构建产物，不随仓库提交）：
-cd plugin && npm pack --pack-destination ../dist   # dist/cfour-hi-dsh-devicex-1.2.0.tgz
-dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
+npm run release:pack                                 # dist/cfour-hi-dsh-plugin-devicex-<version>.tgz
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-plugin-devicex-1.5.0.tgz
 # 或：dsh plugin --profile desktop add /绝对路径/plugin
 ```
 
 运行中的 Desktop/Web 也可以直接在会话里用 `plugin_manager action=install_bundle target=<绝对路径或仓库地址>`
 热安装（返回 `application: applied`，无需重启）。`dist/` 已在 `.gitignore` 中：需要 tgz 时用上面的
-`npm pack` 生成，分发时也可以把它作为 GitHub Release 附件（Release 的 `.tgz` 直链同样可安装）。
+`npm pack` 生成（推荐 `npm run release:pack`，会顺带审计 tarball 内容），分发时也可以把它作为 GitHub Release
+附件（Release 的 `.tgz` 直链同样可安装）。
 完整步骤、前提（macOS 或 Windows 10/11、web 形态 profile）、GitHub/npm 分发、卸载与注意事项见
 [`docs/INSTALL.md`](docs/INSTALL.md)。
 
@@ -256,3 +271,11 @@ dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
 或者重启 Harness。改动插件清单时记得同步仓库根的 `package.json`（GitHub 安装读取它）。
 首次开发先 `npm ci`（esbuild/TypeScript/jsdom/react 均为 devDependencies）。改 `plugin/client.js` 时请改 `src/client/` 并 `npm run build`（CI 会拒绝过期产物；无 devDependencies 的环境可用 `npm run build:concat` 生成同契约回退产物），随后 `npm run typecheck`、`npm run verify:build`、`npm run verify`（或直接 `npm run verify:ci`）做完整回归，
 并用上面的 `curl` 探测实时路由。
+
+## 许可证
+
+[MIT](LICENSE) © 2026 cfour-hi。
+
+仓库根 `LICENSE` 是唯一来源，`plugin/LICENSE` 是随 npm 包发布的同名副本（npm 只打包包目录内的文件），
+两者必须逐字节一致；`npm run release:check` / `release:pack` 会校验，两份 `package.json` 的 `license`
+也必须是 `MIT`。

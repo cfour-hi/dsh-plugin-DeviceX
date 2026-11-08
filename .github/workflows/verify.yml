@@ -1,15 +1,25 @@
 name: verify
 
+# Also called by `release.yml` (`uses: ./.github/workflows/verify.yml`) so a
+# tagged release can only publish a commit that passed exactly this gate.
 on:
   push:
+    # Branch pushes only: a tag push is handled by release.yml, which calls this
+    # workflow itself — listening to tags here would run the suite twice.
+    branches:
+      - '**'
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
   verify:
     # macOS is the development target; the Windows half is covered by fixtures
     # and a simulated win32 Host, so one macOS runner is enough.
     runs-on: macos-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
