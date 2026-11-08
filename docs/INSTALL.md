@@ -31,13 +31,13 @@ DSH（pnpm）把仓库**根目录**当作要安装的包，本仓库根部的 `p
 
 ```sh
 # CLI
-dsh plugin --profile desktop add https://github.com/cfour-hi/dsh-plugin-DeviceX
+dsh plugin --profile desktop add https://github.com/cfour-hi/dsh-plugin-devicex
 ```
 
 或运行中的 Desktop/Web 里让 Agent / 自己调用：
 
 ```
-plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plugin-DeviceX
+plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plugin-devicex
 ```
 
 - 公开仓库即可，**不需要**发布 npm、不需要改包名、也不需要去掉 `private`；pnpm 拉取默认分支的最新 commit。
@@ -45,7 +45,7 @@ plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plug
   装成 `0.0.0` 占位包，DSH 激活时会报 “declares no dsh.bundle / not-bundle”，安装随之失败。
 - 不要把 `plugin/` 子目录的裸地址当安装目标：GitHub 直装固定取仓库根；需要子目录布局时请发
   GitHub Release 的 `.tgz` 直链（见方式四）或 npm 包。pnpm 的 `#path:/plugin` 片段可以让 `plugin/`
-  自身作为包安装（记录下来是 `github:cfour-hi/dsh-plugin-DeviceX#path:/plugin`），可作为临时绕过手段，
+  自身作为包安装（记录下来是 `github:cfour-hi/dsh-plugin-devicex#path:/plugin`），可作为临时绕过手段，
   但有了仓库根清单后裸仓库地址即可用。
 - 更新：重新执行同一条 `add` / `install_bundle`（必要时先 `remove` 再安装），见“卸载 / 更新”。
 
@@ -87,7 +87,7 @@ dsh plugin --profile desktop add C:\path\plugin
 
 ```
 plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
-# 也可以直接填仓库地址：target=https://github.com/cfour-hi/dsh-plugin-DeviceX
+# 也可以直接填仓库地址：target=https://github.com/cfour-hi/dsh-plugin-devicex
 ```
 
 - 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到两个工具，无需重启；

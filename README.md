@@ -1,4 +1,4 @@
-# Device X · dsh-plugin-DeviceX
+# Device X · dsh-plugin-devicex
 
 一个持久化的 **DSH 插件**：用一页优雅的中文/英文界面看尽当前设备的一切——硬件、系统、软件、
 网络、安全与权限、进程、温度与散热、驱动清单——并对**非硬件**的一切直接操作（结束进程、退出/启动/
@@ -179,7 +179,7 @@ node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交
 本机实测证据（安装后）：
 
 - `plugin_manager install_bundle` → `application: applied`，`warnings: []`；profile 记录
-  `"@cfour-hi/dsh-plugin-devicex": "link:~/GitHub/dsh-plugin-DeviceX/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
+  `"@cfour-hi/dsh-plugin-devicex": "link:~/GitHub/dsh-plugin-devicex/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
 - 实时 Host：`Tool.listTools` 中出现 `device_info`、`device_control`（参数枚举完整）。
 - 实时 Client：`Slots.listSubTree("main")` 出现 `devicex` occupant；`Slots.listSubTree("sidebar.panellist")`
   出现 `devicex` / order 20 occupant（说明浏览器端模块已加载并成功注册，无需刷新页面）。
@@ -226,8 +226,8 @@ curl -sN -m 2 http://127.0.0.1:50732/plugins/events | head -c 200               
 或用 CLI / Agent 工具：
 
 ```sh
-dsh plugin --profile desktop add https://github.com/cfour-hi/dsh-plugin-DeviceX
-# 应用内等价操作：plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plugin-DeviceX
+dsh plugin --profile desktop add https://github.com/cfour-hi/dsh-plugin-devicex
+# 应用内等价操作：plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plugin-devicex
 ```
 
 DSH（pnpm）把仓库**根目录**当作要安装的包，所以仓库根部保留一份薄 `package.json`：它声明
