@@ -16,7 +16,7 @@
  *  - `collectMetrics()` is a fast poll path (<250 ms) built from cheap parallel
  *    commands plus deltas against the previous poll.
  *
- * @module @cfour-hi/dsh-devicex/host/collector
+ * @module @cfour-hi/dsh-plugin-devicex/host/collector
  */
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';

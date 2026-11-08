@@ -27,7 +27,7 @@ charts drawn with SVG, and a tasteful CSS-3D device visual. No external librarie
 
 ## Environment facts
 
-- Working directory: `~/GitHub/DSHP-DeviceX` (the repository root). The plugin package is `plugin/`.
+- Working directory: `~/GitHub/dsh-plugin-DeviceX` (the repository root). The plugin package is `plugin/`.
   The repository root also carries a thin `package.json`: it is the manifest a Git install reads
   (`dsh.bundle` / `dsh.client` plus `exports` mapped into `plugin/`), because DSH/pnpm treat the
   repository root as the package. `plugin/package.json` stays the source of truth for the plugin's
@@ -290,7 +290,7 @@ Format (verified): a single browser module loaded by the module loader:
 
 ```js
 window.__ModuleLoader__.load({
-  id: '@cfour-hi/dsh-devicex',
+  id: '@cfour-hi/dsh-plugin-devicex',
   factory(require) {
     const React = require('react');
     const h = React.createElement;

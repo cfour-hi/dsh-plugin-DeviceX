@@ -15,7 +15,7 @@
  * Deletion never accepts a path from the caller: `deleteCleanup(ids)` maps ids
  * to the fixed absolute allowlist entries and refuses everything else.
  *
- * @module @cfour-hi/dsh-devicex/host/cleanup
+ * @module @cfour-hi/dsh-plugin-devicex/host/cleanup
  */
 import * as darwin from './cleanup-darwin.js';
 import * as win32 from './cleanup-win32.js';

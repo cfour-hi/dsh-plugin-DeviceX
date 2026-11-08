@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.0 — repository + package rename
+
+The GitHub repository was renamed to `cfour-hi/dsh-plugin-DeviceX`; the npm package
+name follows it.
+
+- Package/bundle name: `@cfour-hi/dsh-devicex` → **`@cfour-hi/dsh-plugin-devicex`**
+  (both manifests, `cordis.patch.yml`, browser module id, host module JSDoc).
+- Install/remove commands and docs now use the new package name and the new GitHub URL
+  `https://github.com/cfour-hi/dsh-plugin-DeviceX`.
+- Local checkout renamed `DSHP-DeviceX` → `dsh-plugin-DeviceX`; the installed profile
+  link was re-created against the new path.
+- Migration: remove the old bundle before installing this version
+  (`plugin_manager action=remove_bundle target=@cfour-hi/dsh-devicex`), then install
+  from the new repository URL/path.
+
 ## 1.4.1 — page.tsx: the last core.js chunk migrates to TSX
 
 No visible UI change.

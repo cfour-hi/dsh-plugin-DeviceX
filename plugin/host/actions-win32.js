@@ -7,7 +7,7 @@
  * PowerShell only as `DEVICEX_ARG_*` environment variables and are never
  * interpolated into script text (no shell, no `Invoke-Expression`).
  *
- * @module @cfour-hi/dsh-devicex/host/actions-win32
+ * @module @cfour-hi/dsh-plugin-devicex/host/actions-win32
  */
 import { statSync } from 'node:fs';
 import { homedir } from 'node:os';

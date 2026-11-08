@@ -179,11 +179,11 @@ node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交
 本机实测证据（安装后）：
 
 - `plugin_manager install_bundle` → `application: applied`，`warnings: []`；profile 记录
-  `"@cfour-hi/dsh-devicex": "link:~/GitHub/DSHP-DeviceX/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
+  `"@cfour-hi/dsh-plugin-devicex": "link:~/GitHub/dsh-plugin-DeviceX/plugin"`（实际记录为绝对路径），且 bundle 列表包含它。
 - 实时 Host：`Tool.listTools` 中出现 `device_info`、`device_control`（参数枚举完整）。
 - 实时 Client：`Slots.listSubTree("main")` 出现 `devicex` occupant；`Slots.listSubTree("sidebar.panellist")`
   出现 `devicex` / order 20 occupant（说明浏览器端模块已加载并成功注册，无需刷新页面）。
-- `/plugins/events` 的模块图中包含 `@cfour-hi/dsh-devicex` 条目，抓取到的 bundle 与 `plugin/client.js`
+- `/plugins/events` 的模块图中包含 `@cfour-hi/dsh-plugin-devicex` 条目，抓取到的 bundle 与 `plugin/client.js`
   逐字节一致（仅多一行 sourceMappingURL）。
 - 路由存活与栅栏：`GET /devicex/api/metrics` → `401`（已注册且拒绝未认证），
   同时 `/definitely-not-a-route-xyz/` → `404`（证明 401 不是兜底页）。

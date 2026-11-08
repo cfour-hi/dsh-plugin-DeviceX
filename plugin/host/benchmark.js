@@ -18,7 +18,7 @@
  * Every test is bounded, kills its workers, removes its temp file and never
  * throws: a failure becomes a result entry with an `error` string.
  *
- * @module @cfour-hi/dsh-devicex/host/benchmark
+ * @module @cfour-hi/dsh-plugin-devicex/host/benchmark
  */
 import { cpus, hostname, platform, release, tmpdir, totalmem } from 'node:os';
 import { mkdtemp, open, rm, stat } from 'node:fs/promises';

@@ -22,7 +22,7 @@
  *  - CPU%, network and disk byte rates are deltas against the previous sample,
  *    exactly like the macOS implementation.
  *
- * @module @cfour-hi/dsh-devicex/host/collector-win32
+ * @module @cfour-hi/dsh-plugin-devicex/host/collector-win32
  */
 import * as os from 'node:os';
 

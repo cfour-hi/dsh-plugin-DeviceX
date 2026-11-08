@@ -5,7 +5,7 @@
  * the Host/Origin fence). Route handlers never shell out themselves — they
  * call the shared operation surface, exactly like the agent tools.
  *
- * @module @cfour-hi/dsh-devicex/host/transport
+ * @module @cfour-hi/dsh-plugin-devicex/host/transport
  */
 
 /** URL prefix owned by this plugin. */

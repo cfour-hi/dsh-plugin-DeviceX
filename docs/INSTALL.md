@@ -79,7 +79,7 @@ dsh plugin --profile desktop add C:\path\plugin
 - 对 **其他 profile**（如自建 `web` profile）：装完用 `dsh --profile <profile>` 启动即可加载；tui/headless 这类
   没有 `webServer` 的 profile 不会激活本插件。
 - 目录安装是 `link:` 依赖，之后**不要移动/删除**该目录，否则插件失效。
-- Git 仓库安装见方式一；它与本地安装共用同一个包名 `@cfour-hi/dsh-devicex`，同一 profile 只保留一种来源。
+- Git 仓库安装见方式一；它与本地安装共用同一个包名 `@cfour-hi/dsh-plugin-devicex`，同一 profile 只保留一种来源。
 
 ## 方式三：应用内 `plugin_manager`（运行中热安装）
 
@@ -131,17 +131,17 @@ cd plugin && npm pack --pack-destination ../dist
 
 ```sh
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:50732/devicex/api/metrics   # 期望 401
-curl -sN -m 2 http://127.0.0.1:50732/plugins/events | grep -c '@cfour-hi/dsh-devicex'      # 期望 ≥1
+curl -sN -m 2 http://127.0.0.1:50732/plugins/events | grep -c '@cfour-hi/dsh-plugin-devicex'      # 期望 ≥1
 ```
 
 ## 卸载 / 更新
 
 ```sh
 # CLI：卸载并同时从 bundles 选择中移除
-dsh plugin --profile <profile> remove @cfour-hi/dsh-devicex
+dsh plugin --profile <profile> remove @cfour-hi/dsh-plugin-devicex
 
 # 应用内
-plugin_manager action=remove_bundle target=@cfour-hi/dsh-devicex
+plugin_manager action=remove_bundle target=@cfour-hi/dsh-plugin-devicex
 ```
 
 更新：
@@ -151,7 +151,7 @@ plugin_manager action=remove_bundle target=@cfour-hi/dsh-devicex
   若 DSH 认为“已安装”而未更新，先 `remove` 再安装。
 - 早期用裸仓库地址安装失败时，CLI 可能留下一个名为 `DSHP-DeviceX` 的 **0.0.0 普通依赖**（没有 bundle）。
   升级到带仓库根清单的版本前，先用 `dsh plugin --profile <profile> remove DSHP-DeviceX` 清掉它。
-- 从 1.1.2 及更早版本升级：旧包名是 `@local/dsh-devicex`，1.1.3 起改为 `@cfour-hi/dsh-devicex`。
+- 从 1.1.2 及更早版本升级：旧包名是 `@local/dsh-devicex`，1.1.3 起改为 `@cfour-hi/dsh-plugin-devicex`。
   先 `remove @local/dsh-devicex`（应用内 `remove_bundle`），再按方式一/方式二安装新名字，避免同一个
   profile 里出现新旧两个 `devicex` 层。
 

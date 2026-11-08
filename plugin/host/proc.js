@@ -11,7 +11,7 @@
  *
  * Plain Node ESM, `node:*` imports only.
  *
- * @module @cfour-hi/dsh-devicex/host/proc
+ * @module @cfour-hi/dsh-plugin-devicex/host/proc
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';

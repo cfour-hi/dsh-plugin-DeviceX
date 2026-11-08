@@ -10,7 +10,7 @@ import { setReact } from "./runtime.js";
 import { createClient } from "./core.js";
 
 window.__ModuleLoader__.load({
-	id: "@cfour-hi/dsh-devicex",
+	id: "@cfour-hi/dsh-plugin-devicex",
 	factory: (require) => {
 		setReact(require("react"));
 		return createClient();

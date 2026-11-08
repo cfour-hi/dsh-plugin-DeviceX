@@ -116,12 +116,12 @@ const requireFromRoot = createRequire(pathToFileURL(join(root, 'package.json')))
 check(
   'every exported resource resolves through the root manifest',
   [
-    '@cfour-hi/dsh-devicex',
-    '@cfour-hi/dsh-devicex/client',
-    '@cfour-hi/dsh-devicex/package.json',
-    '@cfour-hi/dsh-devicex/locale/en.json',
-    '@cfour-hi/dsh-devicex/locale/zh.json',
-    '@cfour-hi/dsh-devicex/icon',
+    '@cfour-hi/dsh-plugin-devicex',
+    '@cfour-hi/dsh-plugin-devicex/client',
+    '@cfour-hi/dsh-plugin-devicex/package.json',
+    '@cfour-hi/dsh-plugin-devicex/locale/en.json',
+    '@cfour-hi/dsh-plugin-devicex/locale/zh.json',
+    '@cfour-hi/dsh-plugin-devicex/icon',
   ].every((specifier) => {
     try {
       return statSync(requireFromRoot.resolve(specifier)).isFile();

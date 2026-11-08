@@ -93,7 +93,7 @@ try {
     ['committed', committedCode],
   ]) {
     check(`${label}: registers through window.__ModuleLoader__.load`, code.includes('window.__ModuleLoader__.load'));
-    check(`${label}: registers id @cfour-hi/dsh-devicex`, code.includes('"@cfour-hi/dsh-devicex"') || code.includes("'@cfour-hi/dsh-devicex'"));
+    check(`${label}: registers id @cfour-hi/dsh-plugin-devicex`, code.includes('"@cfour-hi/dsh-plugin-devicex"') || code.includes("'@cfour-hi/dsh-plugin-devicex'"));
     // Count loader seed *calls* in code, not in comments/diagnostics: the
     // non-minified concat build keeps the jsx.js docs that mention require("react").
     const codeOnly = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');

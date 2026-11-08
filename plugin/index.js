@@ -6,7 +6,7 @@
  * surface is one implementation: the UI routes and the tools call the same
  * functions.
  *
- * @module @cfour-hi/dsh-devicex
+ * @module @cfour-hi/dsh-plugin-devicex
  */
 import {
   SECTIONS,

@@ -12,7 +12,7 @@
  * failures (permissions, disappearing files, admin-only roots) are reported in
  * the result instead.
  *
- * @module @cfour-hi/dsh-devicex/host/cleanup-darwin
+ * @module @cfour-hi/dsh-plugin-devicex/host/cleanup-darwin
  */
 import * as fsp from 'node:fs/promises';
 import * as os from 'node:os';

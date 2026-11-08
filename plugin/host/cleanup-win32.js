@@ -15,7 +15,7 @@
  * This source file is ASCII-only: the scripts it feeds to Windows PowerShell
  * are streamed to stdin and decoded with the console input code page.
  *
- * @module @cfour-hi/dsh-devicex/host/cleanup-win32
+ * @module @cfour-hi/dsh-plugin-devicex/host/cleanup-win32
  */
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';

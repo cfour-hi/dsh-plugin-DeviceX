@@ -11,7 +11,7 @@
  * branch is the safe fallback for an already-loaded tree on anything else
  * (every command then fails into the section's `errors[]` instead of throwing).
  *
- * @module @cfour-hi/dsh-devicex/host/collector
+ * @module @cfour-hi/dsh-plugin-devicex/host/collector
  */
 import * as darwin from './collector-darwin.js';
 import * as win32 from './collector-win32.js';
