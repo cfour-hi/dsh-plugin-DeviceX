@@ -46,6 +46,18 @@ cd plugin && npm publish --access public      # 手工首发，仅此一次（2F
 之后按第 2 步配置 Trusted publishing；`v1.5.0` 的 GitHub Release 依然可以补：推 tag 后工作流发现版本已存在，
 会跳过 publish 直接建 Release。第一个真正由 CI 发布的版本是下一个版本（1.5.1）。
 
+### 2.5 实测到的两个操作细节
+
+- **2FA 是安全密钥（WebAuthn）时没有 6 位验证码**：npm 会走浏览器授权，命令打印
+  `Authenticate your account at: https://www.npmjs.com/auth/cli/<id>`，在浏览器里用安全密钥确认即可。
+  非 TTY 环境下这个链接会被显示成 `***`，需要伪终端才能看到完整地址（例如
+  `script -q /dev/null npm publish ...`）。`npm publish` 与 `npm trust` 各需要一次确认。
+- **新包发布后 registry 可能先返回 404**：CLI 会提示
+  *"Your package is being processed and may take a few minutes to become available"*，
+  实测约 3–5 分钟后 `https://registry.npmjs.org/<pkg>` 才返回 200。期间
+  `npm access list packages <scope>` 已经能看到包记录，可据此判断"已提交、正在生效"，不必重发
+  （npm 也不允许重发同一版本）。
+
 > 新配置的 trusted publisher 有 **2 天窗口**：必须在 2 天内完成一次成功的可信发布，否则配置失效，需要重新配置。
 
 ### 2. 配置 Trusted publishing（包已存在后）
