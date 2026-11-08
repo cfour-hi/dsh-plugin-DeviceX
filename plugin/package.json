@@ -36,5 +36,9 @@
         "@deepseek-ai/dsh-client-ui-sidebar"
       ]
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cfour-hi/dsh-plugin-DeviceX.git"
   }
 }
