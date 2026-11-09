@@ -2,8 +2,9 @@
 
 一个持久化的 **DSH 插件**：用一页优雅的中文/英文界面看尽当前设备的一切——硬件、系统、软件、
 网络、安全与权限、进程、温度与散热、驱动清单——并对**非硬件**的一切直接操作（结束进程、退出/启动/
-卸载应用、启停登录项、修改主机名/音量/深色模式、开关 Wi-Fi/防火墙、设置 DNS、卸载 Homebrew/winget 包、
-清空废纸篓、睡眠/锁定、跳转系统设置……）。还内置**可确认的清理**与**可重复的本机基准测试**。
+卸载应用**并级联清理它留下的数据目录**、启停登录项、修改主机名/音量/深色模式、开关 Wi-Fi/防火墙、
+设置 DNS、卸载 Homebrew/winget 包、清空废纸篓、睡眠/锁定、跳转系统设置……）。
+还内置**可确认的清理**与**可重复的本机基准测试**。
 同一套能力同时暴露给 Agent 模型，作为 `device_info` / `device_control` / `device_benchmark` 三个工具。
 
 - **平台**：**macOS** 与 **Windows 10/11**。Host 采集/动作按 `process.platform` 自动选择实现
@@ -35,7 +36,7 @@
 | 总览 Overview | 纯 CSS 3D 设备核心（分层芯片 + 轨道环 + 粒子）、CPU/内存/磁盘/电池/网络五个 SVG 环形 KPI、60 点火花线、Top 进程、派生告警、内存构成条 |
 | 硬件 Hardware | CPU 与逐核占用、统一内存/内存条、GPU、显示器、物理磁盘与卷、电池健康、**温度与散热**、**驱动/内核扩展（只读）**、USB、蓝牙、音频、摄像头 |
 | 系统 System | 系统/内核/构架、设备型号/序列号、启动时间与运行时长、真实用户表、登录项与 LaunchAgents（可启停）、白名单环境变量 |
-| 软件 Software | 已安装应用（搜索/来源过滤/排序、定位、卸载）；macOS 显示 Homebrew 已装/可升级包，Windows 显示 winget 状态 |
+| 软件 Software | 已安装应用（搜索/来源过滤/排序、定位、卸载）；卸载时弹出**残留清理弹窗**，按四档置信度列出应用留下的数据目录供逐项勾选；macOS 显示 Homebrew 已装/可升级包，Windows 显示 winget 状态 |
 | 网络 Network | 网卡卡片、Wi-Fi 状态/信号、DNS、默认路由、代理、TCP 监听端口与已建立连接数；开关 Wi-Fi、设置 DNS、打开网络设置 |
 | 安全 Security | 安全状态卡（macOS：FileVault/SIP/Gatekeeper/TCC；Windows：BitLocker/Defender/安全启动/UAC）、防火墙、管理员用户、跳转隐私等设置页、刷新 DNS、清空废纸篓 |
 | 进程 Processes | 可搜索/排序的进程表（PID、命令、用户、CPU、内存、状态），逐行结束进程（macOS: TERM/KILL/INT/STOP/CONT；Windows: TERM/KILL/INT；二次确认） |
@@ -57,7 +58,7 @@
 |---|---|
 | `process.signal` | 向进程发送 TERM/KILL/INT/STOP/CONT；拒绝 PID 1、Host 自身及其父进程 |
 | `app.quit` / `app.launch` / `app.reveal` | 退出应用 / 启动应用 / 在 Finder 中显示 |
-| `app.uninstall` | 卸载 `.app`（默认移到废纸篓，可选彻底删除）；只允许 `/Applications`、`~/Applications`、`/System/Applications`，系统应用拒绝。1.6 起接受可选的 `scanId`/`itemIds`/`cleanup`，走"卸载 → 校验 → 复扫 → 移残留进废纸篓"流水线；不带这些参数时行为与旧版逐字节一致 |
+| `app.uninstall` | 卸载 `.app`（默认移入废纸篓，可选彻底删除）；只允许 `/Applications`、`~/Applications`、`/System/Applications`，系统应用拒绝。1.6 起可附带 `scanId`/`itemIds`/`cleanup` 级联清理残留数据，见 [卸载残留清理](#卸载残留清理16)；不带这三个参数时行为与旧版完全一致 |
 | `system.setHostname` | 改 HostName / ComputerName / LocalHostName（字符与长度校验） |
 | `system.setVolume` / `system.setDarkMode` | 系统音量 0–100 / 深色模式开关 |
 | `system.launchAgent` | 启停用户或系统 LaunchAgent（`launchctl bootstrap/bootout`，路径白名单） |
@@ -90,13 +91,66 @@
 cookie + Host/Origin 校验，未认证请求 401，异源 403）；所有子进程使用 `execFile` 参数数组，不经 shell；
 路径参数做根目录与后缀校验；每次动作（含失败）都进入 50 条环形历史。
 
+## 卸载残留清理（1.6）
+
+大多数 macOS 应用不提供卸载器：把 `.app` 拖进废纸篓就算“卸载”了，但它在 `~/Library` 下的数据仍原样留着。
+1.6 起，卸载时会先扫描应用散落在系统里的数据目录，**列出来让用户逐项选择**是否一起清掉。
+
+### 扫描：四路来源 + 四档置信度
+
+| 档位 | 判定依据 | 默认勾选 | 呈现 |
+|---|---|---|---|
+| **A 高置信** | Bundle ID 精确/后缀匹配、MSIX 包容器、Homebrew cask `zap` 清单 | ✅ | 正常行 |
+| **B 名称候选** | 目录名与 App 名相似，且只匹配到这一个已装应用 | ❌ | 正常行 + 「按名称推测」标签 + 可读理由 |
+| **C 冲突候选** | 同一目录匹配到 ≥2 个已装应用 | ❌ | 正常行 + 「也可能属于：…」 |
+| **D 共享目录** | 厂商级目录（`Google/`、`Microsoft/`）或需管理员权限的项 | — | **只读行，无复选框** |
+
+B/C 会被展示但**不默认勾选**。本机实测中，`~/Library/Application Support/Claude-3p` 占 **11 GB**，
+却不含任何 bundle id，只有“目录名像 App 名”这一条能发现它；藏起来等于替用户放弃 11 GB。
+弹窗底部同时固定显示「另有 N 项未选中（共 X）」，防止大目录静默滑过。
+
+### 安全模型：删除永不接受路径
+
+沿用 `cleanup` 的既有护栏，并解决“残留目录天然是运行时才知道的路径”这个矛盾：
+
+1. `GET /devicex/api/footprint` 只读扫描，返回报告与一个不透明的 `scanId`；**完整路径只留在 Host 内存**。
+2. 浏览器只拿到 scan 内的条目 id，提交 `app.uninstall` 时传 `scanId` + `itemIds`。
+3. Host 端校验：令牌存在且未过期（10 分钟）→ 未被使用过 → 每个 id 属于该 scan → `realpath` 后仍在本次扫描允许的根列表内 → 不是根目录本身、不是符号链接。任一条不满足即拒绝。
+
+动作目录仍是 **19 项**：扫描是只读路由，清理只是 `app.uninstall` 的可选参数。
+
+### 流水线与失败语义
+
+```
+扫描 → 用户勾选 → 卸载本体 → 校验确实卸掉了 → 复扫 → 逐项移入废纸篓
+```
+
+- **卸载失败或未完成 ⇒ 全局中止，一个字节都不删**：失败路径零副作用，不会出现“应用还在、数据没了”。
+- **应用没有卸载器不算失败**（79 个实测应用中仅 2 个有），直接走“本体进废纸篓 + 残留清单”。
+- **macOS 不执行 bundle 内自带的卸载器**：现存的两个分别是不可读的 Go 二进制与 AppleScript，没有可验证的命令行契约，用猜的参数去跑可能导致半卸载。`uninstall.js` 的卸载器路径保留给 Windows（MSI / winget / 注册表都有确定的命令行）。
+- 应用仍在运行时直接拒绝，避免文件被重建或移动失败。
+- 一律**移入废纸篓**，不做永久删除；结果页明确写「清空废纸篓后释放 X」——移入废纸篓本身不释放空间。
+
+### 平台差异
+
+| | macOS | Windows |
+|---|---|---|
+| 扫描 | ✅ 12 个用户根 + 7 个系统根、brew `zap`、`codesign` 判沙盒 | ✅ MSIX 包容器、名称匹配、`%PROGRAMDATA%` 标管理员 |
+| 清理 | ✅ 移入 `~/.Trash` | ❌ 返回 `UNSUPPORTED_PLATFORM`（见下） |
+
+Windows 只能**列出**不能**清理**：移入回收站需要走 shell，本仓库未在 Windows 真机验证过，因此不会发布未验证的破坏性路径。带 `scanId` 的请求被显式拒绝，而不是“卸载完再静默丢掉用户的选择”。
+
+实测基线（本机）：单应用扫描 **约 0.15–0.5 s**（含体积统计）；Bundle ID 召回 **61/79 = 77%**，叠加名称启发式后 **87%**。
+
+---
+
 ## 架构
 
 ```
 plugin/
 ├── package.json          # dsh.bundle.patch + dsh.client(web, immediately) + exports(locale/icon/client)
 ├── cordis.patch.yml      # 插入 id: devicex 行
-├── index.js              # Host 入口：warmup() + 注册 6 条 HTTP 路由 + 3 个 Agent 工具
+├── index.js              # Host 入口：warmup() + 注册 7 条 HTTP 路由 + 3 个 Agent 工具
 ├── host/
 │   ├── proc.js           # execFile 封装：永不抛出、超时/maxBuffer、stdin input、12 路并发上限
 │   ├── collector.js      # 平台 dispatcher（darwin | win32）
@@ -106,6 +160,8 @@ plugin/
 │   ├── actions-darwin.js # macOS 19 个动作
 │   ├── actions-win32.js  # Windows 19 个动作（Stop-Process / ms-settings / winget / …）
 │   ├── cleanup.js / cleanup-darwin.js / cleanup-win32.js  # 白名单清理扫描 + 确认删除
+│   ├── footprint.js / footprint-core.js / footprint-darwin.js / footprint-win32.js  # 残留足迹扫描（纯内核 + 平台实现 + 一次性扫描令牌）
+│   ├── uninstall.js     # 卸载流水线：校验门禁、失败零副作用、逐项移入废纸篓
 │   ├── benchmark.js      # 固定工作量、可重复的 CPU/内存/磁盘基准（worker_threads）
 │   ├── win.js            # PowerShell 桥：优先 5.1、脚本经 stdin 流式执行（规避 32K 命令行上限）
 │   ├── win/*.ps1         # 七个只读、免管理员、单 JSON 输出的 PowerShell 采集脚本
@@ -122,7 +178,7 @@ docs/uninstall-footprint-design.md # 卸载 + 残留足迹清理设计（1.6 已
 docs/RELEASE.md           # 发布流程（tag → verify → npm 可信发布 → GitHub Release 附件）
 LICENSE                   # MIT 许可证（plugin/LICENSE 是随包发布的副本，两者须一致）
 scripts/build-client.mjs  # esbuild：src/client → plugin/client.js（--check 校验产物是否最新）
-scripts/render-check.mjs  # jsdom + React 18 渲染冒烟（10 个标签页、215 条断言）
+scripts/render-check.mjs  # jsdom + React 18 渲染冒烟（10 个标签页、237 条断言）
 scripts/render-windows-check.mjs # 映射后的 Windows 数据渲染（32 条断言）
 scripts/client-fixtures.mjs # 渲染测试用的数据 fixture
 scripts/verify.mjs        # 通用离线验证（91 项检查）
@@ -130,6 +186,7 @@ scripts/verify-windows.mjs # Windows 离线验证（167 项：fixture 映射 + �
 scripts/verify-sensors.mjs # 温度/驱动采集验证（57 项：静态 + fixture 映射 + 本机真实探测）
 scripts/verify-cleanup.mjs # 清理扫描/动作验证（130 项：真实扫描 + 沙箱删除 + 白名单不可变）
 scripts/verify-benchmark.mjs # 基准引擎验证（46 项：形状/确定性/重复性/临时文件清理）
+scripts/verify-footprint.mjs # 卸载残留验证（72 项：档位铁律、令牌生命周期、失败零副作用、Trash 覆盖安全）
 scripts/fixtures/win32/   # 真实 CIM 输出形态的 fixture
 scripts/check-release-version.mjs # 发布前校验 tag / 两份清单 / CHANGELOG 版本一致
 scripts/pack-release.mjs  # npm pack + tarball 内容审计（发布产物，输出到 dist/）
@@ -154,18 +211,18 @@ HTTP API（同一来源，`cache-control: no-store`）：
 
 - **源码/产物分离**：浏览器端源码在 `src/client/`（ESM 模块：`entry.js` 负责 module-loader 注册，`core.js` 是页面与组件，`dicts.js`/`styles.js`/`helpers.js`/`constants.js`/`normalizers.js`/`api.js` 各自独立）。`plugin/client.js` 是 **B（esbuild）** 生成的单文件 IIFE bundle（minify，仍只通过 loader 的 `require("react")` 取运行时，外部零依赖），`npm run build` 重新生成，`npm run build:check` 校验提交产物与源码一致（CI 强制）。
 - **B+C+D 三轨并存**：
-  - **B（推荐主路径）**：esbuild 打包 → 202 KB minified bundle；
-  - **C（无打包器回退）**：`npm run build:concat` 按依赖顺序拼接 `src/client/`、剥掉 `import`/`export`，并用 TypeScript 编译器转译 `.ts`/`.tsx`（**不引入打包器**；TypeScript 本就是 typecheck 的 devDependency），产物约 284 KB、行为与 B 等价；
+  - **B（推荐主路径）**：esbuild 打包 → 209 KB minified bundle；
+  - **C（无打包器回退）**：`npm run build:concat` 按依赖顺序拼接 `src/client/`、剥掉 `import`/`export`，并用 TypeScript 编译器转译 `.ts`/`.tsx`（**不引入打包器**；TypeScript 本就是 typecheck 的 devDependency），产物约 310 KB、行为与 B 等价；
   - **D（零构建资产）**：仓库提交的 `plugin/client.js` 是自包含产物——安装、加载、运行都不需要构建，也不需要 devDependencies；esbuild/TypeScript/jsdom 只在开发与 CI 中使用。
-  - `npm run verify:build`（37 项）验证三者：两个引擎各自确定、结构与 loader 契约一致、注册面（inject/slots/615 个 zh/en 词条）逐项相等，并让 **B 与 C 各跑一遍 215 条 10 标签页渲染 + 32 条 Windows 数据渲染**。
+  - `npm run verify:build`（37 项）验证三者：两个引擎各自确定、结构与 loader 契约一致、注册面（inject/slots/643 个 zh/en 词条）逐项相等，并让 **B 与 C 各跑一遍 237 条 10 标签页渲染 + 32 条 Windows 数据渲染**。
 - **静态类型**：`tsconfig.json` 开启 `allowJs + checkJs`（`strictNullChecks` 打开，其余渐进放松），覆盖 `plugin/index.js` 与 `plugin/host/**/*.js`；JSDoc 描述数据契约与返回类型，`npm run typecheck`（`tsc --noEmit`）为 0 error，CI 强制。
 - **类型契约层（P0）**：[types/contracts.ts](types/contracts.ts) 是纯类型文件（不参与运行时、不打进 bundle、不随包分发），定义 Host 采集 ↔ 动作/HTTP API ↔ 浏览器客户端之间的冻结形状：`Metrics`、六个 section、`Inventory`、19 个动作的 `ActionId`/`Action`/`ActionResult`、cleanup/benchmark、`ExecResult`，以及最小的 DSH 契约（`PluginContext`/`ToolDefinition`/`WebRoute`）。**平台适配器接口** `PlatformCollector`/`PlatformActions` 在 `collector.js`/`actions.js` 的 dispatcher 处编译期校验——任一平台漏实现或签名漂移都会让 `tsc` 报错。Host 用 JSDoc `import type` 引用，client 源码用 JSDoc typedef 指向同一文件。
 - **动作参数值类型（P1）**：契约层新增每个动作的归一化参数类型（`DarwinActionParamsById` / `Win32ActionParamsById`），含判别联合（`app.uninstall` 的 msi/winget/registry、`system.launchAgent` 的 hive）。Windows 侧 19 个 `validate(params)` 已用 `@returns {Win32Params['id']}` 标注，`tsc` 会拒绝与契约不一致的归一化值；macOS 侧 runner 仍在**不可信边界**内联校验（不把外部输入伪装成已校验类型），这是有意的分层。
-- **客户端纯逻辑类型检查（P2-a）**：`src/client/{constants,helpers,runtime,normalizers,api}.js` 加 `// @ts-check`，新增 `tsconfig.client.json`（含 DOM lib，`strictNullChecks`）并纳入 `npm run typecheck`——`core.js`/`dicts.js`/`styles.js` 暂不纳入（前者靠 215 条渲染测试覆盖，后两者是数据/样式），从而在不动 `.tsx`、不破坏 loader 契约的前提下获得客户端逻辑的编译期检查。
-- **JSX 试点（P2-b）**：新增 [src/client/jsx.js](src/client/jsx.js) 作为 **classic JSX 运行时**（`h` 惰性绑定 loader 注入的 React，`<>` 片段映射到 `React.Fragment`），esbuild 使用 `jsxFactory: h` 而**不**打包 `react/jsx-runtime`——产物仍然只向 loader 请求一次 `react`。**全部 UI 已完成 `.tsx` 化**（1.4.0）：19 个基础组件 + 10 个 Tab（Overview/Hardware/System/Software/Network/Security/Processes/Cleanup/Benchmark/Actions）+ `Modal`/`Toasts`/`action-helpers` 均在 [components/](src/client/components) 与 [action-helpers.tsx](src/client/action-helpers.tsx) 中；`src/client/page.tsx` 承载页面装配（约 700 行 TSX），`use-device-metrics.js` 承载轮询/采样 hooks，`core.js` 只剩 57 行的插件注册（locale/styles/main/sidebar）。整条客户端从 6,600+ 行单文件拆成 40+ 个类型化模块。由 `tsconfig.client.json` 做 TSX 类型检查（`@types/react` 为 devDependency，运行时仍由 loader 注入）。页面层已开始拆 Tab：**OverviewTab**、**HardwareTab**（含 `ThermalCard`/`DriversCard`）、**SystemTab**、**SoftwareTab**、**NetworkTab**、**SecurityTab**、**ProcessesTab**、**CleanupTab**、**BenchmarkTab** 与共享的 **TabShell/SectionErrors** 已迁为 `.tsx`（含 `DeviceScene` 与 hooks 转发层），剩余 **ActionsTab** 与 Modal/Toasts 层按同样模式迁移，构建链不再变动。
+- **客户端纯逻辑类型检查（P2-a）**：`src/client/{constants,helpers,runtime,normalizers,api}.js` 加 `// @ts-check`，新增 `tsconfig.client.json`（含 DOM lib，`strictNullChecks`）并纳入 `npm run typecheck`——`core.js`/`dicts.js`/`styles.js` 暂不纳入（前者靠 237 条渲染测试覆盖，后两者是数据/样式），从而在不动 `.tsx`、不破坏 loader 契约的前提下获得客户端逻辑的编译期检查。
+- **JSX 试点（P2-b）**：新增 [src/client/jsx.js](src/client/jsx.js) 作为 **classic JSX 运行时**（`h` 惰性绑定 loader 注入的 React，`<>` 片段映射到 `React.Fragment`），esbuild 使用 `jsxFactory: h` 而**不**打包 `react/jsx-runtime`——产物仍然只向 loader 请求一次 `react`。**全部 UI 已完成 `.tsx` 化**（1.4.0）：20 个基础组件 + 10 个 Tab（Overview/Hardware/System/Software/Network/Security/Processes/Cleanup/Benchmark/Actions）+ `Modal`/`Toasts`/`action-helpers` 均在 [components/](src/client/components) 与 [action-helpers.tsx](src/client/action-helpers.tsx) 中；`src/client/page.tsx` 承载页面装配（约 700 行 TSX），`use-device-metrics.js` 承载轮询/采样 hooks，`core.js` 只剩 57 行的插件注册（locale/styles/main/sidebar）。整条客户端从 6,600+ 行单文件拆成 40+ 个类型化模块。由 `tsconfig.client.json` 做 TSX 类型检查（`@types/react` 为 devDependency，运行时仍由 loader 注入）。页面层已开始拆 Tab：**OverviewTab**、**HardwareTab**（含 `ThermalCard`/`DriversCard`）、**SystemTab**、**SoftwareTab**、**NetworkTab**、**SecurityTab**、**ProcessesTab**、**CleanupTab**、**BenchmarkTab** 与共享的 **TabShell/SectionErrors** 已迁为 `.tsx`（含 `DeviceScene` 与 hooks 转发层），剩余 **ActionsTab** 与 Modal/Toasts 层按同样模式迁移，构建链不再变动。
 - **可测的客户端**：`scripts/render-check.mjs` 与 `render-windows-check.mjs` 用 React 18 + jsdom 真实挂载面板，覆盖 10 个标签页、清理删除流、基准运行/对比、Windows 数据分支与错误边界；已随仓库提交并在 CI 跑。
-- **解析器单元测试（P1）**：`test/` 下用 `node:test` 覆盖高风险纯函数（`npm test`，57 项）：macOS 命令解析（vm_stat/swap/pmset/ioreg/ifconfig/route/scutil/lsof/ps/launchctl/plist/mdls/system_profiler）、Windows CIM mapper 与 cleanup 归一化、动作目录/参数守卫、基准纯函数。测试直接驱动解析器，不 spawn 命令、不修改缓存。
-- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → npm test → verify:build（B/C/D）→ 五套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 项检查，另有 `verify:build` 37 项构建一致性检查。
+- **解析器单元测试（P1）**：`test/` 下用 `node:test` 覆盖高风险纯函数（`npm test`，109 项）：macOS 命令解析（vm_stat/swap/pmset/ioreg/ifconfig/route/scutil/lsof/ps/launchctl/plist/mdls/system_profiler）、Windows CIM mapper 与 cleanup 归一化、动作目录/参数守卫、基准纯函数。测试直接驱动解析器，不 spawn 命令、不修改缓存。
+- **CI**：`.github/workflows/verify.yml` 在 macOS runner 上执行 `npm ci → build --check → typecheck → npm test → verify:build（B/C/D）→ 六套离线验证`。当前 `npm run verify` = 91 + 167 + 57 + 130 + 46 + 72 项检查，另有 `verify:build` 37 项构建一致性检查。
 - **发布**：`.github/workflows/release.yml` 由 tag（`v*.*.*`）触发，先用 `workflow_call` 复用上面的 verify 门，再对 `plugin/` 做 `npm pack` + 内容审计，把**同一份 tgz** 以 **OIDC 可信发布**推到 npm（无长效 token、带 provenance），再挂到 GitHub Release；发布会停在 **`npm-release` 环境审批**（reviewer 批准才执行），重跑幂等（已发布则只补 Release），支持手动 dry-run。首次发布一个全新包名需要一次 bootstrap（trusted publishing 不能为尚不存在的包配置），见 [docs/RELEASE.md](docs/RELEASE.md)。
 - 说明：本轮保持现有的 `h()` 调用风格，没有整体改写成 JSX——模块拆分 + esbuild 已就位，后续可逐文件迁移到 `.jsx`，构建链无需更换。
 
@@ -174,19 +231,23 @@ HTTP API（同一来源，`cache-control: no-store`）：
 离线（不需要改动 profile）：
 
 ```sh
-node scripts/verify.mjs           # macOS/Linux/Windows 通用的离线回归（91 项检查）
-node scripts/verify-windows.mjs   # Windows 适配专项（167 项）：桥接层 + .ps1 静态检查 + fixture 映射 + 动作目录/守卫 + 客户端元数据 + 模拟 win32 Host 端到端
+# 六套离线验证 + 单测
+node scripts/verify.mjs           # 通用回归（91 项）：语法/清单/locale/图标、真实采集、动作与路由注册、信任栅栏
+node scripts/verify-windows.mjs   # Windows 适配专项（167 项）：桥接层 + .ps1 静态检查 + fixture 映射 + 模拟 win32 Host 端到端
 node scripts/verify-sensors.mjs   # 温度/驱动专项（57 项）：契约静态检查 + fixture 映射 + 本机真实采集
-node scripts/verify-cleanup.mjs   # 清理专项（130 项）：真实扫描、缓存、沙箱删除、白名单不可变、动作守卫
+node scripts/verify-cleanup.mjs   # 清理专项（130 项）：真实扫描、缓存、沙箱删除、白名单不可变
 node scripts/verify-benchmark.mjs # 基准专项（46 项）：形状、确定性、重复性、worker 回退、临时文件清理
-npm test                          # 解析器/映射器/守卫单测（57 项，node:test）
+node scripts/verify-footprint.mjs # 卸载残留专项（72 项）：档位铁律、令牌生命周期、失败零副作用、Trash 覆盖安全
+npm test                          # 解析器/映射器/守卫单测（109 项，node:test）
 
-# 工程化门禁（等价 CI）
-npm run build:check   # 提交的 client.js 与 src/client 一致
-npm run typecheck     # tsc --noEmit，覆盖 Host，0 error
-npm test                               # node:test 解析器/映射器/守卫单测（57 项）
-node scripts/verify-build.mjs          # B/C/D 构建一致性（37 项，含两个引擎的渲染回归）
-node scripts/render-check.mjs          # 215 条渲染断言（对提交产物）
+# 工程化门禁（等价 CI，一条命令跑完全部）
+npm run verify:ci
+
+# 也可以分步跑：
+npm run build:check                    # 提交的 client.js 与 src/client 一致
+npm run typecheck                      # tsc --noEmit，覆盖 Host 与客户端逻辑，0 error
+node scripts/verify-build.mjs          # B/C/D 构建一致性（37 项，含两个引擎各跑一遍渲染回归）
+node scripts/render-check.mjs          # 237 条渲染断言（对提交产物）
 node scripts/render-windows-check.mjs  # 32 条 Windows 渲染断言（对提交产物）
 ```
 
@@ -202,6 +263,8 @@ npm run release:pack                    # npm pack + tarball 内容审计（dist
 `verify-windows.mjs` 不需要 Windows 或 PowerShell：用真实 CIM 输出形态的 fixture 驱动采集层的纯映射函数，
 静态检查每个 `.ps1` 的约定（单 JSON 输出、`$ErrorActionPreference='Stop'`、无字符串插值、无 `Invoke-Expression`），
 并在本机把 `process.platform` 模拟为 `win32` + 注入 fixture runner，端到端跑通 dispatcher → HTTP 路由 → Agent 工具。
+`verify-footprint.mjs` 把本机实测到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、
+令牌单次使用与跨 scan 混用、卸载失败零副作用、`moveToTrash` 不覆盖已有条目。
 
 本机实测证据（安装后）：
 
@@ -214,7 +277,7 @@ npm run release:pack                    # npm pack + tarball 内容审计（dist
   逐字节一致（仅多一行 sourceMappingURL）。
 - 路由存活与栅栏：`GET /devicex/api/metrics` → `401`（已注册且拒绝未认证），
   同时 `/definitely-not-a-route-xyz/` → `404`（证明 401 不是兜底页）。
-- 客户端渲染：React 18.3 + jsdom 真实渲染 10 个标签页 + 清理删除流 + 基准运行/对比 + 弹窗/焦点/重试/畸形数据等 **215/215 断言通过**（测试已入库，CI 每次 push 重跑）；Windows 映射数据渲染 **32/32**。
+- 客户端渲染：React 18.3 + jsdom 真实渲染 10 个标签页 + 清理删除流 + 基准运行/对比 + 弹窗/焦点/重试/畸形数据等 **237/237 断言通过**（测试已入库，CI 每次 push 重跑）；Windows 映射数据渲染 **32/32**。
 - 类型检查：`tsc --noEmit`（JSDoc/checkJs）覆盖 Host **0 error**；esbuild 产物与源码一致性由 `build --check` 强制。
 - Windows：开发机没有 Windows/PowerShell 可用，故为 **离线静态 + fixture 验证 + 模拟 win32 Host 端到端**
   （167 项），并经过一轮独立 QA 复审（阻塞问题已修复、复审无新阻塞项）；真实 Windows 运行时仍需在
@@ -242,6 +305,12 @@ curl -sN -m 2 http://127.0.0.1:50732/plugins/events | head -c 200               
 - 温度：Windows ACPI 热区（WMI）在部分主板/虚拟机上不可用，此时只有其它来源或 `null`；风扇转速并非所有设备可读。
 - 清理：macOS 下 `~/.Trash` 与部分系统缓存受 TCC/权限限制，扫描会如实返回 `EPERM`，删除时逐项报告失败；
   系统级目录需要管理员权限。
+- 卸载残留：`~/Library/Application Support/Claude-3p` 这类“只像 App 名、不含 bundle id”的目录只能靠
+  名称启发式发现，所以会以未勾选状态展示——需要用户自己确认。macOS 上 `~/.Trash` 本身受 TCC 保护
+  （`readdir`/`du` 均返回 `EPERM`），因此流水线不依赖枚举废纸篓，也不统计它的体积；个别条目移入后可能
+  因权限再也难以清理，界面不会承诺“随时可还原”。
+- 卸载残留（Windows）：只能列出不能清理，移入回收站需要走 shell 且未在真机验证，带 `scanId` 的请求
+  会返回 `UNSUPPORTED_PLATFORM`。
 - 基准：固定工作量的分数只适合同一台机器前后对比，不能与鲁大师等跑分软件的分值横向比较；机器负载会影响单次结果（验证脚本允许 30% 波动）。
 - Windows：BitLocker/Defender 等查询可能需要管理员权限，读不到时显示未知；Windows 没有等价的逐应用
   TCC 授权库，隐私面板显示为说明文案。
