@@ -17,6 +17,17 @@
 
 ## 界面
 
+> 以下截图由插件真实界面渲染：主机名、账号、序列号、MAC 与内网地址均为演示数据，已替换或隐藏。
+
+![Device X 总览](docs/images/overview.png)
+
+![Device X 硬件](docs/images/hardware.png)
+
+<p align="center">
+  <img src="docs/images/network.png" width="49%" alt="网络标签页">
+  <img src="docs/images/cleanup.png" width="49%" alt="清理标签页">
+</p>
+
 十个标签页，跟随 DSH 主题（浅色/深色）、仅使用主题 token 着色，支持 `prefers-reduced-motion`：
 
 | 标签 | 内容 |
@@ -46,7 +57,7 @@
 |---|---|
 | `process.signal` | 向进程发送 TERM/KILL/INT/STOP/CONT；拒绝 PID 1、Host 自身及其父进程 |
 | `app.quit` / `app.launch` / `app.reveal` | 退出应用 / 启动应用 / 在 Finder 中显示 |
-| `app.uninstall` | 卸载 `.app`（默认移到废纸篓，可选彻底删除）；只允许 `/Applications`、`~/Applications`、`/System/Applications`，系统应用拒绝 |
+| `app.uninstall` | 卸载 `.app`（默认移到废纸篓，可选彻底删除）；只允许 `/Applications`、`~/Applications`、`/System/Applications`，系统应用拒绝。1.6 起接受可选的 `scanId`/`itemIds`/`cleanup`，走"卸载 → 校验 → 复扫 → 移残留进废纸篓"流水线；不带这些参数时行为与旧版逐字节一致 |
 | `system.setHostname` | 改 HostName / ComputerName / LocalHostName（字符与长度校验） |
 | `system.setVolume` / `system.setDarkMode` | 系统音量 0–100 / 深色模式开关 |
 | `system.launchAgent` | 启停用户或系统 LaunchAgent（`launchctl bootstrap/bootout`，路径白名单） |
@@ -98,7 +109,7 @@ plugin/
 │   ├── benchmark.js      # 固定工作量、可重复的 CPU/内存/磁盘基准（worker_threads）
 │   ├── win.js            # PowerShell 桥：优先 5.1、脚本经 stdin 流式执行（规避 32K 命令行上限）
 │   ├── win/*.ps1         # 七个只读、免管理员、单 JSON 输出的 PowerShell 采集脚本
-│   ├── transport.js      # /devicex/api/{metrics,inventory,actions,action,cleanup,benchmark}，信任栅栏 + JSON 信封
+│   ├── transport.js      # /devicex/api/{metrics,inventory,actions,action,cleanup,footprint,benchmark}，信任栅栏 + JSON 信封
 │   └── tool.js           # device_info / device_control / device_benchmark 的 schema、摘要与渲染
 ├── src/client/           # 浏览器端 ESM 源码（模块拆分：entry/runtime/core/dicts/styles/api/normalizers/helpers/constants）
 ├── client.js             # 构建产物：src/client → esbuild 单文件 bundle（勿手改，改源码后 npm run build）
@@ -107,6 +118,7 @@ plugin/
 └── README.md             # 发布到 npm 的包说明（npm pack 自动包含）
 docs/build-contract.md    # 构建契约（数据形状、API、动作表、UI 要求）
 docs/windows-contract.md  # Windows 适配契约（PowerShell 约定、CIM 数据源、Windows 动作表）
+docs/uninstall-footprint-design.md # 卸载 + 残留足迹清理设计（1.6 已实现 macOS，Windows 仅扫描）
 docs/RELEASE.md           # 发布流程（tag → verify → npm 可信发布 → GitHub Release 附件）
 LICENSE                   # MIT 许可证（plugin/LICENSE 是随包发布的副本，两者须一致）
 scripts/build-client.mjs  # esbuild：src/client → plugin/client.js（--check 校验产物是否最新）
@@ -135,6 +147,7 @@ HTTP API（同一来源，`cache-control: no-store`）：
 | `GET /devicex/api/actions` | `{ ok, platform, sections, actions, history }` |
 | `POST /devicex/api/action` | `{ ok, message, data? }`（业务失败仍 HTTP 200） |
 | `GET /devicex/api/cleanup[?fresh=1]` | `{ ok, cleanup }`（白名单扫描，60s 缓存） |
+| `GET /devicex/api/footprint[?path=<app>&fresh=1]` | `{ ok, footprint }`（只读残留扫描，返回一次性 `scanId`） |
 | `POST /devicex/api/benchmark` | `{ ok, benchmark }`（body: `{ tests?, repeat? }`） |
 
 ## 工程化（1.3）
@@ -271,6 +284,11 @@ dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-plugin-devicex-1.5.0
 或者重启 Harness。改动插件清单时记得同步仓库根的 `package.json`（GitHub 安装读取它）。
 首次开发先 `npm ci`（esbuild/TypeScript/jsdom/react 均为 devDependencies）。改 `plugin/client.js` 时请改 `src/client/` 并 `npm run build`（CI 会拒绝过期产物；无 devDependencies 的环境可用 `npm run build:concat` 生成同契约回退产物），随后 `npm run typecheck`、`npm run verify:build`、`npm run verify`（或直接 `npm run verify:ci`）做完整回归，
 并用上面的 `curl` 探测实时路由。
+
+## 媒体素材
+
+发布用的社交卡片与各平台文案在 [`docs/promo/copy.md`](docs/promo/copy.md)（1200×630 横版、1080×1080 方图、
+1080×1440 竖版）；截图均为真实界面渲染，演示数据已脱敏。
 
 ## 许可证
 

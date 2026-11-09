@@ -212,7 +212,7 @@ check(
   'hard dependencies are webServer/connection/tools',
   JSON.stringify(plugin.inject) === JSON.stringify(['webServer', 'connection', 'tools']),
 );
-check('six browser API routes registered', routes.length === 6, routes.map((r) => r.path).join(', '));
+check('browser API routes registered', routes.length === 7, routes.map((r) => r.path).join(', '));
 check('three agent tools registered', tools.length === 3, tools.map((t) => t.name).join(', '));
 check('tool names are device_info/device_control/device_benchmark', tools.map((t) => t.name).sort().join(',') === 'device_benchmark,device_control,device_info');
 check('device_info parameters accept sections', tools[0].parameters.properties.section.enum.length === 8);

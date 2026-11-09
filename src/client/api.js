@@ -70,6 +70,11 @@ import { normalizeBenchmark } from "./normalizers.js";
 				const body = await getJson(API_BASE + "/cleanup" + (fresh === true ? "?fresh=1" : ""));
 				return body.cleanup;
 			},
+			async footprint(appPath, fresh) {
+				const query = "?path=" + encodeURIComponent(String(appPath || "")) + (fresh === true ? "&fresh=1" : "");
+				const body = await getJson(API_BASE + "/footprint" + query);
+				return body.footprint;
+			},
 			async benchmark(options) {
 				let body = null;
 				try {

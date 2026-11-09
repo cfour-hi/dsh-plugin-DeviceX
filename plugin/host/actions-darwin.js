@@ -16,6 +16,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import { cleanupItems, deleteCleanup } from './cleanup-darwin.js';
+import { consumeToken, resolveScanItems, scanFootprint } from './footprint.js';
+import { runUninstallPipeline } from './uninstall.js';
 import { run } from './proc.js';
 
 /** Action groups, in UI order. */
@@ -187,6 +189,11 @@ const SPECS = [
     params: [
       param('path', 'string', { placeholder: '/Applications/SomeApp.app' }),
       param('mode', 'select', { required: false, options: ['trash', 'delete'], placeholder: 'trash' }),
+      // 1.6: optional footprint cleanup. All three are omitted by the plain UI
+      // flow, which keeps the single-step behaviour exactly as before.
+      param('scanId', 'string', { required: false, placeholder: 'scan id from GET /devicex/api/footprint' }),
+      param('itemIds', 'string', { required: false, multiple: true, placeholder: 'fp_1a2b3c4d, fp_5e6f7a8b' }),
+      param('cleanup', 'select', { required: false, options: ['trash', 'none'], placeholder: 'trash' }),
     ],
   },
   {
@@ -575,38 +582,107 @@ async function guardedAppBundle(raw, mode) {
 }
 
 /**
- * Move a bundle into the user's Trash with a unique name.
- * @param {string} source resolved bundle path
+ * Reserve a destination name inside the Trash atomically.
+ *
+ * `rename` overwrites an existing destination without complaint, so probing
+ * with `access()` first and then renaming is a race that can silently destroy
+ * whatever landed in between. Creating the destination ourselves first makes
+ * the reservation atomic: `mkdir` and `open('wx')` both fail with EEXIST when
+ * the name is taken, and the following `rename` only ever overwrites our own
+ * placeholder.
+ *
+ * @param {string} trash absolute Trash directory
+ * @param {string} stem desired base name
+ * @param {string} extension suffix to keep ('' for none, '.app' for a bundle)
+ * @param {boolean} isDirectory whether the source is a directory
+ * @returns {Promise<string>} the reserved absolute destination path
+ */
+async function reserveTrashName(trash, stem, extension, isDirectory) {
+  let attempt = 0;
+  while (attempt < 100) {
+    const suffix = attempt === 0 ? '' : `-${attempt}`;
+    const destination = path.join(trash, `${stem}-${Date.now()}${suffix}${extension}`);
+    try {
+      if (isDirectory) {
+        await fsp.mkdir(destination);
+      } else {
+        const handle = await fsp.open(destination, 'wx');
+        await handle.close();
+      }
+      return destination;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if (code === 'EEXIST') {
+        attempt += 1;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw Object.assign(new Error('Could not reserve a unique name in the Trash.'), { code: 'EEXIST' });
+}
+
+/**
+ * Move a file or directory into the user's Trash under a unique name.
+ *
+ * Portable across bundle and data-directory sources: the previous version
+ * hard-coded a `.app` suffix, so trashing `com.example.app` produced
+ * `com.example-1712345678901.app` — a data directory wearing an application
+ * name.
+ *
+ * @param {string} source resolved absolute path
+ * @param {{trashDir?: string}} [options] `trashDir` exists only so offline tests
+ *   can drive a sandbox instead of the real `~/.Trash`.
  * @returns {Promise<string>} the destination path
  */
-async function moveToTrash(source) {
-  const trash = path.join(os.homedir(), '.Trash');
+async function moveToTrash(source, options = {}) {
+  const trash = options.trashDir ?? path.join(os.homedir(), '.Trash');
   await fsp.mkdir(trash, { recursive: true });
+
   const base = path.basename(source);
-  const stem = base.replace(/\.app$/i, '');
-  let destination = path.join(trash, `${stem}-${Date.now()}.app`);
-  let suffix = 1;
-  while (true) {
-    try {
-      await fsp.access(destination);
-      destination = path.join(trash, `${stem}-${Date.now()}-${suffix}.app`);
-      suffix += 1;
-    } catch {
-      break;
-    }
-  }
+  const stat = await fsp.lstat(source);
+  const isDirectory = stat.isDirectory();
+  const extension = /\.app$/i.test(base) ? '.app' : '';
+  const stem = extension === '' ? base : base.slice(0, -extension.length);
+
+  const destination = await reserveTrashName(trash, stem, extension, isDirectory);
   try {
+    // `rename` onto our own placeholder is atomic and cannot clobber a third
+    // party: the name was reserved a moment ago and nothing else can claim it.
     await fsp.rename(source, destination);
     return destination;
-  } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && err.code === 'EXDEV') {
-      await fsp.cp(source, destination, { recursive: true, force: false, errorOnExist: true });
-      await fsp.rm(source, { recursive: true, force: false, maxRetries: 2, retryDelay: 100 });
-      return destination;
+  } catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    if (code !== 'EXDEV') {
+      // Release the placeholder so a failed move does not litter the Trash.
+      await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
+      throw error;
     }
-    throw err;
+    // Cross-device: copy into the placeholder, then remove the source. The
+    // placeholder already exists, so `force: true` is safe here and keeps the
+    // partial copy from surviving a failure.
+    try {
+      await fsp.cp(source, destination, { recursive: true, force: true });
+    } catch (copyError) {
+      await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
+      throw copyError;
+    }
+    try {
+      await fsp.rm(source, { recursive: true, force: false, maxRetries: 2, retryDelay: 100 });
+    } catch (removeError) {
+      // The copy exists, so the data is safe; report the leftover so the caller
+      // can tell the user the original is still in place.
+      const reason = removeError instanceof Error ? removeError.message : String(removeError);
+      throw Object.assign(new Error(`Copied to Trash but could not remove the original: ${reason}`), {
+        code: 'PARTIAL_TRASH',
+      });
+    }
+    return destination;
   }
 }
+
+/** Test seam: expose the Trash mover so offline tests can drive a sandbox. */
+export const __trashTest = { moveToTrash, reserveTrashName };
 
 /* -------------------------------------------------------------------------- */
 /* Action runners                                                             */
@@ -615,6 +691,132 @@ async function moveToTrash(source) {
 /**
  * @typedef {(params: Record<string, unknown>) => Promise<{ok: boolean, message: string, data?: object, code?: string}>} Runner
  */
+
+/**
+ * The 1.6 footprint pipeline adapter for macOS.
+ *
+ * **No vendor uninstaller is ever executed here**, by design. macOS apps are
+ * uninstalled by dragging them to the Trash; the two helpers that exist on a
+ * real host ship as opaque binaries or scripts whose argument contract cannot
+ * be verified, and running one with a guessed flag risks a half-finished
+ * uninstall. So `hasUninstaller` is always false: the bundle goes to the Trash
+ * and the leftover list is offered separately. `uninstall.js` still supports
+ * the uninstaller path for platforms where it is verified (Windows
+ * MSI/winget/registry).
+ *
+ * @param {Record<string, unknown>} params validated-ish request params
+ * @param {string} appPath resolved bundle path
+ * @returns {Promise<object>} an ActionResult
+ */
+async function runDarwinUninstallPipeline(params, appPath) {
+  const scanId = typeof params.scanId === 'string' ? params.scanId : '';
+  const itemIds = params.itemIds;
+  const cleanup = params.cleanup === 'none' ? 'none' : 'trash';
+
+  let items = [];
+  if (cleanup === 'trash' && itemIds !== undefined && itemIds !== null) {
+    const resolved = resolveScanItems(scanId, itemIds);
+    if (resolved.ok !== true) return failure(resolved.message, resolved.code);
+    items = resolved.items;
+    if (resolved.appPath !== '' && resolved.appPath !== appPath) {
+      return failure('The scan belongs to a different application.', 'SCAN_MISMATCH');
+    }
+  } else if (cleanup === 'trash' && itemIds !== undefined) {
+    return failure('itemIds must be an array of scan item ids.', 'BAD_PARAMS');
+  }
+
+  // Refuse to touch a running app: its files would be recreated and the moves
+  // would fail half-way through.
+  const running = await isBundleRunning(appPath);
+  if (running !== null) {
+    return failure(
+      `"${running}" is still running. Quit it before uninstalling so its files are not recreated.`,
+      'APP_RUNNING',
+    );
+  }
+
+  const report = await runUninstallPipeline(
+    {
+      appPath,
+      hasUninstaller: false,
+      cleanupApp: true,
+      items,
+      leftoverBytes: items.reduce((sum, item) => sum + (Number(item.bytes) || 0), 0),
+    },
+    {
+      async uninstallApp() {
+        // Unreachable: `hasUninstaller: false` above. Implemented as a refusal
+        // so a future change cannot quietly start executing a bundle helper.
+        return {
+          ok: false,
+          message: 'macOS uninstalls by moving the bundle to the Trash; no vendor uninstaller is executed.',
+          code: 'NO_UNINSTALLER',
+        };
+      },
+      async isStillInstalled(target) {
+        try {
+          await fsp.lstat(target);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      async trashApp(target) {
+        try {
+          const destination = await moveToTrash(target);
+          return { ok: true, message: `Moved to Trash as ${path.basename(destination)}.`, destination };
+        } catch (error) {
+          return {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+            code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'TRASH_FAILED',
+          };
+        }
+      },
+      async trashPath(target) {
+        try {
+          const destination = await moveToTrash(target);
+          return { ok: true, message: `Moved to Trash as ${path.basename(destination)}.`, destination };
+        } catch (error) {
+          return {
+            ok: false,
+            message: error instanceof Error ? error.message : String(error),
+            code: error && typeof error === 'object' && 'code' in error ? String(error.code) : 'TRASH_FAILED',
+          };
+        }
+      },
+      async rescan(target) {
+        return scanFootprint({ path: target, fresh: true });
+      },
+    },
+  );
+
+  if (report.ok === true) consumeToken(scanId);
+
+  const data = { ...report };
+  if (report.ok === true) return success(report.message, data);
+  return { ok: false, message: report.message, code: report.aborted ? 'ABORTED' : 'PARTIAL', data };
+}
+
+/**
+ * The display name of a running app whose bundle path matches, or null.
+ *
+ * Uses `ps` rather than `NSRunningApplication` because the whole host half is
+ * argv-only `execFile`; the bundle path appears in the process command line for
+ * every app launched by LaunchServices.
+ *
+ * @param {string} appPath
+ * @returns {Promise<string|null>}
+ */
+async function isBundleRunning(appPath) {
+  const result = await run('/bin/ps', ['-Ao', 'command='], { timeout: 8_000, maxBuffer: 8 * 1024 * 1024 });
+  if (!result.ok) return null;
+  const needle = `${appPath}/Contents/MacOS/`;
+  for (const line of String(result.stdout ?? '').split('\n')) {
+    if (line.includes(needle)) return path.basename(appPath);
+  }
+  return null;
+}
 
 /** @type {Record<string, Runner>} */
 const RUNNERS = {
@@ -675,6 +877,13 @@ const RUNNERS = {
     if (!modeRead.ok) return failure(modeRead.message, 'BAD_PARAMS');
     const guarded = await guardedAppBundle(pathRead.value, modeRead.value);
     if (!guarded.ok) return guarded;
+
+    // 1.6: when a scan id is present the caller wants the footprint pipeline.
+    // Without one, behaviour is byte-for-byte the pre-1.6 single step.
+    if (typeof params.scanId === 'string' && params.scanId !== '') {
+      return runDarwinUninstallPipeline(params, guarded.path);
+    }
+
     const name = path.basename(guarded.path);
     if (modeRead.value === 'trash') {
       try {

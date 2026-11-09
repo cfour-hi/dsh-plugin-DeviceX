@@ -466,6 +466,19 @@ copy passes over two 32 MiB `Float64Array`s, disk one 64 MiB write+fsync+read un
 - Action catalogue: 19 ids (the 18 frozen ids plus `cleanup.delete`; Windows swaps
   `software.brewUninstall` for `software.wingetUninstall` as before).
 
+### 1.6 addition: uninstall footprint scan
+
+One read-only route is added; the action catalogue stays at **19** ids.
+
+- `GET /devicex/api/footprint?path=<app path>&fresh=1` → `{ ok: true, footprint: FootprintReport }`.
+  Read-only: it never deletes, never writes an action-history entry, and returns an opaque
+  `scanId` that is the only handle `app.uninstall` will accept for leftover cleanup.
+- `app.uninstall` gains **optional** parameters `scanId`, `itemIds`, `cleanup` (`'trash' | 'none'`).
+  Absent ⇒ the pre-1.6 single-step behaviour, byte for byte.
+- Deletion still never accepts a caller-supplied path: `itemIds` are resolved through the
+  server-side scan token, re-validated with `realpath` against the controlled roots, and
+  symbolically linked candidates are skipped.
+
 ## 1.3 build pipeline (frozen)
 
 The browser half is no longer hand-edited as one file:

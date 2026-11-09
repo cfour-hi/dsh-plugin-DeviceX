@@ -316,6 +316,22 @@ function parseUninstallId(params) {
   if (!raw.ok) return raw;
   const id = raw.value;
   const lower = id.toLowerCase();
+
+  // 1.6: an optional footprint tail. Windows can only scan for now, so a
+  // request that asks to clean leftovers is refused by the runner rather than
+  // silently ignored - but the id is still validated first so the caller gets
+  // the precise rejection reason.
+  const scanId = params.scanId;
+  if (scanId !== undefined && scanId !== null && scanId !== '') {
+    if (typeof scanId !== 'string' || scanId.length > 128) {
+      return failure('scanId must be a string of at most 128 characters.', 'BAD_PARAMS');
+    }
+  }
+  const withScan = (value) =>
+    typeof scanId === 'string' && scanId !== ''
+      ? /** @type {{ok: true, value: any}} */ ({ ok: true, value: { ...value, scanId } })
+      : /** @type {{ok: true, value: any}} */ ({ ok: true, value });
+
   if (lower.startsWith('msi:')) {
     if (!MSI_ID_PATTERN.test(id)) {
       return failure(
@@ -323,18 +339,18 @@ function parseUninstallId(params) {
         'BAD_PARAMS',
       );
     }
-    return { ok: true, value: { kind: 'msi', id, guid: id.slice(4).toUpperCase() } };
+    return withScan({ kind: 'msi', id, guid: id.slice(4).toUpperCase() });
   }
   if (lower.startsWith('winget:')) {
     const token = id.slice('winget:'.length);
     if (!WINGET_TOKEN_PATTERN.test(token)) {
       return failure('winget uninstall ids may only contain letters, digits and . _ + -.', 'BAD_PARAMS');
     }
-    return { ok: true, value: { kind: 'winget', id, token } };
+    return withScan({ kind: 'winget', id, token });
   }
   const registry = parseRegistryKey(id);
   if (!registry.ok) return registry;
-  return { ok: true, value: { kind: 'registry', id, key: registry.value } };
+  return withScan({ kind: 'registry', id, key: registry.value });
 }
 
 /** Parse `startup:<HKCU|HKLM|HKLM32>:<ValueName>` for `system.launchAgent`. * @returns {{ok: true, value: any} | {ok: false, message: string, code?: string}}
@@ -520,7 +536,14 @@ const SPECS = [
     group: 'app',
     danger: 'high',
     requiresAdmin: false,
-    params: [{ name: 'id', type: 'string', required: true, placeholder: 'msi:{GUID} | winget:<id> | HKLM:\\...\\Uninstall\\...' }],
+    params: [
+      { name: 'id', type: 'string', required: true, placeholder: 'msi:{GUID} | winget:<id> | HKLM:\\...\\Uninstall\\...' },
+      // 1.6: present so the schema matches macOS. Supplying it is refused today
+      // (see the runner) because the Recycle Bin move is not verified yet.
+      { name: 'scanId', type: 'string', required: false, placeholder: 'scan id from GET /devicex/api/footprint' },
+      { name: 'itemIds', type: 'string', required: false, multiple: true, placeholder: 'fp_1a2b3c4d' },
+      { name: 'cleanup', type: 'select', required: false, options: ['trash', 'none'] },
+    ],
     /**
      * @returns {{ok: true, value: Win32Params['app.uninstall']} | {ok: false, message: string, code?: string}}
      */
@@ -981,6 +1004,17 @@ Start-Process -FilePath ${psString('explorer.exe')} -ArgumentList ('/select,"' +
     return success(`Revealed "${path}" in File Explorer.`, { path });
   },
   'app.uninstall': async (value) => {
+    // 1.6: refuse the footprint tail explicitly instead of uninstalling and
+    // then quietly leaving the leftovers the user selected. Windows has no
+    // verified Recycle Bin move yet, so listing works and cleanup does not.
+    if (typeof value?.scanId === 'string' && value.scanId !== '') {
+      return {
+        ok: false,
+        message:
+          'Leftover cleanup is not available on Windows yet: this build can list an application\'s leftover folders but will not move them to the Recycle Bin. Uninstall without selecting leftovers to continue.',
+        code: 'UNSUPPORTED_PLATFORM',
+      };
+    }
     if (value.kind === 'msi') return uninstallMsi(value);
     if (value.kind === 'winget') return uninstallWinget(value, true);
     return uninstallRegistry(value);

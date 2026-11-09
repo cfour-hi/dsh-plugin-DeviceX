@@ -7,6 +7,7 @@ import {
   actionsFixture,
   historyFixture,
   cleanupFixture,
+  footprintFixture,
   benchmarkFixture,
 } from "./client-fixtures.mjs";
 
@@ -139,7 +140,7 @@ check(tEn("panel") === "Device X" && tZh("panel") === "设备", "dictionaries re
 
 // ------------------------------------------------------------------ fetch doubles
 function createHappyHandler(overrides = {}) {
-  const calls = { gets: [], posts: [], benchmarkRuns: [], cleanupFetches: [], deletedIds: [] };
+  const calls = { gets: [], posts: [], benchmarkRuns: [], cleanupFetches: [], deletedIds: [], footprintFetches: [] };
   const handler = async (url, init) => {
     const path = String(url);
     const method = (init && init.method) || "GET";
@@ -164,6 +165,11 @@ function createHappyHandler(overrides = {}) {
             ] }
           : null;
       return { ok: true, benchmark: benchmarkFixture(previous) };
+    }
+    if (path.indexOf("/devicex/api/footprint") >= 0) {
+      calls.footprintFetches.push(path);
+      if (overrides.footprint === null) throw new Error("HTTP 500");
+      return { ok: true, footprint: overrides.footprint ? overrides.footprint() : footprintFixture() };
     }
     if (path.indexOf("/devicex/api/cleanup") >= 0) {
       calls.cleanupFetches.push(path);
@@ -335,6 +341,74 @@ section("1. English happy path — every tab renders live Host data");
   check(textOf(container).indexOf("Homebrew") >= 0, "Software renders Homebrew card");
   check(textOf(container).indexOf("git") >= 0, "Software lists brew packages");
   check(buttonsWithText(container, "Uninstall…").length >= 1, "Software renders uninstall actions");
+
+  // ---- uninstall footprint dialog ------------------------------------
+  const appUninstall = [...container.querySelectorAll(".dx-rowActions button")].find(
+    (node) => (node.getAttribute("aria-label") || "").indexOf("Uninstall") === 0,
+  );
+  check(!!appUninstall, "Software row exposes an app-uninstall button");
+  if (appUninstall) {
+    await click(appUninstall);
+    await flush(200);
+    check(calls.footprintFetches.length === 1, "the footprint endpoint was queried before deleting", JSON.stringify(calls.footprintFetches));
+    const fpDialog = container.querySelector('[role="dialog"]');
+    check(!!fpDialog, "the uninstall dialog opened");
+    const fpText = fpDialog ? textOf(fpDialog) : "";
+    // All four tiers are visible, with their readable labels.
+    check(fpText.indexOf("confirmed") >= 0, "the dialog shows confirmed items");
+    check(fpText.indexOf("name guess") >= 0, "the dialog shows name-guess candidates");
+    check(fpText.indexOf("ownership conflict") >= 0, "the dialog shows ownership conflicts");
+    check(fpText.indexOf("shared") >= 0, "the dialog shows shared directories");
+    // The 11 GB name-match case must be visible, not silently dropped.
+    check(fpText.indexOf("Claude-3p") >= 0, "the dialog lists the name-matched 11 GB directory");
+    // Tier A is preselected; tier B/C are not.
+    const boxes = [...(fpDialog ? fpDialog.querySelectorAll("input[type=checkbox]") : [])];
+    // Selectable = tier A (app bundle + caches), tier B (Claude-3p), tier C
+    // (Claude). The shared vendor row and the admin-only helper get none.
+    check(boxes.length === 4, "A/B/C rows get a checkbox and D/admin-only rows do not", "got " + boxes.length);
+    const checked = boxes.filter((node) => node.checked === true);
+    check(checked.length === 2, "only the confirmed tier is preselected", "got " + checked.length);
+    const adminRow = fpDialog ? fpDialog.querySelector('.dx-cleanRow[data-tier="high"].dx-fpRow:last-of-type') : null;
+    check(!adminRow || !adminRow.querySelector("input[type=checkbox]"), "the admin-only item is not offered for cleanup");
+    // The unselected-summary hint exists so big candidates cannot slip by.
+    check(fpText.indexOf("more candidate") >= 0, "the dialog warns about unselected candidates");
+    // Trash is not freed space: the hint must be present.
+    check(fpText.indexOf("frees no space") >= 0, "the dialog states that the Trash frees no space");
+    // Shared directory row has no checkbox (it is one of the 3 non-checkbox rows).
+    const sharedRow = fpDialog ? fpDialog.querySelector('.dx-fpRow[data-tier="shared"]') : null;
+    check(!!sharedRow && !sharedRow.querySelector("input[type=checkbox]"), "the shared vendor directory has no checkbox");
+
+    const fpConfirm = [...(fpDialog ? fpDialog.querySelectorAll("button") : [])].find(
+      (node) => textOf(node) === "Uninstall and clean",
+    );
+    check(!!fpConfirm, "the dialog offers uninstall + clean");
+    if (fpConfirm) {
+      await click(fpConfirm);
+      await flush(200);
+      const fpPost = calls.posts.find((entry) => entry.action === "app.uninstall");
+      check(!!fpPost, "app.uninstall was posted");
+      if (fpPost) {
+        check(typeof fpPost.params.scanId === "string" && fpPost.params.scanId.length > 0, "the request carries the scan id, never a path list", JSON.stringify(fpPost.params));
+        // Tier A in the fixture is the app bundle plus its cache directory; the
+        // medium/conflict rows must NOT be sent without an explicit click.
+        check(
+          Array.isArray(fpPost.params.itemIds) && fpPost.params.itemIds.length === 2,
+          "only the preselected tier-A item ids are sent",
+          JSON.stringify(fpPost.params.itemIds),
+        );
+        check(
+          fpPost.params.itemIds.indexOf("fp_name0001") < 0 && fpPost.params.itemIds.indexOf("fp_conf0001") < 0,
+          "unselected tier-B/C ids are not sent",
+          JSON.stringify(fpPost.params.itemIds),
+        );
+        check(fpPost.params.cleanup === "trash", "cleanup mode is trash, never permanent delete");
+        check(fpPost.params.mode === "trash", "the app itself goes to the Trash");
+        // Security property: no filesystem path travels with the request.
+        const serialized = JSON.stringify(fpPost.params);
+        check(serialized.indexOf("Application Support") < 0 && serialized.indexOf("/Users/") < 0, "no filesystem path is sent to the host", serialized);
+      }
+    }
+  }
 
   await clickTab(container, "Network");
   check(textOf(container).indexOf("Listening ports") >= 0, "Network renders listening ports");

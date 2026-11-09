@@ -1367,6 +1367,9 @@ function mapSoftware(raw, transportError) {
         arch: str(application.arch),
         lastUsed: null,
         sizeBytes: estimatedSizeKb === null ? null : Math.round(estimatedSizeKb * 1024),
+        // Additive (1.6): `software.ps1` already reads Publisher, and Windows
+        // has no bundle id, so leftover matching needs it.
+        publisher: str(application.publisher),
       };
     })
     .filter((application) => application.name !== null);

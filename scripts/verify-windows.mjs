@@ -342,7 +342,7 @@ const fakeCtx = {
   connection: { requestRejection(req) { return req.headers['x-test-reject'] === '1' ? 403 : undefined; } },
 };
 plugin.apply(fakeCtx);
-check('simulated win32 Host registers six routes + three tools', routes.length === 6 && tools.length === 3);
+check('simulated win32 Host registers seven routes + three tools', routes.length === 7 && tools.length === 3);
 check('simulated device_control enum is the Windows catalog', tools[1].parameters.properties.action.enum.length === 19);
 check('simulated device_info accepts the cleanup section', tools[0].parameters.properties.section.enum.includes('cleanup'));
 check('simulated device_benchmark tool is registered', tools[2].name === 'device_benchmark');

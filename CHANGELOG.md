@@ -1,5 +1,57 @@
 # Changelog
 
+## 1.6.0 — uninstall footprint (leftover discovery + cleanup)
+
+Uninstalling an application can now find the data it left outside its bundle and
+let the user choose what to remove with it. The action catalogue stays at **19**
+entries: scanning is a read-only route, and cleanup travels as optional
+parameters on the existing `app.uninstall`.
+
+- **New read-only route** `GET /devicex/api/footprint?path=<app>&fresh=1` returns a
+  `FootprintReport` with an opaque `scanId`. Paths stay on the host; the browser
+  only ever receives scan-local item ids.
+- **Four confidence tiers**, all shown in the dialog: `high` (bundle id / MSIX /
+  Homebrew `zap`) preselected, `medium` (name similarity only) and `conflict`
+  (name similarity with two or more possible owners) opt-in, `shared`
+  (vendor-level) and admin-only rows have no checkbox at all.
+- **Deletion still never accepts a path.** `app.uninstall` accepts `scanId` +
+  `itemIds` only; the host resolves them through a single-use, 10-minute token
+  and re-validates each path against the roots the scan was allowed to use.
+  Symbolic links and root directories are refused.
+- **Everything goes to the Trash** (macOS `~/.Trash`, Windows Recycle Bin is not
+  implemented yet — see the limitation below). The result message says that the
+  Trash frees no space until emptied.
+- **The uninstaller gates the cleanup.** If the vendor uninstaller fails, or the
+  app is still installed afterwards, the run aborts and *nothing* is deleted. An
+  app with no uninstaller is not a failure.
+- **macOS never executes a bundle-shipped uninstaller.** The two that exist on a
+  real host are an opaque Go binary and an AppleScript with no verifiable
+  argument contract, and a guessed flag risks a half-finished uninstall. The
+  bundle is moved to the Trash instead — which is how macOS apps are uninstalled
+  anyway. The uninstaller path stays wired for Windows, where MSI/winget/registry
+  all have a defined command line.
+- **Windows can list but not clean.** Discovery works (MSIX `Packages`
+  containers, name-matched product directories under `%APPDATA%`,
+  `%LOCALAPPDATA%`, `%PROGRAMDATA%`); a request that asks to remove leftovers is
+  refused with `UNSUPPORTED_PLATFORM` rather than silently uninstalling and
+  ignoring the selection. Moving to the Recycle Bin needs the shell and has not
+  been validated on a real Windows host.
+- **Two pre-existing defects fixed in `moveToTrash`**, both of which could
+  destroy data: `rename` silently overwrote any file already sitting at the
+  destination (now an atomic `mkdir`/`open('wx')` reservation is made first), and
+  the `.app` suffix was hard-coded, so a data directory was trashed under an
+  application name.
+- **No REA dependency.** Measured on a real host, REA could not contribute here:
+  the native Hopper route is blocked without an Apple Events grant,
+  `analyze-javascript-application` failed after 698 s on a 650 MB Electron app and
+  retained zero filesystem-path literals even for a 10-line control program, and
+  most native binaries contain no `Library/...` literals at all. See
+  `docs/uninstall-footprint-design.md` §2.1.
+- **Verified**: 109 unit tests, 237 client render assertions, and a new
+  `scripts/verify-footprint.mjs` (69 checks) covering tier classification, token
+  lifecycle, the pipeline's zero-side-effect failure path and `moveToTrash`
+  collision safety.
+
 ## 1.5.0 — repository + package rename
 
 The GitHub repository was renamed to `cfour-hi/dsh-plugin-devicex` (all lowercase); the npm

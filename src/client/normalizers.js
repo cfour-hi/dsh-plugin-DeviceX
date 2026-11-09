@@ -121,6 +121,58 @@ import { asArray, asObject, isFiniteNumber, isObj, numOr, numOrNull, strOr } fro
 				note: ["cpu-needs-admin", "wmi-unsupported", "unavailable"].indexOf(source.note) >= 0 ? source.note : null,
 			};
 		}
+		function normalizeFootprint(raw) {
+			const source = asObject(raw);
+			const tiers = ["high", "medium", "conflict", "shared"];
+			const kinds = ["app", "data", "container", "shared", "system"];
+			const items = asArray(source.items)
+				.map((rawItem) => {
+					const item = asObject(rawItem);
+					const id = strOr(item.id, "");
+					const path = strOr(item.path, "");
+					if (!id || !path) return null;
+					const confidence = tiers.indexOf(item.confidence) >= 0 ? item.confidence : "shared";
+					const adminOnly = item.requiresAdmin === true;
+					return {
+						id,
+						kind: kinds.indexOf(item.kind) >= 0 ? item.kind : "data",
+						path,
+						displayPath: strOr(item.displayPath, path),
+						bytes: numOr(item.bytes, 0),
+						files: numOr(item.files, 0),
+						confidence,
+						source: strOr(item.source, "bundle-id"),
+						reason: strOr(item.reason, ""),
+						alsoMatchedBy: asArray(item.alsoMatchedBy).filter((entry) => typeof entry === "string").slice(0, 8),
+						requiresAdmin: item.requiresAdmin === true,
+						exists: item.exists !== false,
+						warning: strOr(item.warning, ""),
+						// Only tier A is preselected. B/C need an explicit opt-in and
+						// D (shared) is reference-only, so it has no checkbox at all.
+						// An item the host cannot remove (admin-only) is not offered
+						// either: the host refuses such ids, so a checkbox for it would
+						// only produce a failed cleanup request.
+						selectable:
+							!adminOnly && (confidence === "high" || confidence === "medium" || confidence === "conflict"),
+						defaultSelected: !adminOnly && confidence === "high",
+					};
+				})
+				.filter(Boolean)
+				.slice(0, 200);
+			return {
+				scanId: strOr(source.scanId, ""),
+				appPath: strOr(source.appPath, ""),
+				bundleId: strOr(source.bundleId, ""),
+				sandboxed: source.sandboxed === true,
+				targetedRoots: asArray(source.targetedRoots).filter((entry) => typeof entry === "string").slice(0, 32),
+				generatedAt: numOr(source.generatedAt, 0),
+				durationMs: numOr(source.durationMs, 0),
+				items,
+				totalBytes: numOr(source.totalBytes, 0),
+				selectedBytes: numOr(source.selectedBytes, 0),
+				errors: asArray(source.errors).filter((entry) => typeof entry === "string").slice(0, 8),
+			};
+		}
 		function normalizeCleanup(raw) {
 			const source = asObject(raw);
 			const categories = ["cache", "logs", "trash", "temp", "developer", "updates"];
@@ -276,6 +328,7 @@ export {
 	normalizeMetrics,
 	normalizeThermal,
 	normalizeCleanup,
+	normalizeFootprint,
 	normalizeBenchmark,
 	normalizeParam,
 	normalizeAction,

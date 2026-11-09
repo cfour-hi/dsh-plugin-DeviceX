@@ -29,6 +29,11 @@ export interface SoftwareTabProps {
   onRetry?: () => void;
   onAction: (id: string, params?: Record<string, unknown>) => Promise<any>;
   openConfirm: (config: Record<string, unknown>) => void;
+  /**
+   * Open the uninstall dialog. The host scans first; if the scan fails the page
+   * falls back to the plain confirm, so this never blocks uninstalling.
+   */
+  openUninstall?: (target: { path: string; name: string; uninstallId: string }) => void;
 }
 
 export function SoftwareTab(props: SoftwareTabProps) {
@@ -178,7 +183,11 @@ export function SoftwareTab(props: SoftwareTabProps) {
                               disabled={!canUninstall || pending["app.uninstall"] === true}
                               title={isSystemApp ? t("sw.systemAppNote") : t("sw.uninstall")}
                               aria-label={t("sw.uninstall") + " " + strOr(row.name, "")}
-                              onClick={() =>
+                              onClick={() => {
+                                if (props.openUninstall) {
+                                  props.openUninstall({ path, name: strOr(row.name, "—"), uninstallId });
+                                  return;
+                                }
                                 props.openConfirm({
                                   title: t("sw.uninstallTitle", { name: strOr(row.name, "—") }),
                                   description: uninstallId.length > 0 ? t("sw.uninstallBodyWin") : t("sw.uninstallBody"),
@@ -186,8 +195,8 @@ export function SoftwareTab(props: SoftwareTabProps) {
                                   danger: true,
                                   actionId: "app.uninstall",
                                   params: { path, id: uninstallId, mode: "trash" },
-                                })
-                              }
+                                });
+                              }}
                             >
                               <Icon name="trash" size={13} />
                             </button>

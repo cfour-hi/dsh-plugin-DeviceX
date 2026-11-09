@@ -243,6 +243,109 @@ export const cleanupFixture = () => {
   };
 };
 
+/**
+ * Uninstall-footprint report covering all four tiers, including the real
+ * `Claude-3p` case (11 GB, name-only match, tier B).
+ */
+export const footprintFixture = () => {
+  const items = [
+    {
+      id: "fp_app0001",
+      kind: "app",
+      path: "/Applications/Claude.app",
+      displayPath: "/Applications/Claude.app",
+      bytes: 680 * 1024 ** 2,
+      files: 4200,
+      confidence: "high",
+      source: "bundle-id",
+      reason: "The application bundle itself.",
+      requiresAdmin: false,
+      exists: true,
+    },
+    {
+      id: "fp_cache001",
+      kind: "data",
+      path: "/Users/qaxc84/Library/Caches/com.anthropic.claudefordesktop",
+      displayPath: "~/Library/Caches/com.anthropic.claudefordesktop",
+      bytes: 300 * 1024,
+      files: 12,
+      confidence: "high",
+      source: "bundle-id",
+      reason: "Directory name matches the app's bundle identifier.",
+      requiresAdmin: false,
+      exists: true,
+    },
+    {
+      id: "fp_name0001",
+      kind: "data",
+      path: "/Users/qaxc84/Library/Application Support/Claude-3p",
+      displayPath: "~/Library/Application Support/Claude-3p",
+      bytes: 11 * 1024 ** 3,
+      files: 182000,
+      confidence: "medium",
+      source: "name-match",
+      reason: "Directory name resembles the app name: Claude = Claude-3p.",
+      requiresAdmin: false,
+      exists: true,
+    },
+    {
+      id: "fp_conf0001",
+      kind: "data",
+      path: "/Users/qaxc84/Library/Application Support/Claude",
+      displayPath: "~/Library/Application Support/Claude",
+      bytes: 361 * 1024 ** 2,
+      files: 2100,
+      confidence: "conflict",
+      source: "name-match",
+      reason: "Directory name also matches 1 other installed app(s).",
+      alsoMatchedBy: ["claude"],
+      requiresAdmin: false,
+      exists: true,
+    },
+    {
+      id: "fp_share001",
+      kind: "shared",
+      path: "/Users/qaxc84/Library/Application Support/Google",
+      displayPath: "~/Library/Application Support/Google",
+      bytes: 17 * 1024 ** 3,
+      files: 90000,
+      confidence: "shared",
+      source: "bundle-id",
+      reason: "Vendor-level directory shared with other products; shown for reference only.",
+      requiresAdmin: false,
+      exists: true,
+    },
+    {
+      id: "fp_admin001",
+      kind: "system",
+      path: "/Library/PrivilegedHelperTools/com.example.helper",
+      displayPath: "/Library/PrivilegedHelperTools/com.example.helper",
+      bytes: 2 * 1024 ** 2,
+      files: 3,
+      confidence: "high",
+      source: "bundle-id",
+      reason: "Directory name matches the app's bundle identifier.",
+      requiresAdmin: true,
+      exists: true,
+    },
+  ];
+  return {
+    scanId: "11111111-2222-3333-4444-555555555555",
+    appPath: "/Applications/Claude.app",
+    bundleId: "com.anthropic.claudefordesktop",
+    sandboxed: false,
+    targetedRoots: ["~/Library/Application Support", "~/Library/Caches", "/Library/Preferences"],
+    generatedAt: Date.now() - 1200,
+    durationMs: 265,
+    items,
+    totalBytes: items.reduce((sum, item) => sum + item.bytes, 0),
+    selectedBytes: items
+      .filter((item) => item.confidence === "high" && !item.requiresAdmin)
+      .reduce((sum, item) => sum + item.bytes, 0),
+    errors: [],
+  };
+};
+
 export const benchmarkFixture = (previous = null) => ({
   platform: "darwin",
   startedAt: Date.now() - 1500,

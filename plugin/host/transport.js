@@ -1,9 +1,9 @@
 /**
- * The Device X browser API: four same-origin JSON routes on the DSH Web
- * server, each behind the shipped Connection trust fence (the page's signed
- * session cookie authenticates the caller; foreign origins are rejected by
- * the Host/Origin fence). Route handlers never shell out themselves — they
- * call the shared operation surface, exactly like the agent tools.
+ * The Device X browser API: same-origin JSON routes on the DSH Web server,
+ * each behind the shipped Connection trust fence (the page's signed session
+ * cookie authenticates the caller; foreign origins are rejected by the
+ * Host/Origin fence). Route handlers never shell out themselves — they call
+ * the shared operation surface, exactly like the agent tools.
  *
  * @module @cfour-hi/dsh-plugin-devicex/host/transport
  */
@@ -216,6 +216,28 @@ export function registerRoutes(ctx, operations) {
       const fresh = url.searchParams.get('fresh') === '1';
       const cleanup = await operations.scanCleanup({ fresh });
       sendJson(res, 200, { ok: true, cleanup });
+    }),
+  }));
+
+  disposers.push(ctx.webServer.register({
+    kind: 'exact',
+    path: `${API_PREFIX}/footprint`,
+    handler: guarded(async (req, res) => {
+      if (rejected(ctx, req, res)) return;
+      if (req.method !== 'GET') return sendMethodNotAllowed(res, 'GET');
+      const url = requestUrl(req);
+      const appPath = url.searchParams.get('path');
+      const fresh = url.searchParams.get('fresh') === '1';
+      if (appPath === null || appPath.trim() === '') {
+        sendJson(res, 400, {
+          ok: false,
+          error: { code: 'missing-path', message: 'query parameter "path" is required' },
+        });
+        return;
+      }
+      // Read-only: no action-history entry, no filesystem writes.
+      const footprint = await operations.scanFootprint({ path: appPath, fresh });
+      sendJson(res, 200, { ok: true, footprint });
     }),
   }));
 

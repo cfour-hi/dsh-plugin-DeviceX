@@ -527,6 +527,76 @@ export interface CleanupDeleteResult {
 }
 
 /* ------------------------------------------------------------------------- */
+/* Uninstall footprint (1.6 addition)                                         */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * Confidence tier of one discovered leftover location.
+ *
+ * `high`     — bundle-id / MSIX / brew-zap / registry evidence; selected by default.
+ * `medium`   — name-similarity only, and the directory matched exactly one app.
+ * `conflict` — name-similarity, but the directory matched two or more apps.
+ * `shared`   — vendor-level directory that other products also live in; never deletable.
+ */
+export type FootprintConfidence = 'high' | 'medium' | 'conflict' | 'shared';
+
+/** Which discovery path produced the candidate. */
+export type FootprintSource =
+  | 'bundle-id'
+  | 'name-match'
+  | 'brew-zap'
+  | 'entitlements'
+  | 'registry'
+  | 'msix'
+  | 'system-item';
+
+/** One candidate leftover location. Paths are only valid within their own scan. */
+export interface FootprintItem {
+  /** Scan-local identifier; the client never sees or sends a path for deletion. */
+  id: string;
+  kind: 'app' | 'data' | 'container' | 'shared' | 'system';
+  /** Absolute path, server-side only. Never accepted back from a caller. */
+  path: string;
+  /** `~`-abbreviated form for display. */
+  displayPath: string;
+  bytes: number;
+  files: number;
+  confidence: FootprintConfidence;
+  source: FootprintSource;
+  /** Human-readable justification shown verbatim in the UI. */
+  reason: string;
+  /** `conflict` tier only: the other installed apps this directory also matched. */
+  alsoMatchedBy?: string[];
+  requiresAdmin: boolean;
+  exists: boolean;
+  warning?: string;
+}
+
+/** The read-only scan report. `scanId` is the only handle a caller may echo back. */
+export interface FootprintReport {
+  scanId: string;
+  appPath: string;
+  bundleId: string | null;
+  sandboxed: boolean;
+  /** Roots actually swept after the sandbox decision. */
+  targetedRoots: string[];
+  generatedAt: number;
+  durationMs: number;
+  items: FootprintItem[];
+  totalBytes: number;
+  /** Bytes of the `high` tier only: what a default-confirmed dialog would remove. */
+  selectedBytes: number;
+  errors: string[];
+}
+
+/** Optional footprint cleanup attached to `app.uninstall`; all three travel together. */
+export interface FootprintCleanupRequest {
+  scanId: string;
+  itemIds: string[];
+  cleanup: 'trash' | 'none';
+}
+
+/* ------------------------------------------------------------------------- */
 /* Benchmark (1.2 addition)                                                   */
 /* ------------------------------------------------------------------------- */
 
@@ -649,6 +719,8 @@ export interface PluginOperations {
   actionHistory(): any[];
   runAction(id: string, params?: Record<string, unknown>): Promise<any>;
   scanCleanup(options?: { fresh?: boolean }): Promise<any>;
+  /** Read-only leftover scan for one installed application (1.6). */
+  scanFootprint(options?: { path?: string; fresh?: boolean }): Promise<FootprintReport>;
   runBenchmark(options?: { tests?: string[]; repeat?: boolean }): Promise<any>;
 }
 
@@ -675,13 +747,19 @@ export type Win32UninstallValue =
   | { kind: 'winget'; id: string; token: string }
   | { kind: 'registry'; id: string; key: string };
 
+/**
+ * The optional footprint-cleanup tail of `app.uninstall`, on both platforms.
+ * Absent means "behave exactly like the pre-1.6 single-step uninstall".
+ */
+export type UninstallFootprintParams = Partial<FootprintCleanupRequest>;
+
 /** macOS normalized action values (the subset consumed by the darwin runners). */
 export interface DarwinActionParamsById {
   'process.signal': { pid: number; signal?: DarwinSignal };
   'app.quit': { name: string };
   'app.launch': { path: string };
   'app.reveal': { path: string };
-  'app.uninstall': { path: string; mode?: 'trash' | 'delete' };
+  'app.uninstall': { path: string; mode?: 'trash' | 'delete' } & UninstallFootprintParams;
   'system.setHostname': { kind: 'HostName' | 'ComputerName' | 'LocalHostName'; value: string };
   'system.setVolume': { percent: number };
   'system.setDarkMode': { enabled: boolean };
@@ -704,7 +782,7 @@ export interface Win32ActionParamsById {
   'app.quit': { name: string };
   'app.launch': { path: string };
   'app.reveal': { path: string };
-  'app.uninstall': Win32UninstallValue;
+  'app.uninstall': Win32UninstallValue & UninstallFootprintParams;
   'system.setHostname': { kind: 'ComputerName'; value: string };
   'system.setVolume': { percent: number };
   'system.setDarkMode': { enabled: boolean };

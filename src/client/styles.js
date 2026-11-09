@@ -691,6 +691,14 @@
 .dx-cleanSizeSub { color: var(--dsw-alias-label-secondary); font-size: 11px; }
 .dx-cleanActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+/* ------------------------------------------------- uninstall footprint */
+.dx-fp { display: flex; flex-direction: column; gap: 10px; }
+.dx-fpHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.dx-fpFacts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.dx-fpSummary { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding-top: 8px; border-top: 0.5px solid var(--dsw-alias-border-l1); }
+.dx-fp[data-busy="true"] { opacity: 0.6; pointer-events: none; }
+.dx-fp .dx-cleanRow[data-tier="shared"] { opacity: 0.72; }
+
 /* ------------------------------------------------------------ benchmark */
 .dx-benchGrid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
 .dx-benchCard {

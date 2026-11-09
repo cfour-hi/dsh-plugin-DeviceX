@@ -18,6 +18,7 @@ import {
 } from './host/collector.js';
 import { GROUPS, actionCatalog, actionHistory, runAction } from './host/actions.js';
 import { scanCleanup } from './host/cleanup.js';
+import { scanFootprint } from './host/footprint.js';
 import { runBenchmark } from './host/benchmark.js';
 import { registerRoutes } from './host/transport.js';
 import { registerTools } from './host/tool.js';
@@ -44,6 +45,7 @@ const operations = {
   actionHistory,
   runAction,
   scanCleanup,
+  scanFootprint,
   runBenchmark,
 };
 

@@ -15,7 +15,7 @@ import {
   safeErrorText,
   strOr,
 } from "./helpers.js";
-import { mergeHistory, normalizeActions, normalizeHistory, normalizeHistoryEntry } from "./normalizers.js";
+import { mergeHistory, normalizeActions, normalizeFootprint, normalizeHistory, normalizeHistoryEntry } from "./normalizers.js";
 import { SECTION_TABS, SIGNALS, TAB_ICONS, TAB_IDS, TAB_LABEL_KEYS } from "./constants.js";
 import { api } from "./api.js";
 import { actionLabel, optionLabel } from "./action-helpers.js";
@@ -36,6 +36,7 @@ import { SecurityTab } from "./components/SecurityTab";
 import { SoftwareTab } from "./components/SoftwareTab";
 import { SystemTab } from "./components/SystemTab";
 import { Toasts } from "./components/Toasts";
+import { UninstallFootprintModal } from "./components/UninstallFootprintModal";
 
 export type Translator = (key: string, params?: Record<string, unknown>) => string;
 
@@ -274,6 +275,69 @@ export function DeviceXPage(props: DeviceXPageProps) {
     setModal(Object.assign({ kind: "confirm" }, config));
     setModalError("");
   }, []);
+  /**
+   * Open the uninstall dialog: scan first, then show what would be removed.
+   * A failed or empty scan degrades to the plain confirm so uninstalling is
+   * never blocked by the analysis step.
+   */
+  const openUninstall = useCallback(
+    async (target: { path: string; name: string; uninstallId: string }) => {
+      setModal({
+        kind: "footprint",
+        path: strOr(target.path, ""),
+        name: strOr(target.name, ""),
+        uninstallId: strOr(target.uninstallId, ""),
+        status: "loading",
+        footprint: null,
+        error: "",
+      });
+      setModalError("");
+      let footprint: any = null;
+      try {
+        const raw = await api.footprint(target.path, false);
+        footprint = normalizeFootprint(raw);
+      } catch (error) {
+        setModal((current: any) =>
+          current && current.kind === "footprint" ? Object.assign({}, current, { error: safeErrorText(error) }) : current,
+        );
+      }
+      setModal((current: any) => {
+        if (!current || current.kind !== "footprint") return current;
+        if (!footprint || footprint.items.length === 0) {
+          // Nothing to show: fall back to the ordinary confirmation.
+          return {
+            kind: "confirm",
+            title: t("sw.uninstallTitle", { name: strOr(target.name, "—") }),
+            description: strOr(target.uninstallId, "") !== "" ? t("sw.uninstallBodyWin") : t("sw.uninstallBody"),
+            confirmLabel: t("sw.uninstall"),
+            danger: true,
+            actionId: "app.uninstall",
+            params: { path: strOr(target.path, ""), id: strOr(target.uninstallId, ""), mode: "trash" },
+          };
+        }
+        // Seed the selection from the default tier immediately: the dialog's
+        // checkboxes are uncontrolled by the host, and without this the very
+        // first confirm would submit an empty selection while the UI clearly
+        // showed items as checked.
+        const defaultIds: string[] = [];
+        let defaultBytes = 0;
+        for (const item of asArray(footprint.items)) {
+          const entry = asObject(item);
+          if (entry.defaultSelected === true) {
+            defaultIds.push(strOr(entry.id, ""));
+            defaultBytes += numOr(entry.bytes, 0);
+          }
+        }
+        return Object.assign({}, current, {
+          status: "ready",
+          footprint,
+          selection: { ids: defaultIds, bytes: defaultBytes },
+          error: "",
+        });
+      });
+    },
+    [t],
+  );
   const openDns = useCallback((service: string, servers: unknown) => {
     setModal({
       kind: "dns",
@@ -341,6 +405,26 @@ export function DeviceXPage(props: DeviceXPageProps) {
       setModalBusy(false);
       if (result && result.ok) {
         pushToast("ok", t("net.dnsApplied", { service }), "");
+        setModal(null);
+        setModalError("");
+      } else {
+        setModalError(strOr(result && result.message, t("error.sectionHint")));
+      }
+      return;
+    }
+    if (current.kind === "footprint") {
+      const selection = asObject(current.selection);
+      const ids = asArray(selection.ids).filter((entry) => typeof entry === "string");
+      const mode = current.uninstallId !== "" ? "win32" : "darwin";
+      const params: Record<string, unknown> =
+        ids.length > 0
+          ? { path: strOr(current.path, ""), mode: "trash", scanId: strOr(asObject(current.footprint).scanId, ""), itemIds: ids, cleanup: "trash" }
+          : { path: strOr(current.path, ""), mode: "trash", cleanup: "none" };
+      if (mode === "win32") params.id = strOr(current.uninstallId, "");
+      setModalBusy(true);
+      const result = await executeAction("app.uninstall", params);
+      setModalBusy(false);
+      if (result && result.ok) {
         setModal(null);
         setModalError("");
       } else {
@@ -485,6 +569,50 @@ export function DeviceXPage(props: DeviceXPageProps) {
         ),
       };
     }
+    if (modal.kind === "footprint") {
+      const appName = strOr(modal.name, "\u2014");
+      if (modal.status === "loading") {
+        return {
+          title: t("fp.title", { name: appName }),
+          description: t("fp.scanning"),
+          confirmLabel: t("common.confirm"),
+          danger: true,
+          busy: true,
+          children: null,
+        };
+      }
+      const footprint = asObject(modal.footprint);
+      const selection = asObject(modal.selection);
+      const selectedIds = asArray(selection.ids).filter((entry) => typeof entry === "string");
+      const selectedCount = selectedIds.length;
+      return {
+        title: t("fp.title", { name: appName }),
+        description:
+          selectedCount > 0 ? t("fp.confirmBody", { n: selectedCount }) : t("fp.confirmBodyNoCleanup"),
+        confirmLabel: selectedCount > 0 ? t("fp.cleanup") : t("fp.cleanupNone"),
+        danger: true,
+        children: (
+          <UninstallFootprintModal
+            t={t}
+            appName={appName}
+            footprint={footprint as any}
+            busy={modalBusy}
+            notice={strOr(modal.error, "")}
+            onSelectionChange={(ids, bytes) => {
+              setModal((current: any) =>
+                current && current.kind === "footprint"
+                  ? Object.assign({}, current, { selection: { ids, bytes } })
+                  : current,
+              );
+            }}
+            onOpenCleanup={() => {
+              setModal(null);
+              setActiveTab("cleanup");
+            }}
+          />
+        ),
+      };
+    }
     return {
       title: strOr(modal.title, t("dialog.title")),
       description: strOr(modal.description, ""),
@@ -540,6 +668,7 @@ export function DeviceXPage(props: DeviceXPageProps) {
         onRefresh={() => loadSection(activeTab, true)}
         onAction={executeAction}
         openConfirm={openConfirm}
+        openUninstall={openUninstall}
         openDns={openDns}
         openKill={openKill}
         openPane={openPane}
