@@ -39,7 +39,7 @@
     "build:check": "node scripts/build-client.mjs --check",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.client.json",
     "verify": "node scripts/verify.mjs && node scripts/verify-windows.mjs && node scripts/verify-sensors.mjs && node scripts/verify-cleanup.mjs && node scripts/verify-benchmark.mjs && node scripts/verify-footprint.mjs",
-    "verify:ci": "node scripts/build-client.mjs --check && npm run typecheck && npm test && node scripts/verify-build.mjs && npm run verify",
+    "verify:ci": "node scripts/build-client.mjs --check && npm run typecheck && npm test && node scripts/verify-build.mjs && node scripts/render-check.mjs && npm run verify",
     "build:concat": "node scripts/build-client-concat.mjs",
     "verify:build": "node scripts/verify-build.mjs",
     "release:check": "node scripts/check-release-version.mjs",

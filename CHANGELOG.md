@@ -1,5 +1,40 @@
 # Changelog
 
+## 1.7.0 — Ant Design UI pass
+
+The panel keeps its contract — one committed `plugin/client.js`, a single `react` seed, no
+sibling imports and no runtime CSS request — but now follows Ant Design's visual grammar: one
+8-pt spacing rhythm, a 12–14 px type scale, 6–10 px radii, divided card heads, neutral surfaces
+and semantic colour reserved for state.
+
+- **Stylesheet as source**: the plain CSS lives in `src/client/styles.css` (~60 KB) and is
+  compiled into `plugin/client.js` as a string by both engines (esbuild `.css` `text` loader;
+  the concat engine inlines CSS imports). `styles.js` stays as the `STYLE_TEXT` bridge, so
+  injection still happens as one disposable `<style data-devicex>` with no `<link>`, extra
+  request or asset route.
+- **Overview**: each KPI card reserves both sub-text lines, so rings and the 30 px chart band
+  share one y position; every sparkline draws the same 0 % baseline (and the empty state sits
+  on it) instead of drifting with its own data range. The 3D motion switch moved out of the
+  page header into the hero scene it actually controls.
+- **Hardware**: GPU and displays share one "graphics & displays" card with two columns; USB and
+  Bluetooth share one "connections" card whose table switches between the two lists from the
+  card header. Battery facts are pinned to two columns and thermal facts are two columns with
+  the note/sources clamped and the full text in the hover title, so a long device list no
+  longer leaves a tall card of empty space beside a short one. The hardware grid packs with
+  `grid-auto-flow: dense`, and the GPU/display pair collapses to one column below 880 px.
+- **Software**: applications and Homebrew/winget are views of one card, switched in the header;
+  the outdated notice is a warning pill beside the title whose CSS tooltip lists the packages,
+  so switching views no longer shifts the table. Both views fill the pane and scroll under the
+  sticky header.
+- **Processes**: the single list fills the pane height; search and the sticky table header stay
+  visible while scrolling.
+- **macOS header**: the traffic-light clearance is applied only when the page reaches the
+  window corner (sidebar collapsed or in drawer mode), so the expanded layout no longer starts
+  with a blank band.
+- **Verified**: 246 client render assertions (shared sparkline baseline, merged graphics and
+  connections cards, Homebrew view switch, 3D switch location), 109 unit tests and 37
+  build-engine checks; `render-check.mjs` is now part of `verify:ci` and the `verify` workflow.
+
 ## 1.6.0 — uninstall footprint (leftover discovery + cleanup)
 
 Uninstalling an application can now find the data it left outside its bundle and

@@ -26,9 +26,9 @@ PowerShell/CIM），浏览器 UI、HTTP API、Agent 工具两端完全一致。
 | 标签 | 内容 |
 |---|---|
 | 总览 | CSS 3D 设备核心、五个环形 KPI、火花线、Top 进程、派生告警 |
-| 硬件 | CPU 与逐核、内存、GPU、显示器、磁盘、电池健康、温度与散热、驱动、USB/蓝牙/音频/摄像头 |
+| 硬件 | CPU 与逐核、内存、图形与显示（GPU/显示器同卡）、磁盘、电池健康、温度与散热、驱动、连接设备（USB/蓝牙切换）、音频、摄像头 |
 | 系统 | 系统与内核、型号序列号、运行时长、用户表、登录项与 LaunchAgents（可启停）、环境变量 |
-| 软件 | 应用搜索/过滤/排序、定位、卸载（含[残留清理](#卸载残留清理)）；Homebrew / winget 状态 |
+| 软件 | 应用搜索/过滤/排序、定位、卸载（含[残留清理](#卸载残留清理)）；Homebrew / winget 列表（标题旁切换，可升级标签带悬停提示） |
 | 网络 | 网卡、Wi-Fi 信号、DNS、默认路由、代理、TCP 监听与连接数；开关 Wi-Fi、设 DNS |
 | 安全 | FileVault/SIP/Gatekeeper/TCC 或 BitLocker/Defender/UAC、防火墙、管理员、隐私设置页、刷新 DNS |
 | 进程 | 可搜索排序的进程表，逐行结束（TERM/KILL/INT/STOP/CONT），二次确认 |
@@ -120,12 +120,13 @@ plugin/
 │   ├── win.js + win/*.ps1 # PowerShell 桥与七个只读采集脚本
 │   ├── transport.js      # 路由注册 + 信任栅栏 + JSON 信封
 │   └── tool.js           # 三个 Agent 工具的 schema 与渲染
-├── src/client/           # 浏览器端 TSX 源码（10 个标签页 + 41 个组件）
 └── client.js             # 构建产物（勿手改，改源码后 npm run build）
+
+src/client/               # 浏览器端 TSX 源码（10 个标签页 + 44 个组件）
 ```
 
-浏览器端由 esbuild 打成单文件 IIFE（209 KB，只向 loader 要一次 `react`），提交的 `plugin/client.js`
-自包含、运行时零依赖；无打包器环境可用 `npm run build:concat` 生成等价产物（310 KB）。
+浏览器端由 esbuild 打成单文件 IIFE（225 KB，只向 loader 要一次 `react`），提交的 `plugin/client.js`
+自包含、运行时零依赖；无打包器环境可用 `npm run build:concat` 生成等价产物（322 KB）。
 [types/contracts.ts](types/contracts.ts) 是纯类型文件，定义 Host ↔ API ↔ 客户端的冻结形状。
 
 ## 验证
@@ -141,7 +142,7 @@ node scripts/verify-sensors.mjs   # 温度/驱动 57 项
 node scripts/verify-cleanup.mjs   # 清理 130 项（真实扫描 + 沙箱删除）
 node scripts/verify-benchmark.mjs # 基准 46 项
 node scripts/verify-footprint.mjs # 卸载残留 72 项
-node scripts/render-check.mjs     # 客户端渲染断言 237 条
+node scripts/render-check.mjs     # 客户端渲染断言 246 条
 ```
 
 `verify-footprint.mjs` 把实测踩到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、

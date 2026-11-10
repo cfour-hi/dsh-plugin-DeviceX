@@ -57,17 +57,27 @@ export function ThermalCard(props: ThermalCardProps) {
   return (
     <Card title={t("hw.thermal.title")} icon="spark" subtitle={t("hw.thermal.subtitle")}>
       {facts.length > 0 ? (
-        <FactGrid t={t} items={facts as any} emptyText={t("hw.thermal.none")} />
+        <div className="dx-factGridForce2">
+          <FactGrid t={t} items={facts as any} emptyText={t("hw.thermal.none")} />
+        </div>
       ) : (
         <EmptyState icon="spark" title={t("hw.thermal.none")} />
       )}
       {thermal.note ? (
-        <p className="dx-small dx-muted" style={{ marginTop: "10px" }}>
+        <p
+          className="dx-small dx-muted dx-clamp2"
+          style={{ marginTop: "10px" }}
+          title={t(THERMAL_NOTE_KEYS[thermal.note] || THERMAL_NOTE_KEYS.unavailable)}
+        >
           {t(THERMAL_NOTE_KEYS[thermal.note] || THERMAL_NOTE_KEYS.unavailable)}
         </p>
       ) : null}
       {thermal.sources.length > 0 ? (
-        <p className="dx-small dx-muted" style={{ marginTop: "8px" }}>
+        <p
+          className="dx-small dx-muted dx-clamp1"
+          style={{ marginTop: "8px" }}
+          title={t("hw.thermal.sources") + ": " + thermal.sources.join(", ")}
+        >
           {t("hw.thermal.sources") + ": " + thermal.sources.join(", ")}
         </p>
       ) : null}

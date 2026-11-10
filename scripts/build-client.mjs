@@ -38,6 +38,9 @@ const result = await build({
   jsx: 'transform',
   jsxFactory: 'h',
   jsxFragment: 'Fragment',
+  // The stylesheet is authored as plain CSS and compiled into the bundle as a
+  // JS string; DSH loads browser plugins as JavaScript only (no CSS request).
+  loader: { '.css': 'text' },
   legalComments: 'none',
   write: false,
   banner: {

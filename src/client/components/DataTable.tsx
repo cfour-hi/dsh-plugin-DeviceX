@@ -22,6 +22,10 @@ export interface DataTableProps {
   rowKey?: (row: any, index: number) => string | number;
   empty?: ReactNode;
   ariaLabel?: string;
+  /** `true` caps the table at a viewport-relative height; `"fill"` makes it
+   * take the remaining height of its panel (single-table tabs). Both scroll in
+   * place so the sticky header stays visible for long lists. */
+  scroll?: boolean | "fill";
 }
 
 export function DataTable(props: DataTableProps) {
@@ -33,7 +37,7 @@ export function DataTable(props: DataTableProps) {
   }
   const columns = asArray(props.columns) as DataColumn[];
   return (
-    <div className="dx-tableWrap">
+    <div className={props.scroll === "fill" ? "dx-tableWrap dx-tableWrapFill" : props.scroll ? "dx-tableWrap dx-tableWrapScroll" : "dx-tableWrap"}>
       <table className="dx-table" aria-label={props.ariaLabel}>
         <thead>
           <tr>

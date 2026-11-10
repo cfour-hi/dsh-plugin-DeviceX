@@ -94,6 +94,7 @@ export function ProcessesTab(props: ProcessesTabProps) {
                 </div>
                 <DataTable
                   t={t}
+                  scroll="fill"
                   ariaLabel={t("tab.processes")}
                   columns={[
                     { key: "pid", label: t("common.pid"), render: (row: any) => <span className="dx-mono">{String(row.pid)}</span> },

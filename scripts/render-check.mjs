@@ -303,16 +303,49 @@ section("1. English happy path — every tab renders live Host data");
   check(container.querySelectorAll(".dx-donutWrap svg").length >= 5, "five SVG donut KPIs rendered", "got " + container.querySelectorAll(".dx-donutWrap svg").length);
   await flush(2700); // second 2500 ms poll fills the ring buffer so sparklines draw
   check(container.querySelectorAll("svg.dx-spark").length >= 1, "sparklines render as SVG after the second poll", "got " + container.querySelectorAll("svg.dx-spark").length);
+  check(container.querySelectorAll("line.dx-sparkBase").length >= 1, "sparklines draw a shared 0% baseline", "got " + container.querySelectorAll("line.dx-sparkBase").length);
   check(container.querySelector('.dx-scene') !== null, "CSS-3D hero scene rendered");
+  // The 3D toggle controls only this scene, so it must live inside it (not in
+  // the page header, where it used to sit).
+  const scene = container.querySelector(".dx-scene");
+  const motionButton = scene ? scene.querySelector('button[aria-label="3D motion"]') : null;
+  check(motionButton !== null, "3D toggle lives inside the hero scene");
+  if (motionButton) {
+    check(rootMotion(container) === "on", "motion starts enabled");
+    await click(motionButton);
+    check(rootMotion(container) === "off", "3D toggle pauses motion");
+    await click(motionButton);
+    check(rootMotion(container) === "on", "3D toggle resumes motion");
+  }
   check(textOf(container).indexOf("All good") >= 0 || textOf(container).indexOf("no alerts") >= 0, "derived alerts empty-state rendered");
-
   await clickTab(container, "Hardware");
   check(textOf(container).indexOf("Per-core usage") >= 0, "Hardware renders per-core usage bars");
   check(textOf(container).indexOf("Apple M3 Pro") >= 0, "Hardware renders the CPU model");
   check(textOf(container).indexOf("Memory modules") >= 0, "Hardware renders memory modules");
+  check(textOf(container).indexOf("Graphics & displays") >= 0, "Hardware pairs GPU and displays in one card");
+  const graphicsCard = [...container.querySelectorAll("section.dx-card")].find(
+    (node) => textOf(node).indexOf("Graphics & displays") >= 0,
+  );
+  check(graphicsCard !== undefined && graphicsCard.querySelectorAll(".dx-duoCol").length === 2, "graphics card renders two columns");
+  check(
+    graphicsCard !== undefined && textOf(graphicsCard).indexOf("Apple M3 Pro GPU") >= 0 && textOf(graphicsCard).indexOf("D2724Q") >= 0,
+    "graphics card lists the GPU and both displays",
+  );
+  check(container.querySelector(".dx-factGridForce2 .dx-factGrid") !== null, "battery facts use the pinned two-column grid");
   check(textOf(container).indexOf("Liquid Retina XDR") >= 0, "Hardware renders displays");
   check(textOf(container).indexOf("Macintosh HD") >= 0, "Hardware renders volumes");
+  check(textOf(container).indexOf("Connections") >= 0, "Hardware renders the merged connections card");
+  check(textOf(container).indexOf("USB-C Digital AV Adapter") >= 0, "connections card lists USB devices");
+  const connectionsCard = [...container.querySelectorAll("section.dx-card")].find(
+    (node) => textOf(node.querySelector(".dx-cardTitle") || node).trim() === "Connections",
+  );
+  const connectionToggle = connectionsCard
+    ? [...connectionsCard.querySelectorAll(".dx-segBtn")].find((node) => textOf(node).trim() === "Bluetooth")
+    : null;
+  check(connectionToggle !== null, "connections card switches between USB and Bluetooth");
+  if (connectionToggle) await click(connectionToggle);
   check(textOf(container).indexOf("Magic Keyboard") >= 0, "Hardware renders Bluetooth devices");
+  check(textOf(container).indexOf("BCM4387") >= 0, "Bluetooth view shows the controller facts");
   check(textOf(container).indexOf("FaceTime HD Camera") >= 0, "Hardware renders cameras");
   check(container.querySelectorAll("thead th[scope='col']").length > 0, "tables expose scope='col' headers");
   check(textOf(container).indexOf("46.5 °C") >= 0, "Hardware renders the CPU thermal reading");
@@ -338,9 +371,14 @@ section("1. English happy path — every tab renders live Host data");
 
   await clickTab(container, "Software");
   check(textOf(container).indexOf("Visual Studio Code") >= 0, "Software lists applications");
+  // Applications and Homebrew are views of one card; switch to check the package list.
+  const brewView = buttonsWithText(container, "Homebrew")[0];
+  if (brewView) await click(brewView);
   check(textOf(container).indexOf("Homebrew") >= 0, "Software renders Homebrew card");
   check(textOf(container).indexOf("git") >= 0, "Software lists brew packages");
   check(buttonsWithText(container, "Uninstall…").length >= 1, "Software renders uninstall actions");
+  const appsView = buttonsWithText(container, "Applications")[0];
+  if (appsView) await click(appsView);
 
   // ---- uninstall footprint dialog ------------------------------------
   const appUninstall = [...container.querySelectorAll(".dx-rowActions button")].find(
@@ -477,16 +515,6 @@ section("1. English happy path — every tab renders live Host data");
   check(textOf(container).indexOf("DNS cache flushed") >= 0, "Actions renders action history from the API");
   check(container.querySelectorAll(".dx-actionCard").length >= 19, "Actions renders all 19 catalogue cards", "got " + container.querySelectorAll(".dx-actionCard").length);
 
-  // 3D toggle
-  const motionButton = container.querySelector('button[aria-label="3D motion"]');
-  check(motionButton !== null, "3D toggle present");
-  if (motionButton) {
-    check(rootMotion(container) === "on", "motion starts enabled");
-    await click(motionButton);
-    check(rootMotion(container) === "off", "3D toggle pauses motion");
-    await click(motionButton);
-    check(rootMotion(container) === "on", "3D toggle resumes motion");
-  }
   check(calls.gets.filter((path) => path.indexOf("/metrics") >= 0).length >= 1, "metrics endpoint polled");
   check(calls.gets.filter((path) => path.indexOf("/inventory") >= 0).length >= 6, "each section fetched lazily", "got " + calls.gets.filter((path) => path.indexOf("/inventory") >= 0).length);
   const errors = takeConsoleErrors();
@@ -879,6 +907,8 @@ section("13. Failure toasts, Homebrew uninstall and launch-agent confirmation");
   check(container.querySelector('[role="dialog"]') === null, "dialog closes after a failed action");
 
   await clickTab(container, "Software");
+  const brewSwitch = buttonsWithText(container, "Homebrew")[0];
+  if (brewSwitch) await click(brewSwitch);
   const brewCard = [...container.querySelectorAll("section.dx-card")].find((node) => textOf(node).indexOf("Homebrew") >= 0);
   check(!!brewCard, "Homebrew card present");
   const brewUninstall = brewCard ? [...brewCard.querySelectorAll("button")].find((node) => textOf(node) === "Uninstall…") : null;

@@ -26,7 +26,7 @@ export function DriversCard(props: DriversCardProps) {
   const problems = asArray(props.problems).filter(isObj).slice(0, 20);
   if (drivers.length === 0) {
     return (
-      <Card title={t("hw.drivers.title")} icon="gear" subtitle={t("hw.drivers.subtitle")} span={2}>
+      <Card title={t("hw.drivers.title")} icon="gear" subtitle={t("hw.drivers.subtitle")} span="full">
         <EmptyState icon="gear" title={t("hw.drivers.none")} />
       </Card>
     );
@@ -61,7 +61,7 @@ export function DriversCard(props: DriversCardProps) {
       title={t("hw.drivers.title")}
       icon="gear"
       subtitle={t("hw.drivers.subtitle")}
-      span={2}
+      span="full"
       actions={
         <div style={{ width: "190px" }}>
           <SearchField value={String(query)} placeholder={t("hw.drivers.search")} label={t("hw.drivers.search")} onChange={setQuery} />
@@ -74,18 +74,20 @@ export function DriversCard(props: DriversCardProps) {
       {rows.length === 0 ? (
         <EmptyState icon="search" title={t("hw.drivers.noMatch")} />
       ) : (
-        <DataTable
-          t={t}
-          columns={[
-            { key: "name", label: t("hw.drivers.name"), render: (row: any) => strOr(row.name, strOr(row.bundleId, "—")) },
-            { key: "class", label: t("hw.drivers.class"), render: (row: any) => strOr(row.class, strOr(row.kind, "—")) },
-            { key: "vendor", label: t("hw.drivers.vendor"), render: (row: any) => strOr(row.manufacturer, "—") },
-            { key: "version", label: t("hw.drivers.version"), render: (row: any) => strOr(row.version, "—") },
-            { key: "date", label: t("hw.drivers.date"), render: (row: any) => strOr(row.date, "—") },
-            { key: "signer", label: t("hw.drivers.signer"), render: (row: any) => strOr(row.signer, "—") },
-          ]}
-          rows={rows}
-        />
+        <div className="dx-tableScroll">
+          <DataTable
+            t={t}
+            columns={[
+              { key: "name", label: t("hw.drivers.name"), render: (row: any) => strOr(row.name, strOr(row.bundleId, "—")) },
+              { key: "class", label: t("hw.drivers.class"), render: (row: any) => strOr(row.class, strOr(row.kind, "—")) },
+              { key: "vendor", label: t("hw.drivers.vendor"), render: (row: any) => strOr(row.manufacturer, "—") },
+              { key: "version", label: t("hw.drivers.version"), render: (row: any) => strOr(row.version, "—") },
+              { key: "date", label: t("hw.drivers.date"), render: (row: any) => strOr(row.date, "—") },
+              { key: "signer", label: t("hw.drivers.signer"), render: (row: any) => strOr(row.signer, "—") },
+            ]}
+            rows={rows}
+          />
+        </div>
       )}
       {matched.length > rows.length ? (
         <p className="dx-small dx-muted" style={{ marginTop: "8px" }}>

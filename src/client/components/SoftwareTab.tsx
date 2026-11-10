@@ -11,7 +11,7 @@ import { SearchField } from "./SearchField";
 import { SegmentedControl } from "./SegmentedControl";
 import { TabShell } from "./TabShell";
 import type { TabState } from "./TabShell";
-import { spanIcon } from "./spanIcon";
+import { Tooltip } from "./Tooltip";
 
 export type Translator = (key: string, params?: Record<string, unknown>) => string;
 
@@ -42,6 +42,11 @@ export function SoftwareTab(props: SoftwareTabProps) {
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sortDirection, setSortDirection] = useState("asc");
+  const [view, setView] = useState("apps");
+  const viewOptions = [
+    { value: "apps", label: t("sw.applications") },
+    { value: "packages", label: props.platform === "win32" ? t("sw.winget") : t("sw.homebrew") },
+  ];
   const sourceOptions = [
     { value: "all", label: t("common.all") },
     { value: "system", label: t("sw.source.system") },
@@ -54,6 +59,9 @@ export function SoftwareTab(props: SoftwareTabProps) {
         const homebrew = asObject(data.homebrew);
         const winget = asObject(data.winget);
         const isWindows = props.platform === "win32";
+        const viewSwitch = (
+          <SegmentedControl label={t("sw.view")} options={viewOptions} value={view} onChange={setView} />
+        );
         const applications = asArray(data.applications).filter(isObj);
         const query = String(search).trim().toLowerCase();
         const filtered = applications
@@ -74,18 +82,12 @@ export function SoftwareTab(props: SoftwareTabProps) {
         const outdated = asArray(homebrew.outdated);
         return (
           <div className="dx-section">
+            {view === "apps" ? (
             <Card
               title={t("sw.applications")}
               icon="software"
               subtitle={t("sw.appCount", { n: numOr(data.totalApplications, applications.length) })}
-              actions={
-                <SegmentedControl
-                  label={t("sw.sourceFilter")}
-                  options={sourceOptions}
-                  value={String(sourceFilter)}
-                  onChange={setSourceFilter}
-                />
-              }
+              actions={viewSwitch}
               flush
             >
               <Fragment>
@@ -99,6 +101,12 @@ export function SoftwareTab(props: SoftwareTabProps) {
                     />
                   </div>
                   <div className="dx-toolbarRight">
+                    <SegmentedControl
+                      label={t("sw.sourceFilter")}
+                      options={sourceOptions}
+                      value={String(sourceFilter)}
+                      onChange={setSourceFilter}
+                    />
                     <span className="dx-small dx-muted">
                       {installed.length > 0
                         ? String(installed.length) + " / " + String(applications.length)
@@ -119,6 +127,7 @@ export function SoftwareTab(props: SoftwareTabProps) {
                 </div>
                 <DataTable
                   t={t}
+                  scroll="fill"
                   ariaLabel={t("sw.applications")}
                   columns={[
                     {
@@ -216,9 +225,29 @@ export function SoftwareTab(props: SoftwareTabProps) {
                 />
               </Fragment>
             </Card>
+            ) : (
             <Card
               title={isWindows ? t("sw.winget") : t("sw.homebrew")}
               icon="database"
+              actions={viewSwitch}
+              badge={
+                !isWindows && outdated.length > 0 ? (
+                  <Tooltip
+                    label={
+                      t("sw.brewOutdated") +
+                      ": " +
+                      outdated
+                        .slice(0, 12)
+                        .map((entry: any) => (typeof entry === "string" ? entry : strOr(asObject(entry).name, "")))
+                        .filter(Boolean)
+                        .join(", ") +
+                      (outdated.length > 12 ? " …" : "")
+                    }
+                  >
+                    <Pill tone="warn">{t("sw.brewOutdated") + " " + String(outdated.length)}</Pill>
+                  </Tooltip>
+                ) : null
+              }
               subtitle={
                 isWindows
                   ? winget.available === true
@@ -240,6 +269,7 @@ export function SoftwareTab(props: SoftwareTabProps) {
               ) : (
                 <DataTable
                   t={t}
+                  scroll="fill"
                   ariaLabel={t("sw.homebrew")}
                   columns={[
                     { key: "name", label: t("common.name"), render: (row: any) => <span className="dx-mono">{strOr(row.name, "—")}</span> },
@@ -276,19 +306,7 @@ export function SoftwareTab(props: SoftwareTabProps) {
                 />
               )}
             </Card>
-            {!isWindows && outdated.length > 0 ? (
-              <div className="dx-banner" data-tone="warn">
-                {spanIcon("warning")}
-                <span className="dx-bannerText">
-                  {t("sw.brewOutdated") +
-                    ": " +
-                    outdated
-                      .map((entry: any) => (typeof entry === "string" ? entry : strOr(asObject(entry).name, "")))
-                      .filter(Boolean)
-                      .join(", ")}
-                </span>
-              </div>
-            ) : null}
+            )}
           </div>
         );
       }}

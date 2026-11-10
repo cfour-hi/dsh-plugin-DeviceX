@@ -67,6 +67,20 @@ export function Sparkline(props: SparklineProps) {
     );
   });
   if (parts.length === 0) return <div className="dx-spark dx-sparkEmpty" aria-hidden="true" />;
+  // Shared 0% baseline: the same frame under every KPI card, so a full ring,
+  // a flat 100% area and a low CPU line all read against one reference.
+  parts.push(
+    <line
+      key="baseline"
+      className="dx-sparkBase"
+      x1={0}
+      y1={height - 1}
+      x2={100}
+      y2={height - 1}
+      strokeWidth={1}
+      vectorEffect="non-scaling-stroke"
+    />,
+  );
   return (
     <svg className="dx-spark" viewBox={"0 0 100 " + height} preserveAspectRatio="none" aria-hidden="true" focusable="false">
       {parts}

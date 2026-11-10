@@ -35,6 +35,7 @@ export interface OverviewTabProps {
   metrics?: any;
   samples?: Record<string, unknown>;
   threeD?: boolean;
+  onToggleThreeD?: () => void;
   onShowProcesses?: () => void;
 }
 
@@ -201,7 +202,12 @@ export function OverviewTab(props: OverviewTabProps) {
   return (
     <div className="dx-section">
       <section className="dx-heroCard">
-        <DeviceScene animated={props.threeD !== false} />
+        <DeviceScene
+          active={props.threeD !== false}
+          toggleLabel={props.threeD === false ? t("header.motionOn") : t("header.motionOff")}
+          toggleAriaLabel={t("aria.motion")}
+          onToggle={props.onToggleThreeD}
+        />
         <div className="dx-heroInfo">
           <h1 className="dx-heroTitle" title={metrics.hostname}>
             {metrics.hostname || t("panel")}
@@ -244,7 +250,7 @@ export function OverviewTab(props: OverviewTabProps) {
             " " +
             fmtNumber(asArray(cpu.loadAvg)[0], 1)
           }
-          donut={<Donut value={cpu.usagePercent} color={usageTone(cpu.usagePercent)} label={t("overview.sparkline.cpu")} centerText={fmtPercent(cpu.usagePercent)} />}
+          donut={<Donut value={cpu.usagePercent} color={usageTone(cpu.usagePercent)} label={t("overview.sparkline.cpu")} />}
           spark={<Sparkline series={[{ values: sampleList("cpu"), color: "var(--dsw-alias-brand-primary)" }]} domainMax={100} label={t("overview.sparkline.cpu")} />}
         />
         <KpiCard
@@ -263,7 +269,6 @@ export function OverviewTab(props: OverviewTabProps) {
               value={memoryPercent}
               color={memory.pressure === "normal" ? usageTone(memoryPercent) : pressureTone(memory.pressure)}
               label={t("overview.kpi.memory")}
-              centerText={fmtPercent(memoryPercent)}
             />
           }
           spark={<Sparkline series={[{ values: sampleList("memory"), color: "var(--dsw-alias-state-warn-primary)" }]} domainMax={100} label={t("overview.sparkline.memory")} />}
@@ -272,7 +277,7 @@ export function OverviewTab(props: OverviewTabProps) {
           label={t("overview.kpi.disk")}
           value={fmtPercent(diskPercent)}
           sub={t("overview.kpi.free", { value: fmtBytes(disk.freeBytes) })}
-          donut={<Donut value={diskPercent} color={usageTone(diskPercent)} label={t("overview.kpi.disk")} centerText={fmtPercent(diskPercent)} />}
+          donut={<Donut value={diskPercent} color={usageTone(diskPercent)} label={t("overview.kpi.disk")} />}
           spark={<Sparkline series={[{ values: sampleList("disk"), color: "var(--dsw-alias-state-idle-primary)" }]} domainMax={100} label={t("overview.kpi.disk")} />}
         />
         <KpiCard
@@ -284,7 +289,6 @@ export function OverviewTab(props: OverviewTabProps) {
               value={battery && battery.present ? battery.percent : null}
               color={batteryTone}
               label={t("overview.kpi.battery")}
-              centerText={battery && battery.present ? fmtPercent(battery.percent) : t("common.na")}
             />
           }
           spark={<Sparkline series={[{ values: sampleList("battery"), color: "var(--dsw-alias-state-success-primary)" }]} domainMax={100} label={t("overview.kpi.battery")} />}

@@ -637,6 +637,7 @@ export function DeviceXPage(props: DeviceXPageProps) {
         metrics={metrics}
         samples={metricsState.samples}
         threeD={threeD}
+        onToggleThreeD={() => setThreeD((value) => !value)}
         onShowProcesses={() => setActiveTab("processes")}
       />
     );
@@ -688,7 +689,6 @@ export function DeviceXPage(props: DeviceXPageProps) {
           ? "header.offline"
           : "header.connecting";
   const osChipText = metrics && metrics.osVersion ? metrics.osVersion : catalog.platform === "darwin" ? "macOS" : strOr(catalog.platform, "");
-  const motionLabel = threeD ? t("header.motionOff") : t("header.motionOn");
 
   return (
     <div className="dx-root" data-motion={threeD && !reducedMotion ? "on" : "off"}>
@@ -719,17 +719,6 @@ export function DeviceXPage(props: DeviceXPageProps) {
             onClick={manualRefresh}
           >
             <Icon name="refresh" size={15} className={refreshing ? "dx-spin" : undefined} />
-          </button>
-          <button
-            type="button"
-            className="dx-pillBtn"
-            aria-pressed={threeD}
-            aria-label={t("aria.motion")}
-            title={motionLabel}
-            onClick={() => setThreeD((value) => !value)}
-          >
-            <Icon name="spark" size={14} />
-            "3D"
           </button>
         </div>
       </header>
@@ -775,7 +764,7 @@ export function DeviceXPage(props: DeviceXPageProps) {
             </div>
           ) : null}
           <div className="dx-content">
-            <div className="dx-tabpanel" role="tabpanel" id={panelId} aria-labelledby={baseId + "-tab-" + activeTab}>
+            <div className={activeTab === "processes" || activeTab === "software" ? "dx-tabpanel dx-tabpanelFill" : "dx-tabpanel"} role="tabpanel" id={panelId} aria-labelledby={baseId + "-tab-" + activeTab}>
               <Guard t={t} key={activeTab}>
                 {body}
               </Guard>

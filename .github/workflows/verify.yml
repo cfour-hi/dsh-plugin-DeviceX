@@ -35,5 +35,7 @@ jobs:
         run: npm test
       - name: Build-engine conformance (B esbuild + C concat + D committed artifact)
         run: npm run verify:build
+      - name: Client render assertions (jsdom)
+        run: node scripts/render-check.mjs
       - name: Offline verification suites
         run: npm run verify

@@ -9,6 +9,9 @@
  * as the esbuild bundle, so it can be used on a machine (or a CI cache) where
  * npm devDependencies are unavailable.
  *
+ * CSS imports are inlined as strings here, mirroring esbuild's `text` loader:
+ * the stylesheet is not a runtime request because DSH loads plugins as JS only.
+ *
  * Usage:
  *   node scripts/build-client-concat.mjs                  # write plugin/client.js
  *   node scripts/build-client-concat.mjs --out <file>     # write elsewhere (verification)
@@ -44,6 +47,7 @@ const MODULE_ORDER = [
   'components/Skeleton.tsx',
   'components/Card.tsx',
   'components/Pill.tsx',
+  'components/Tooltip.tsx',
   'components/SignalBars.tsx',
   'components/Switch.tsx',
   'components/Donut.tsx',
@@ -58,7 +62,9 @@ const MODULE_ORDER = [
   'components/SectionErrors.tsx',
   'components/TabShell.tsx',
   'components/ThermalCard.tsx',
+  'components/GraphicsCard.tsx',
   'components/DriversCard.tsx',
+  'components/ConnectionsCard.tsx',
   'components/HardwareTab.tsx',
   'components/SystemTab.tsx',
   'components/spanIcon.tsx',
@@ -89,6 +95,29 @@ const outIndex = argv.indexOf('--out');
 const outfile = outIndex >= 0 && argv[outIndex + 1] ? argv[outIndex + 1] : join(root, 'plugin', 'client.js');
 
 /**
+ * Replace `import X from "./x.css";` with the file contents as a JS string,
+ * the no-bundler equivalent of esbuild's `text` loader.
+ * @param {string} source
+ * @param {string} name
+ * @returns {string}
+ */
+function inlineCssImports(source, name) {
+  return source.replace(
+    /^import\s+([A-Za-z0-9_$]+)\s+from\s+["'](\.[^"']+\.css)["'];?[ \t]*$/gm,
+    (_match, binding, spec) => {
+      const cssPath = join(sourceDir, spec);
+      let css;
+      try {
+        css = readFileSync(cssPath, 'utf8');
+      } catch (_error) {
+        throw new Error(`${name}: cannot read imported stylesheet ${spec}`);
+      }
+      return `const ${binding} = ${JSON.stringify(css)};`;
+    },
+  );
+}
+
+/**
  * Strip module syntax so the bodies can share one scope.
  * @param {string} source
  * @param {string} name
@@ -116,7 +145,7 @@ function stripModuleSyntax(source, name) {
  * @returns {string}
  */
 function readModuleSource(file) {
-  const raw = readFileSync(join(sourceDir, file), 'utf8');
+  const raw = inlineCssImports(readFileSync(join(sourceDir, file), 'utf8'), file);
   if (!file.endsWith('.ts') && !file.endsWith('.tsx')) return raw;
   const transpiled = ts.transpileModule(raw, {
     compilerOptions: {

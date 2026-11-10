@@ -65,7 +65,10 @@ export const hardwareFixture = () => ({
     modules: [{ slot: "Unified", sizeBytes: 36 * GB, type: "LPDDR5", speedMHz: 6400, manufacturer: "Apple", partNumber: "M3PRO-36" }],
   },
   gpu: [{ name: "Apple M3 Pro GPU", cores: 18, vramBytes: 12 * GB, vendor: "Apple", metal: true }],
-  displays: [{ name: "Liquid Retina XDR", resolution: "3456x2234", refreshHz: 120, main: true, connection: "built-in" }],
+  displays: [
+    { name: "Liquid Retina XDR", resolution: "3456x2234", refreshHz: 120, main: true, connection: "built-in" },
+    { name: "D2724Q", resolution: "2560x1440", refreshHz: 75, main: false, connection: "external" },
+  ],
   storage: {
     physical: [{ name: "APPLE SSD AP0512Z", model: "AP0512Z", sizeBytes: 500 * GB, mediaType: "SSD", smartStatus: "Verified" }],
     volumes: [

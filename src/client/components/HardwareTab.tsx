@@ -13,11 +13,13 @@ import {
   usageTone,
 } from "../helpers.js";
 import { Bar } from "./Bar";
+import { ConnectionsCard } from "./ConnectionsCard";
 import { Card } from "./Card";
 import { DataTable } from "./DataTable";
 import { DriversCard } from "./DriversCard";
 import { EmptyState } from "./EmptyState";
 import { FactGrid } from "./FactGrid";
+import { GraphicsCard } from "./GraphicsCard";
 import { Pill } from "./Pill";
 import { SubCard } from "./SubCard";
 import { TabShell } from "./TabShell";
@@ -44,8 +46,6 @@ export function HardwareTab(props: HardwareTabProps) {
         const memory = asObject(data.memory);
         const storage = asObject(data.storage);
         const battery = isObj(data.battery) ? data.battery : null;
-        const bluetooth = asObject(data.bluetooth);
-        const controller = asObject(bluetooth.controller);
         const features = asArray(cpu.features).filter((feature) => typeof feature === "string");
         const modules = asArray(memory.modules).filter(isObj);
         const gpus = asArray(data.gpu).filter(isObj);
@@ -53,7 +53,6 @@ export function HardwareTab(props: HardwareTabProps) {
         const drives = asArray(storage.physical).filter(isObj);
         const volumes = asArray(storage.volumes).filter(isObj);
         const usbDevices = asArray(data.usb).filter(isObj);
-        const btDevices = asArray(bluetooth.devices).filter(isObj);
         const audioDevices = asArray(data.audio).filter(isObj);
         const cameras = asArray(data.cameras).filter(isObj);
         const drivers = asArray(data.drivers).filter(isObj);
@@ -61,7 +60,7 @@ export function HardwareTab(props: HardwareTabProps) {
         const driverProblems = asArray(data.driverProblems).filter(isObj);
         return (
           <div className="dx-section">
-            <div className="dx-grid">
+            <div className="dx-grid dx-gridDense">
               <Card title={t("hw.cpu")} icon="cpu" subtitle={strOr(cpu.model, "")} span={2}>
                 <FactGrid
                   t={t}
@@ -142,53 +141,41 @@ export function HardwareTab(props: HardwareTabProps) {
                   </p>
                 )}
               </Card>
-              <Card title={t("hw.gpu")} icon="gpu">
-                {gpus.length === 0 ? (
-                  <EmptyState title={t("hw.empty")} />
-                ) : (
-                  <div className="dx-sublist">
-                    {gpus.map((gpu: any, index: number) => (
-                      <SubCard
-                        key={index}
-                        title={strOr(gpu.name, "—")}
-                        icon="gpu"
-                        meta={[
-                          isFiniteNumber(gpu.cores) ? t("hw.gpuCores", { n: gpu.cores }) : null,
-                          gpu.vramBytes !== null && gpu.vramBytes !== undefined ? t("hw.vram") + " " + fmtBytes(gpu.vramBytes) : null,
-                          gpu.vendor ? gpu.vendor : null,
-                          gpu.metal ? t("hw.metal") : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      />
-                    ))}
+              <GraphicsCard t={t} gpus={gpus} displays={displays} />
+              <Card title={t("hw.battery")} icon="battery">
+                {battery ? (
+                  <div className="dx-factGridForce2">
+                    <FactGrid
+                      t={t}
+                      items={[
+                        battery.condition ? { key: "condition", label: t("hw.condition"), value: battery.condition } : null,
+                        battery.percent !== null && battery.percent !== undefined
+                          ? { key: "percent", label: t("common.battery"), value: t("hw.batteryPercent", { percent: fmtPercent(battery.percent) }) }
+                          : null,
+                        battery.healthPercent !== null && battery.healthPercent !== undefined
+                          ? { key: "health", label: t("hw.health"), value: fmtPercent(battery.healthPercent) }
+                          : null,
+                        battery.cycleCount !== null && battery.cycleCount !== undefined
+                          ? { key: "cycles", label: t("hw.cycles"), value: String(battery.cycleCount) }
+                          : null,
+                        battery.designCapacityMah !== null && battery.designCapacityMah !== undefined
+                          ? { key: "design", label: t("hw.designCapacity"), value: String(battery.designCapacityMah) + " mAh" }
+                          : null,
+                        battery.maxCapacityMah !== null && battery.maxCapacityMah !== undefined
+                          ? { key: "max", label: t("hw.maxCapacity"), value: String(battery.maxCapacityMah) + " mAh" }
+                          : null,
+                        battery.temperatureC !== null && battery.temperatureC !== undefined
+                          ? { key: "temperature", label: t("common.temperature"), value: fmtNumber(battery.temperatureC, 1) + " °C" }
+                          : null,
+                      ].filter(Boolean) as any}
+                      emptyText={t("hw.batteryNoData")}
+                    />
                   </div>
+                ) : (
+                  <EmptyState icon="battery" title={t("hw.batteryNoData")} />
                 )}
               </Card>
-              <Card title={t("hw.displays")} icon="display">
-                {displays.length === 0 ? (
-                  <EmptyState title={t("hw.empty")} />
-                ) : (
-                  <div className="dx-sublist">
-                    {displays.map((display: any, index: number) => (
-                      <SubCard
-                        key={index}
-                        title={strOr(display.name, "—")}
-                        icon="display"
-                        badge={display.main === true ? <Pill tone="brand">{t("hw.main")}</Pill> : null}
-                        meta={[
-                          display.resolution ? display.resolution : null,
-                          isFiniteNumber(display.refreshHz) ? fmtNumber(display.refreshHz) + " Hz" : null,
-                          display.connection ? display.connection : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Card>
-              <Card title={t("hw.storage")} icon="disk" span={2}>
+              <Card title={t("hw.storage")} icon="disk" span="full">
                 {drives.length > 0 ? (
                   <>
                     <div className="dx-factLabel" style={{ marginBottom: "6px" }}>
@@ -245,106 +232,9 @@ export function HardwareTab(props: HardwareTabProps) {
                   <EmptyState title={t("common.empty")} />
                 )}
               </Card>
-              <Card title={t("hw.battery")} icon="battery">
-                {battery ? (
-                  <FactGrid
-                    t={t}
-                    items={[
-                      battery.condition ? { key: "condition", label: t("hw.condition"), value: battery.condition } : null,
-                      battery.percent !== null && battery.percent !== undefined
-                        ? { key: "percent", label: t("common.battery"), value: t("hw.batteryPercent", { percent: fmtPercent(battery.percent) }) }
-                        : null,
-                      battery.healthPercent !== null && battery.healthPercent !== undefined
-                        ? { key: "health", label: t("hw.health"), value: fmtPercent(battery.healthPercent) }
-                        : null,
-                      battery.cycleCount !== null && battery.cycleCount !== undefined
-                        ? { key: "cycles", label: t("hw.cycles"), value: String(battery.cycleCount) }
-                        : null,
-                      battery.designCapacityMah !== null && battery.designCapacityMah !== undefined
-                        ? { key: "design", label: t("hw.designCapacity"), value: String(battery.designCapacityMah) + " mAh" }
-                        : null,
-                      battery.maxCapacityMah !== null && battery.maxCapacityMah !== undefined
-                        ? { key: "max", label: t("hw.maxCapacity"), value: String(battery.maxCapacityMah) + " mAh" }
-                        : null,
-                      battery.temperatureC !== null && battery.temperatureC !== undefined
-                        ? { key: "temperature", label: t("common.temperature"), value: fmtNumber(battery.temperatureC, 1) + " °C" }
-                        : null,
-                    ].filter(Boolean) as any}
-                    emptyText={t("hw.batteryNoData")}
-                  />
-                ) : (
-                  <EmptyState icon="battery" title={t("hw.batteryNoData")} />
-                )}
-              </Card>
-              <ThermalCard t={t} thermal={metrics ? metrics.thermal : null} />
               <DriversCard t={t} drivers={drivers} summary={driverSummary} problems={driverProblems} />
-              <Card title={t("hw.usb")} icon="usb">
-                {usbDevices.length === 0 ? (
-                  <EmptyState title={t("hw.empty")} />
-                ) : (
-                  <DataTable
-                    t={t}
-                    columns={[
-                      { key: "name", label: t("common.name"), render: (row: any) => strOr(row.name, "—") },
-                      { key: "vendor", label: t("hw.vendor"), render: (row: any) => strOr(row.vendor, "—") },
-                      { key: "serial", label: t("common.serial"), render: (row: any) => strOr(row.serial, "—") },
-                      {
-                        key: "speed",
-                        label: t("hw.usbSpeed"),
-                        render: (row: any) => (row.speed === null || row.speed === undefined ? "—" : String(row.speed)),
-                      },
-                      {
-                        key: "bus",
-                        label: t("hw.bus"),
-                        render: (row: any) => (row.bus === null || row.bus === undefined ? "—" : String(row.bus)),
-                      },
-                    ]}
-                    rows={usbDevices}
-                  />
-                )}
-              </Card>
-              <Card title={t("hw.bluetooth")} icon="bluetooth">
-                {Object.keys(controller).length > 0 ? (
-                  <FactGrid
-                    t={t}
-                    items={[
-                      controller.address ? { key: "address", label: t("common.address"), value: controller.address } : null,
-                      controller.chipset ? { key: "chipset", label: t("hw.chipset"), value: controller.chipset } : null,
-                      controller.firmware ? { key: "firmware", label: t("hw.firmware"), value: controller.firmware } : null,
-                      controller.state ? { key: "state", label: t("common.state"), value: controller.state } : null,
-                    ].filter(Boolean) as any}
-                    emptyText={t("common.empty")}
-                  />
-                ) : null}
-                {btDevices.length > 0 ? (
-                  <div style={{ marginTop: Object.keys(controller).length > 0 ? "12px" : "0" }}>
-                    <DataTable
-                      t={t}
-                      columns={[
-                        { key: "name", label: t("common.name"), render: (row: any) => strOr(row.name, "—") },
-                        { key: "address", label: t("common.address"), render: (row: any) => strOr(row.address, "—") },
-                        {
-                          key: "connected",
-                          label: t("common.status"),
-                          render: (row: any) =>
-                            row.connected === true ? <Pill tone="ok">{t("hw.connected")}</Pill> : <Pill tone="idle">{t("hw.notConnected")}</Pill>,
-                        },
-                        {
-                          key: "battery",
-                          label: t("common.battery"),
-                          render: (row: any) =>
-                            row.batteryPercent === null || row.batteryPercent === undefined ? "—" : fmtPercent(row.batteryPercent),
-                        },
-                      ]}
-                      rows={btDevices}
-                    />
-                  </div>
-                ) : (
-                  <p className="dx-small dx-muted" style={{ marginTop: "10px" }}>
-                    {t("hw.empty")}
-                  </p>
-                )}
-              </Card>
+              <ConnectionsCard t={t} usbDevices={usbDevices} bluetooth={data.bluetooth} />
+              <ThermalCard t={t} thermal={metrics ? metrics.thermal : null} />
               <Card title={t("hw.audio")} icon="audio">
                 {audioDevices.length === 0 ? (
                   <EmptyState title={t("hw.empty")} />

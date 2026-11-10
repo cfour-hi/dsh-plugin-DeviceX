@@ -1,9 +1,22 @@
-/** Pure-CSS 3D device core (decorative; motion pauses off-screen/hidden). */
+/**
+ * Pure-CSS 3D device core (decorative; motion pauses off-screen/hidden).
+ *
+ * The motion toggle lives inside the scene: it is the only control that
+ * affects this artwork, so it stays with the artwork instead of the page
+ * header. The decorative layers stay `aria-hidden`; the button is real.
+ */
 import { h } from "../jsx.js";
 import { useEffect, useRef, useState } from "../hooks.js";
+import { Icon } from "./Icon";
 
 export interface DeviceSceneProps {
-  animated?: boolean;
+  /** Whether the user has 3D motion switched on. */
+  active?: boolean;
+  /** Tooltip describing the next action ("Pause 3D motion" / "Turn on 3D motion"). */
+  toggleLabel?: string;
+  /** Accessible name for the toggle. */
+  toggleAriaLabel?: string;
+  onToggle?: () => void;
 }
 
 function ring(layer: number, id: number) {
@@ -34,29 +47,43 @@ export function DeviceScene(props: DeviceSceneProps) {
     document.addEventListener("visibilitychange", onChange);
     return () => document.removeEventListener("visibilitychange", onChange);
   }, []);
-  const motion = props.animated !== false && inView && pageVisible ? "on" : "off";
+  const active = props.active !== false;
+  const motion = active && inView && pageVisible ? "on" : "off";
   return (
-    <div className="dx-scene" data-motion={motion} aria-hidden="true" ref={sceneRef}>
-      <div className="dx-sceneGlow" />
-      <div className="dx-sceneGrid" />
-      {ring(1, 1)}
-      {ring(2, 2)}
-      {ring(3, 3)}
-      <div className="dx-chipScene">
-        <div className="dx-chipBody">
-          <div className="dx-chipPins">
-            {Array.from({ length: 12 }).map((_ignored, index) => (
-              <span key={index} />
-            ))}
+    <div className="dx-scene" data-motion={motion} ref={sceneRef}>
+      <div className="dx-sceneArt" aria-hidden="true">
+        <div className="dx-sceneGlow" />
+        <div className="dx-sceneGrid" />
+        {ring(1, 1)}
+        {ring(2, 2)}
+        {ring(3, 3)}
+        <div className="dx-chipScene">
+          <div className="dx-chipBody">
+            <div className="dx-chipPins">
+              {Array.from({ length: 12 }).map((_ignored, index) => (
+                <span key={index} />
+              ))}
+            </div>
+            <div className="dx-chipGlow" />
+            <div className="dx-chipCore" />
           </div>
-          <div className="dx-chipGlow" />
-          <div className="dx-chipCore" />
         </div>
+        {[1, 2, 3, 4].map((particle) => (
+          <span key={"particle-" + particle} className="dx-particle" data-p={String(particle)} />
+        ))}
+        <span className="dx-sceneCaption">DEVICE X</span>
       </div>
-      {[1, 2, 3, 4].map((particle) => (
-        <span key={"particle-" + particle} className="dx-particle" data-p={String(particle)} />
-      ))}
-      <span className="dx-sceneCaption">DEVICE X</span>
+      <button
+        type="button"
+        className="dx-sceneToggle"
+        aria-pressed={active}
+        aria-label={props.toggleAriaLabel || "3D motion"}
+        title={props.toggleLabel}
+        onClick={props.onToggle}
+      >
+        <Icon name="spark" size={12} />
+        <span aria-hidden="true">3D</span>
+      </button>
     </div>
   );
 }
