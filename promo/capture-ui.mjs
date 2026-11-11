@@ -171,7 +171,7 @@ const styleText = document.head.querySelector("style[data-devicex]").textContent
 
 const TOKENS = `
 :root{color-scheme:dark;}
-html,body{margin:0;padding:0;background:#0b0c0e;}
+html,body{margin:0;padding:0;overflow:hidden;background:#0b0c0e;}
 body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif;}
 .panel-viewport{width:1440px;height:900px;overflow:hidden;background:#151517;position:relative;}
 .panel-viewport > div{height:100%;}
@@ -222,6 +222,7 @@ for (const item of CAPTURE_PLAN) {
 <html lang="zh-CN"><head><meta charset="utf-8"><title>Device X — ${item.id}</title>
 <style>${TOKENS}</style>
 <style data-devicex>${styleText}</style>
+<style id="promo-static">*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}</style>
 </head><body><div class="panel-viewport"><div class="dx-theme">${html}</div></div></body></html>`;
   const file = path.join(outDir, item.id + ".html");
   fs.writeFileSync(file, page);

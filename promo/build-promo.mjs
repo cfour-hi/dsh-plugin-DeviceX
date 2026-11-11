@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { capturePanel } from "./shot-cdp.mjs";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -21,10 +22,20 @@ fs.mkdirSync(buildDir, { recursive: true });
 fs.mkdirSync(outDir, { recursive: true });
 fs.mkdirSync(readmeDir, { recursive: true });
 
-const CHROME = path.join(
-  process.env.HOME,
-  "Library/Caches/ms-playwright/chromium-1248/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-);
+// Capture the panel HTML produced by capture-ui.mjs. The capture pages disable
+// transitions/animations and shot-cdp.mjs waits for fonts plus a settle delay,
+// so a tab that was just clicked is never caught mid fade-in.
+const CAPTURE_IDS = ["overview", "hardware", "network", "actions", "cleanup", "benchmark"];
+if (!process.argv.includes("--cards")) {
+  execFileSync(process.execPath, [path.join(here, "capture-ui.mjs")], { stdio: "inherit" });
+  for (const id of CAPTURE_IDS) {
+    const htmlPath = path.join(shotDir, id + ".html");
+    if (!fs.existsSync(htmlPath)) continue;
+    const pngPath = path.join(shotDir, id + ".png");
+    await capturePanel(htmlPath, pngPath, 1440, 900, 2);
+    console.log("capture", path.relative(root, pngPath));
+  }
+}
 
 const iconSvg = fs.readFileSync(path.join(root, "plugin/icon.svg"), "utf8")
   .replace(/<\?xml[^>]*\?>/g, "")
@@ -37,7 +48,7 @@ const SHOTS = { overview: shot("overview"), hardware: shot("hardware"), cleanup:
 const FONT = `-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","PingFang SC","Hiragino Sans GB","Helvetica Neue",Arial,sans-serif`;
 const MONO = `"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace`;
 
-function card({ id, width, height, css, body, image }) {
+async function card({ id, width, height, css, body, image }) {
   const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <title>Device X · ${id}</title>
 <style>
@@ -91,24 +102,13 @@ ${css}
   fs.writeFileSync(htmlPath, html);
   const pngPath = path.join(buildDir, id + ".png");
   const jpgPath = path.join(outDir, id + ".jpg");
-  try {
-    execFileSync(CHROME, [
-      "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--disable-extensions",
-      "--force-device-scale-factor=2", `--window-size=${width},${height}`,
-      `--screenshot=${pngPath}`, `--user-data-dir=/tmp/dx-promo-${process.pid}`,
-      "file://" + htmlPath,
-    ], { stdio: "ignore" });
-  } catch (error) {
-    // Chrome for Testing exits 2 after writing a valid screenshot on some macOS
-    // builds ("teardown watchdog expired"); only a missing file is fatal.
-    if (!fs.existsSync(pngPath)) throw error;
-  }
+  await capturePanel(htmlPath, pngPath, width, height, 2);
   execFileSync("sips", ["-s", "format", "jpeg", "-s", "formatOptions", "92", pngPath, "--out", jpgPath], { stdio: "ignore" });
   console.log("card", path.relative(root, jpgPath));
 }
 
 // ------------------------------------------------------------------ 1. hero zh
-card({
+await card({
   id: "hero-zh-1200x630", width: 1200, height: 630,
   css: `
 .heroShot{position:absolute;inset:-12% -10% -18% 26%;background:url(${SHOTS.overview}) center 12%/cover no-repeat;
@@ -138,7 +138,7 @@ card({
 });
 
 // ------------------------------------------------------------------ 2. hero en
-card({
+await card({
   id: "hero-en-1200x630", width: 1200, height: 630,
   css: `
 .heroShot{position:absolute;inset:-12% -10% -18% 28%;background:url(${SHOTS.hardware}) center 10%/cover no-repeat;
@@ -168,7 +168,7 @@ card({
 });
 
 // ------------------------------------------------------------------ 3. square zh
-card({
+await card({
   id: "square-zh-1080x1080", width: 1080, height: 1080,
   css: `
 .glow{position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(90px);z-index:0}
@@ -213,7 +213,7 @@ card({
 });
 
 // ------------------------------------------------------------------ 4. story zh
-card({
+await card({
   id: "story-zh-1080x1440", width: 1080, height: 1440,
   css: `
 .glow{position:absolute;border-radius:50%;filter:blur(100px);z-index:0}
