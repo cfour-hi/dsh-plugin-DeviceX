@@ -46,15 +46,31 @@ const SECTION_TTL = {
   processes: 30_000,
 };
 
-/** Wall-clock timeout per bundled script (PowerShell startup + CIM query). */
+/**
+ * Wall-clock timeout per bundled script (PowerShell startup + CIM query).
+ *
+ * `hardware.ps1` is the cold inventory: it enumerates PnP devices, physical
+ * disks, signed drivers and every hardware CIM class. Its measured cold runtime
+ * was ~45 s before the single-enumeration optimisation and ~18 s after, with
+ * wide machine-to-machine and load-dependent variance; the old 30 s budget
+ * killed it before it could emit its JSON document (no stdout, so every
+ * hardware card came back empty). The section is cached for five minutes
+ * afterwards.
+ *
+ * `processes.ps1` used to spend ~20 s in one full `tasklist /v` call for the
+ * per-process user column; it now scopes that lookup to the caller's session
+ * (a few seconds end to end), and keeps extra headroom for the session-0
+ * fallback and a loaded machine. Keep every script's budget above its measured
+ * cold runtime rather than letting the child be killed with empty stdout.
+ */
 const SCRIPT_TIMEOUT = {
   'metrics.ps1': 15_000,
-  'hardware.ps1': 30_000,
+  'hardware.ps1': 60_000,
   'system.ps1': 25_000,
   'software.ps1': 45_000,
   'network.ps1': 30_000,
   'security.ps1': 30_000,
-  'processes.ps1': 25_000,
+  'processes.ps1': 40_000,
 };
 
 /**
@@ -324,10 +340,18 @@ let scriptRunner = defaultRunner;
  * @returns {Promise<{ok: true, data: any} | {ok: false, error: string}>}
  */
 async function runScript(scriptName) {
+  const timeout = SCRIPT_TIMEOUT[scriptName] ?? 20_000;
   try {
-    const result = await scriptRunner(scriptName, { timeout: SCRIPT_TIMEOUT[scriptName] ?? 20_000 });
+    const result = await scriptRunner(scriptName, { timeout });
     if (result && result.ok === true) return { ok: true, data: result.data };
-    const error = result && (result.error || result.stderr) ? result.error || result.stderr : 'PowerShell returned no data';
+    // A killed child reports a generic "Command failed: ..." with no stderr;
+    // name the real cause instead of leaving the UI with that opaque line.
+    if (result && result.timedOut === true) {
+      return { ok: false, error: `PowerShell timed out after ${timeout} ms` };
+    }
+    const stderr = result && typeof result.stderr === 'string' ? result.stderr.trim() : '';
+    // stderr carries the PowerShell error text; prefer it to the execFile line.
+    const error = stderr || (result && result.error) || 'PowerShell returned no data';
     return { ok: false, error: shortErr(error) };
   } catch (error) {
     return { ok: false, error: shortErr(error instanceof Error ? error.message : error) };

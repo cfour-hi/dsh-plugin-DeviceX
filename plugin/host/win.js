@@ -129,16 +129,27 @@ function trimOutput(text) {
  * Run a script that ends by writing one JSON document, and parse it.
  * A failed run, empty output, or malformed JSON becomes `{ ok: false }` with
  * a short diagnostic supplied by the script (or from stderr); it never throws.
+ * Failure results also carry `timedOut` and `code` so callers can distinguish a
+ * killed/timed-out child (which has no stdout and no stderr) from a script that
+ * failed on its own.
  * @param {string} script
  * @param {object} [options] same as {@link runPS}.
- * @returns {Promise<{ok: true, data: any, raw: string} | {ok: false, error: string, raw: string, stderr: string}>}
+ * @returns {Promise<{ok: true, data: any, raw: string} | {ok: false, error: string, raw: string, stderr: string,
+ *   timedOut: boolean, code: number|null}>}
  */
 export async function runPSJson(script, options = {}) {
   const result = await runPS(script, options);
   const raw = trimOutput(result.stdout);
   if (raw === '') {
     const detail = trimOutput(result.stderr) || result.error || 'PowerShell returned no output';
-    return { ok: false, error: short(detail), raw, stderr: trimOutput(result.stderr) };
+    return {
+      ok: false,
+      error: short(detail),
+      raw,
+      stderr: trimOutput(result.stderr),
+      timedOut: result.timedOut,
+      code: result.code,
+    };
   }
   try {
     return { ok: true, data: JSON.parse(raw), raw };
@@ -148,6 +159,8 @@ export async function runPSJson(script, options = {}) {
       error: `PowerShell JSON was not parseable: ${short(error instanceof Error ? error.message : String(error))}`,
       raw,
       stderr: trimOutput(result.stderr),
+      timedOut: result.timedOut,
+      code: result.code,
     };
   }
 }

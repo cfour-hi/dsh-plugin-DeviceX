@@ -95,14 +95,14 @@ Data sources:
 | GPU | `Win32_VideoController` (Name, AdapterRAM, DriverVersion, VideoProcessor) |
 | Displays | `Win32_VideoController` CurrentHorizontalResolution/CurrentVerticalResolution/CurrentRefreshRate; optional `WmiMonitorID` |
 | Battery | `Win32_Battery` (EstimatedChargeRemaining, BatteryStatus) + `root\wmi BatteryFullChargedCapacity`, `BatteryStaticData` (DesignedCapacity, CycleCount), `BatteryStatus` (Temperature) |
-| USB / Bluetooth / Audio / Camera | `Get-PnpDevice -Class USB / Bluetooth / AudioEndpoint|MEDIA / Camera|Image` (FriendlyName, Status, InstanceId) |
+| USB / Bluetooth / Audio / Camera | one `Get-PnpDevice` enumeration filtered by `Class` = USB / Bluetooth / AudioEndpoint / Camera|Image (FriendlyName, Status, InstanceId); class-scoped calls re-enumerate every device and are far too slow for the inventory budget |
 | OS | `Win32_OperatingSystem` (Caption, Version, BuildNumber, InstallDate, LastBootUpTime), `Get-CimInstance Win32_ComputerSystem` (Manufacturer, Model, TotalPhysicalMemory, UserName), `Win32_BIOS` (SerialNumber), `Get-CimInstance Win32_BaseBoard` |
 | Users | `Get-LocalUser`, `Get-LocalGroupMember -Group Administrators`, `os.userInfo()` for current |
 | Startup | `Win32_StartupCommand` + registry `HKCU/HKLM:\Software\Microsoft\Windows\CurrentVersion\Run` (map to `launchAgents[]`, see actions pseudo-path) |
 | Installed apps | registry Uninstall keys (`HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall`, `HKLM\Software\WOW6432Node\...`, `HKCU\...`): DisplayName, DisplayVersion, InstallLocation, Publisher, EstimatedSize; expose `uninstallId` = `<HIVE>:<full key path>` and `bundleId` = registry key name |
 | Network | `Get-NetAdapter`, `Get-NetIPConfiguration`, `Get-NetIPAddress`, `Get-NetRoute -DestinationPrefix 0.0.0.0/0`, `Get-DnsClientServerAddress`, `Get-NetTCPConnection -State Listen|Established` (join OwningProcess with Get-Process), proxy from `HKCU\...\Internet Settings`; Wi-Fi via `netsh wlan show interfaces` (SSID, Signal %, State, Channel when present) |
 | Security | `Get-BitLockerVolume` (device encryption) with `manage-bde -status` fallback, `Get-MpComputerStatus` (Defender), `Get-NetFirewallProfile`, `Confirm-SecureBootUEFI` (try/catch), UAC `EnableLUA` registry, `Get-LocalUser`/admins; TCC equivalent → `{ readable:false, reason:'Windows does not expose a per-app consent store', grants:[] }` |
-| Processes | `Get-CimInstance Win32_PerfFormattedData_PerfProc_Process` (PercentProcessorTime, WorkingSetPrivate) or `Get-Process`; name/pid/user/state/start; top 200 by CPU |
+| Processes | `Get-CimInstance Win32_PerfFormattedData_PerfProc_Process` (PercentProcessorTime, WorkingSetPrivate) or `Get-Process`; name/pid/user/state/start; top 200 by CPU. User names come from `tasklist /v` scoped with `-fi "SESSION eq <host session>"` — a full `/v` costs 15–18 s on session-0-heavy machines, and an unelevated caller cannot read other sessions' owners regardless |
 
 Recommended TTLs: metrics stateful (no TTL, deltas), hardware 300 s, system 120 s, software 600 s,
 network 15 s, security 60 s, processes 30 s. `warmup()` primes slow sections in the background.
@@ -257,8 +257,10 @@ hardware.driverProblems = [{ name: string, code: string, class: string|null }] /
 Windows: `drivers` comes from `Get-CimInstance Win32_PnPSignedDriver` (DeviceName, DeviceClass,
 Manufacturer, DriverVersion, DriverDate, DriverProviderName, InfName, DeviceID); `DriverDate` is
 formatted `yyyy-MM-dd` inside the script and re-normalised defensively in the mapper.
-`driverProblems` comes from `Win32_PnPEntity` rows with `ConfigManagerErrorCode != 0` (code 28 =
-drivers not installed); the same code is joined onto the matching `drivers[]` entry by `DeviceID`.
+`driverProblems` comes from the same single `Get-PnpDevice` enumeration: present rows whose
+`ConfigManagerErrorCode` is non-zero (code 28 = drivers not installed); the same code is joined onto
+the matching `drivers[]` entry by `DeviceID`. (A separate `Win32_PnPEntity` query returns the same rows
+and costs another several seconds, so it is not used.)
 `driverSummary` is derived in the JS mapper from the capped arrays, so it can never disagree with
 them; `truncated` is set when the raw driver list exceeded 250 (the 250 most useful rows are kept).
 `thirdParty` counts entries whose signer/manufacturer is set and does not start with

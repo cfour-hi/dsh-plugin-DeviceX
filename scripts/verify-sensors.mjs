@@ -179,7 +179,9 @@ check(
 );
 check(
   'every win32 PowerShell script keeps its wall-clock timeout',
-  /'metrics\.ps1': 15_000/.test(win32Source) && /'hardware\.ps1': 30_000/.test(win32Source),
+  /'metrics\.ps1': 15_000/.test(win32Source) &&
+    /'hardware\.ps1': 60_000/.test(win32Source) &&
+    /'processes\.ps1': 40_000/.test(win32Source),
 );
 check(
   'docs carry the Thermal contract and Driver inventory contract sections',

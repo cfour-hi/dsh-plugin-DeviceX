@@ -71,9 +71,19 @@ try {
 } catch { $errors += ('Win32_Process: ' + $_.Exception.Message) }
 
 # --- tasklist: per-process user names (no elevation required) ---------------
+# A full `tasklist /v` resolves window titles for every session and costs ~15 s
+# on RDP/session-0-heavy machines; that single call pushed this collector past
+# its wall-clock budget. Unelevated callers can only read the current session's
+# owners anyway, so the query is scoped to this process's session (~1 s).
 $userMap = @{}
 try {
-  $taskLines = @(Invoke-NativeOem { & tasklist.exe /fo csv /v /nh 2>$null })
+  $sessionId = -1
+  try { $sessionId = [int](Get-Process -Id $PID -ErrorAction Stop).SessionId } catch { $sessionId = -1 }
+  if ($sessionId -ge 0) {
+    $taskLines = @(Invoke-NativeOem { & tasklist.exe /fo csv /v /nh /fi "SESSION eq $sessionId" 2>$null })
+  } else {
+    $taskLines = @(Invoke-NativeOem { & tasklist.exe /fo csv /v /nh 2>$null })
+  }
   $csvLines = @()
   foreach ($line in $taskLines) {
     if ([string]$line -match '^"') { $csvLines += [string]$line }
@@ -85,7 +95,9 @@ try {
       try { $taskPid = [int]$taskRow.ProcessId } catch { $taskPid = 0 }
       if ($taskPid -le 0) { continue }
       $userName = [string]$taskRow.UserName
-      if ($userName -and $userName -ne 'N/A') { $userMap[$taskPid] = $userName }
+      # Only real DOMAIN\User values: tasklist localizes the "no access"
+      # placeholder (N/A on English Windows) and it must never become a user.
+      if ($userName -and $userName -match '\\') { $userMap[$taskPid] = $userName }
     }
   }
 } catch { $errors += ('tasklist: ' + $_.Exception.Message) }

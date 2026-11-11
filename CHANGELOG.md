@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased — Windows inventory cold-start fixes
+
+On Windows most Hardware cards were empty while the panel header still showed
+live metrics. Root cause: `hardware.ps1` took ~43 s on the affected machine while
+the collector killed it at 30 s, so the child produced no JSON and the whole
+section degraded to `null` (the UI only showed `hardware.ps1: Command failed:
+powershell.exe ...`).
+
+- **Single PnP enumeration**: one `Get-PnpDevice` call now feeds USB, Bluetooth,
+  audio, cameras and `driverProblems`, replacing four class-scoped calls plus a
+  separate `Win32_PnPEntity` query. ~25 s of redundant enumeration disappears and
+  the cold inventory drops to ~18 s on the same machine.
+- **Timeout headroom**: `hardware.ps1` gets a 60 s wall-clock budget (its cold
+  inventory is the slowest script); the section keeps its five-minute TTL.
+- **Honest diagnostics**: the PowerShell bridge now carries `timedOut`/`code`
+  and the collector reports timeouts and the script's own stderr text instead of
+  the opaque `Command failed: ...` line.
+
+The Processes panel was empty for the same kind of reason: `processes.ps1` took
+~21 s and its budget was 25 s, so it was killed as soon as system/network
+collectors ran alongside it in the warmup wave.
+
+- **Session-scoped `tasklist`**: one full `tasklist /v` cost 15–18 s because it
+  resolves window titles for every session (mostly session 0). The user-name
+  lookup is now `/fi "SESSION eq <own session>"` (~1 s); unelevated callers can
+  only read that session's owners anyway. End-to-end cold runtime drops from
+  ~21 s to ~5 s.
+- **Localized placeholder**: tasklist's "no access" user cell is `N/A` on
+  English Windows but `暂缺` on zh-CN; the map now accepts only real
+  `DOMAIN\User` values instead of recording the placeholder as a user.
+- **Timeout headroom**: `processes.ps1` gets a 40 s budget for the session-0
+  fallback and a loaded machine.
+
 ## 1.7.0 — Ant Design UI pass
 
 The panel keeps its contract — one committed `plugin/client.js`, a single `react` seed, no

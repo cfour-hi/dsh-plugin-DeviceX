@@ -430,7 +430,8 @@ driverProblems: [{ name, code, class }]                 // win32 only, capped at
 ```
 
 macOS: `system_profiler SPExtensionsDataType` (third-party/loaded first, then version desc).
-Windows: `Win32_PnPSignedDriver` + `Win32_PnPEntity.ConfigManagerErrorCode`. No update/rollback is
+Windows: `Win32_PnPSignedDriver` + the `ConfigManagerErrorCode` of present `Get-PnpDevice` rows (one
+shared enumeration supplies USB/Bluetooth/audio/camera and the problem list). No update/rollback is
 attempted anywhere — the inventory is read-only by design.
 
 ### Cleanup (`host/cleanup.js`, `cleanup-darwin.js`, `cleanup-win32.js`)

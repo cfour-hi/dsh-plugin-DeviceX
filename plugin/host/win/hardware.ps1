@@ -298,10 +298,43 @@ try {
   }
 } catch { $errors += ('Win32_Battery: ' + $_.Exception.Message) }
 
+# -------------------------------------------------------------------- PnP --
+# One enumeration feeds USB, Bluetooth, audio, cameras and the problem-device
+# list. A single Get-PnpDevice call costs several seconds on real hardware, so
+# the old four class-scoped calls plus a separate Win32_PnPEntity query made the
+# whole inventory routinely exceed its wall-clock budget.
+$pnpDevices = @()
+try {
+  $pnpDevices = @(Get-PnpDevice -ErrorAction Stop)
+} catch {
+  $errors += ('Get-PnpDevice: ' + $_.Exception.Message)
+  $pnpDevices = @()
+}
+$presentPnpDevices = @($pnpDevices | Where-Object { $_.Present })
+
+$driverProblems = @()
+$problemByDeviceId = @{}
+foreach ($device in $presentPnpDevices) {
+  $errorCode = $null
+  try {
+    if ($null -ne $device.ConfigManagerErrorCode) { $errorCode = [int]$device.ConfigManagerErrorCode }
+  } catch { $errorCode = $null }
+  if ($null -eq $errorCode -or $errorCode -eq 0) { continue }
+  if ($driverProblems.Count -lt 50) {
+    $driverProblems += [ordered]@{
+      name = [string]$device.FriendlyName
+      code = [string]$errorCode
+      class = [string]$device.PNPClass
+    }
+  }
+  $problemDeviceId = [string]$device.DeviceID
+  if ($problemDeviceId) { $problemByDeviceId[$problemDeviceId] = [string]$errorCode }
+}
+
 # -------------------------------------------------------------------- USB --
 $usb = @()
 try {
-  $usbDevices = @(Get-PnpDevice -Class USB -PresentOnly -ErrorAction Stop)
+  $usbDevices = @($presentPnpDevices | Where-Object { $_.Class -eq 'USB' })
   foreach ($device in $usbDevices) {
     $instanceId = [string]$device.InstanceId
     if ($instanceId -notmatch 'VID_([0-9A-Fa-f]{4})&PID_([0-9A-Fa-f]{4})') { continue }
@@ -326,7 +359,7 @@ try {
 $bluetoothControllers = @()
 $bluetoothDevices = @()
 try {
-  $bluetoothPnp = @(Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction Stop)
+  $bluetoothPnp = @($presentPnpDevices | Where-Object { $_.Class -eq 'Bluetooth' })
   foreach ($device in $bluetoothPnp) {
     $instanceId = [string]$device.InstanceId
     $friendlyName = [string]$device.FriendlyName
@@ -370,7 +403,7 @@ try {
 # ------------------------------------------------------------------ audio --
 $audio = @()
 try {
-  $audioEndpoints = @(Get-PnpDevice -Class AudioEndpoint -PresentOnly -ErrorAction Stop)
+  $audioEndpoints = @($presentPnpDevices | Where-Object { $_.Class -eq 'AudioEndpoint' })
   foreach ($endpoint in $audioEndpoints) {
     $instanceId = [string]$endpoint.InstanceId
     $friendlyName = [string]$endpoint.FriendlyName
@@ -412,7 +445,7 @@ if ($audio.Count -eq 0) {
 # ---------------------------------------------------------------- cameras --
 $cameras = @()
 try {
-  $cameraDevices = @(Get-PnpDevice -Class Camera,Image -PresentOnly -ErrorAction Stop)
+  $cameraDevices = @($presentPnpDevices | Where-Object { $_.Class -eq 'Camera' -or $_.Class -eq 'Image' })
   foreach ($camera in $cameraDevices) {
     $cameras += [ordered]@{
       name = [string]$camera.FriendlyName
@@ -423,29 +456,10 @@ try {
 } catch { $errors += ('Get-PnpDevice Camera/Image: ' + $_.Exception.Message) }
 
 # ---------------------------------------------------------------- drivers --
-# driverProblems: PnP devices whose ConfigManagerErrorCode is non-zero (code 28
-# = drivers not installed is the common "missing driver" case). drivers: the
-# signed-driver inventory, with the same non-zero code joined in by DeviceID.
-$driverProblems = @()
-$problemByDeviceId = @{}
-try {
-  $problemDevices = @(Get-CimInstance -ClassName Win32_PnPEntity -ErrorAction Stop)
-  foreach ($device in $problemDevices) {
-    if ($null -eq $device.ConfigManagerErrorCode) { continue }
-    $errorCode = [int]$device.ConfigManagerErrorCode
-    if ($errorCode -eq 0) { continue }
-    if ($driverProblems.Count -lt 50) {
-      $driverProblems += [ordered]@{
-        name = [string]$device.Name
-        code = [string]$errorCode
-        class = [string]$device.PNPClass
-      }
-    }
-    $problemDeviceId = [string]$device.DeviceID
-    if ($problemDeviceId) { $problemByDeviceId[$problemDeviceId] = [string]$errorCode }
-  }
-} catch { $errors += ('Win32_PnPEntity: ' + $_.Exception.Message) }
-
+# driverProblems and $problemByDeviceId were built from the single PnP
+# enumeration above (present devices with a non-zero ConfigManagerErrorCode;
+# code 28 = drivers not installed is the common "missing driver" case).
+# drivers: the signed-driver inventory, with the same code joined by DeviceID.
 $drivers = @()
 try {
   $signedDrivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop)
