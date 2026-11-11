@@ -1,6 +1,6 @@
 {
   "name": "@cfour-hi/dsh-plugin-devicex",
-  "version": "1.5.0",
+  "version": "1.7.0",
   "type": "module",
   "description": "Inspect every part of this device and control what can be changed (macOS + Windows).",
   "license": "MIT",
