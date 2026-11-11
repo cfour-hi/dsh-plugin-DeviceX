@@ -10,3 +10,7 @@ dist/
 
 # Local scratch
 .tmp/
+
+# Promo build scratch (final assets live in docs/images and docs/promo)
+promo/build/
+promo/capture/
