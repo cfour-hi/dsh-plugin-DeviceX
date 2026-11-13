@@ -2,6 +2,8 @@
 
 [简体中文](README.md) | English
 
+![Device X: the whole machine on one page](docs/promo/banner-en-1280x640.jpg)
+
 One page, in Chinese or English, shows you the whole machine — hardware, system, software, network,
 security and processes — and lets you act on everything **that isn't hardware**: end processes,
 uninstall apps and clean up their leftovers, change hostname/volume/dark mode, toggle Wi-Fi/firewall,
