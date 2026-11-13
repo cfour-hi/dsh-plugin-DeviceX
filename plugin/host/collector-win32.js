@@ -75,15 +75,28 @@ const SCRIPT_TIMEOUT = {
 
 /**
  * Fast-metrics cache TTL. The macOS collector stays inside the contract's
- * <250 ms poll budget, but one Windows sample needs a PowerShell spawn plus
- * ~20 CIM queries, netsh and per-process owner lookups — routinely far above
- * 250 ms. The UI still polls every 2500 ms, so a 3000 ms TTL serves roughly
- * every other poll from cache and halves the PowerShell load. This is a
- * deliberate, documented deviation from the darwin budget; a <=3 s stale
- * metrics snapshot is acceptable for the panel, and network/disk rates stay
- * meaningful because they are deltas against the previous *sampled* timestamp.
+ * <250 ms poll budget, but a Windows sample needs a PowerShell spawn plus
+ * several CIM queries — far above 250 ms even after the slow facts moved to
+ * the detail probe. The UI still polls every 2500 ms, so a 3000 ms TTL serves
+ * roughly every other poll from cache. This is a deliberate, documented
+ * deviation from the darwin budget; a <=3 s stale metrics snapshot is
+ * acceptable for the panel, and network/disk rates stay meaningful because
+ * they are deltas against the previous *sampled* timestamp.
  */
 const METRICS_TTL = 3_000;
+
+/**
+ * Lifetime of the slow metrics detail probe (ms).
+ *
+ * `metrics.ps1` runs in two scopes. The fast scope answers the 2.5 s poll with
+ * only what must be fresh (memory, disk, byte counters, thermal zones, top
+ * processes). The detail scope carries the calls that cost ~1-2 s each on real
+ * hardware (CPU model, default route, Wi-Fi, battery, process owners, GPU
+ * temperature) and is refreshed in the background every 30 s. On the measured
+ * Windows 10 host that took the poll from ~10.8 s to ~3 s without making any
+ * field stale by more than 30 s.
+ */
+const DETAIL_TTL = 30_000;
 
 /* -------------------------------------------------------------------------- */
 /* Small utilities                                                            */
@@ -327,22 +340,24 @@ function collectErrors(raw, transportError, label) {
 async function defaultRunner(scriptName, options = {}) {
   return runPSJson(readScript(scriptName), {
     timeout: options.timeout ?? SCRIPT_TIMEOUT[scriptName] ?? 20_000,
+    env: options.env,
   });
 }
 
-/** @type {(scriptName: string, options?: {timeout?: number}) => Promise<any>} */
+/** @type {(scriptName: string, options?: {timeout?: number, env?: Record<string,string>}) => Promise<any>} */
 let scriptRunner = defaultRunner;
 
 /**
  * Run one bundled collection script. Never throws: a bridge failure becomes
  * `{ok:false, error}`.
  * @param {string} scriptName
+ * @param {{timeout?: number, env?: Record<string,string>}} [options]
  * @returns {Promise<{ok: true, data: any} | {ok: false, error: string}>}
  */
-async function runScript(scriptName) {
-  const timeout = SCRIPT_TIMEOUT[scriptName] ?? 20_000;
+async function runScript(scriptName, options = {}) {
+  const timeout = options.timeout ?? SCRIPT_TIMEOUT[scriptName] ?? 20_000;
   try {
-    const result = await scriptRunner(scriptName, { timeout });
+    const result = await scriptRunner(scriptName, { timeout, env: options.env });
     if (result && result.ok === true) return { ok: true, data: result.data };
     // A killed child reports a generic "Command failed: ..." with no stderr;
     // name the real cause instead of leaving the UI with that opaque line.
@@ -1855,25 +1870,126 @@ function fallbackMetrics() {
 }
 
 /**
- * Build one metrics snapshot: a single PowerShell invocation (OS-specific
- * facts) in parallel with the cheap `os.cpus()` CPU delta sample.
+ * Build one metrics snapshot: the fast PowerShell scope (fresh facts only) in
+ * parallel with the cheap `os.cpus()` CPU delta sample, merged with the cached
+ * detail probe when one is available.
  * @returns {Promise<object>}
  */
 async function buildMetrics() {
-  const [result, usage] = await Promise.all([runScript('metrics.ps1'), cpuUsage()]);
+  const env = { DEVICEX_ARG_SCOPE: 'fast' };
+  // CPU facts (model, physical cores) never change and cost ~1 s to query, so
+  // ask for them once and reuse the answer for every later fast poll.
+  if (lastCpuFacts === null) env.DEVICEX_ARG_CPU_FACTS = '1';
+  const [result, usage] = await Promise.all([runScript('metrics.ps1', { env }), cpuUsage()]);
   const ts = Date.now();
+  const detail = detailSnapshot();
   if (!result.ok) {
     // Keep the last good sample for continuity (documented); otherwise fall
     // back to the Node-only facts.
     if (lastMetrics !== null) return { ...lastMetrics, ts };
-    return jsonSafe(mapMetrics(null, { cpu: usage, now: ts }));
+    return jsonSafe(mapMetrics(detail, { cpu: usage, now: ts }));
   }
   const data = isObject(result.data) ? result.data : {};
+  const merged = mergeMetricsRaw(data, detail);
+  if (isObject(merged.cpu)) lastCpuFacts = merged.cpu;
+  else if (lastCpuFacts !== null) merged.cpu = lastCpuFacts;
   const rates = {
-    network: rateOf('network', countersOf(data.network?.counters), ts),
-    disk: rateOf('disk', countersOf(data.diskIo), ts),
+    network: rateOf('network', countersOf(merged.network?.counters), ts),
+    disk: rateOf('disk', countersOf(merged.diskIo), ts),
   };
-  return jsonSafe(mapMetrics(data, { cpu: usage, rates, now: ts }));
+  return jsonSafe(mapMetrics(merged, { cpu: usage, rates, now: ts }));
+}
+
+/** Last CPU facts seen (model / physical cores); static for the process. */
+/** @type {Record<string, any>|null} */
+let lastCpuFacts = null;
+
+/** Cached detail document and its in-flight refresh. */
+/** @type {{at: number, data: Record<string, any>|null}} */
+let detailCache = { at: 0, data: null };
+/** @type {Promise<any>|null} */
+let detailPending = null;
+
+/**
+ * Return the cached detail document, kicking off a background refresh when it
+ * is stale. Never awaited by the fast poll: a missing detail block only means
+ * `cpu`/`battery`/Wi-Fi/owners are filled in on a later tick.
+ * @returns {Record<string, any>|null}
+ */
+function detailSnapshot() {
+  const now = Date.now();
+  if (detailCache.data !== null && now - detailCache.at < DETAIL_TTL) return detailCache.data;
+  if (detailPending === null) {
+    detailPending = runScript('metrics.ps1', { env: { DEVICEX_ARG_SCOPE: 'detail' }, timeout: 90_000 })
+      .then((result) => {
+        if (result.ok && isObject(result.data)) detailCache = { at: Date.now(), data: result.data };
+        return result;
+      })
+      .catch(() => ({ ok: false }))
+      .finally(() => {
+        detailPending = null;
+      });
+  }
+  return detailCache.data;
+}
+
+/**
+ * Fold the detail document into the fast one. Only fields the fast scope
+ * deliberately omits are taken from detail; a fresh fast value always wins.
+ * @param {Record<string, any>} fast
+ * @param {Record<string, any>|null} detail
+ * @returns {Record<string, any>}
+ */
+function mergeMetricsRaw(fast, detail) {
+  if (!isObject(detail)) return fast;
+  const merged = { ...fast };
+
+  if (!isObject(merged.cpu) && isObject(detail.cpu)) merged.cpu = detail.cpu;
+  if (!isObject(merged.battery) && isObject(detail.battery)) merged.battery = detail.battery;
+
+  if (isObject(detail.network)) {
+    const network = isObject(merged.network) ? { ...merged.network } : {};
+    if (network.defaultInterface === null || network.defaultInterface === undefined) {
+      network.defaultInterface = detail.network.defaultInterface ?? null;
+    }
+    if (network.defaultGateway === null || network.defaultGateway === undefined) {
+      network.defaultGateway = detail.network.defaultGateway ?? null;
+    }
+    if (!Array.isArray(network.primaryIpv4) || network.primaryIpv4.length === 0) {
+      network.primaryIpv4 = asArray(detail.network.primaryIpv4);
+    }
+    if (network.wifi === null || network.wifi === undefined) network.wifi = detail.network.wifi ?? null;
+    merged.network = network;
+  }
+
+  if (isObject(detail.thermal)) {
+    const thermal = isObject(merged.thermal) ? { ...merged.thermal } : {};
+    if (thermal.gpuCelsius === null || thermal.gpuCelsius === undefined) {
+      thermal.gpuCelsius = num(detail.thermal.gpuCelsius);
+    }
+    if (!Array.isArray(thermal.fans) || thermal.fans.length === 0) {
+      thermal.fans = asArray(detail.thermal.fans);
+    }
+    const sources = [...asArray(thermal.sources), ...asArray(detail.thermal.sources)]
+      .map((value) => str(value))
+      .filter((value) => value !== null);
+    thermal.sources = [...new Set(sources)];
+    merged.thermal = thermal;
+  }
+
+  if (isObject(merged.processes) && isObject(detail.owners)) {
+    const owners = detail.owners;
+    merged.processes = {
+      ...merged.processes,
+      top: asArray(merged.processes.top).map((entry) => {
+        if (!isObject(entry) || (typeof entry.user === 'string' && entry.user !== '')) return entry;
+        const owner = owners[String(entry.pid)];
+        return typeof owner === 'string' && owner !== '' ? { ...entry, user: owner } : entry;
+      }),
+    };
+  }
+
+  return merged;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1888,6 +2004,9 @@ async function buildMetrics() {
  */
 export function warmup() {
   const prime = async () => {
+    // Start the slow detail probe first so battery/Wi-Fi/owners are ready by
+    // the time the first few polls have run.
+    detailSnapshot();
     for (const group of [['system', 'network', 'processes'], ['hardware', 'security', 'software']]) {
       await Promise.all(group.map((section) => collectSection(section).catch(() => {})));
     }
@@ -2025,11 +2144,13 @@ export function clearCache(section) {
     sectionCache.clear();
     lastMetrics = null;
     lastMetricsAt = 0;
+    detailCache = { at: 0, data: null };
     return;
   }
   if (section === 'metrics') {
     lastMetrics = null;
     lastMetricsAt = 0;
+    detailCache = { at: 0, data: null };
     return;
   }
   sectionCache.delete(String(section));
@@ -2053,6 +2174,9 @@ function resetInternalState() {
   lastMetrics = null;
   lastMetricsAt = 0;
   metricsPending = null;
+  detailCache = { at: 0, data: null };
+  detailPending = null;
+  lastCpuFacts = null;
   scriptRunner = defaultRunner;
 }
 
@@ -2064,6 +2188,8 @@ function resetInternalState() {
 export const __test = {
   asArray,
   mapMetrics,
+  mergeMetricsRaw,
+  DETAIL_TTL,
   mapHardware,
   mapSystem,
   mapSoftware,

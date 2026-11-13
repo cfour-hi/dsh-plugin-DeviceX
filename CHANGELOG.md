@@ -1,5 +1,80 @@
 # Changelog
 
+## 1.10.0 — Windows leftovers can be cleaned; the bridge stops dropping multi-line scripts
+
+The Windows half shipped in 1.9.0 could list an application's leftover folders but refused to touch
+them, and the README said so: moving to the Recycle Bin "needs the shell and was never verified on a
+real Windows host". This release does the verification, wires the shared uninstall pipeline, and fixes
+two defects the real machine exposed along the way — one of which silently broke inline action
+scripts.
+
+### Windows leftover cleanup (Recycle Bin)
+
+- **`app.uninstall` with a footprint scan runs the same pipeline as macOS**: uninstall → verify →
+  recycle the app → re-scan → recycle the selected leftovers. `uninstall.js` is unchanged; Windows
+  supplies the four steps.
+- **New `recycleToBin()`** in `cleanup-win32.js`: `Microsoft.VisualBasic.FileIO.FileSystem`
+  `DeleteDirectory`/`DeleteFile` with `SendToRecycleBin` — the supported wrapper over
+  `SHFileOperation` + `FOF_ALLOWUNDO`. It refuses non-absolute paths, filesystem roots and reparse
+  points, and reports a failed move instead of ever falling back to a permanent delete.
+- **Verified end to end on Windows 10 22H2 / Windows PowerShell 5.1**: a directory and a file moved
+  to the Recycle Bin, both appeared in the bin with a working "Restore" verb, and both restored to
+  their original paths with their contents intact. A full pipeline run on a throwaway HKCU uninstall
+  entry moved two leftovers in 9.2 s; the Recycle Bin held both and they restored.
+- **Honest winget gate**: winget has no registry record to watch, and `winget list` costs ~15 s and
+  needs a source agreement on this host, so a winget run is gated by its exit code only. MSI and
+  registry uninstalls are gated on the registry entry disappearing.
+- **Removed**: the `UNSUPPORTED_PLATFORM` refusal and the now-dead `cleanupUnsupported()`.
+
+### PowerShell bridge: multi-line scripts produced nothing
+
+- **Root cause**: `-Command -` parses stdin as an interactive REPL, one statement per line. A block
+  whose closing brace is not followed by a blank line exits 0 with no output. `metrics.ps1` only
+  worked because its sections happen to be blank-line separated; every inline action script that puts
+  `if (...) {` on its own line — the registry uninstaller among them — failed with the opaque
+  "PowerShell returned no output".
+- **Fix**: the bridge writes the script to a private temp file (UTF-8 with a BOM) and runs `-File`,
+  which parses the whole document. Parameters still arrive through `DEVICEX_ARG_*`; nothing is
+  interpolated into script text.
+- **Regression guard**: `verify-windows.mjs` runs a real multi-line block through the bridge on
+  Windows and asserts it produces output.
+
+### Fast metrics poll: ~10.8 s → ~2.3 s
+
+On the measured laptop every Windows CIM/cmdlet call costs ~1 s, and the fast poll made about fifteen
+of them. `metrics.ps1` now runs in two scopes:
+
+- **fast** — memory, disk, byte counters, thermal zones and top processes. This is the poll path.
+- **detail** — the ~1–2 s calls (CPU model, default route, Wi-Fi, battery, process owners, GPU
+  temperature), refreshed in the background every 30 s and merged in `collector-win32.js`.
+
+Cheaper sources replaced the expensive ones: `Win32_IP4RouteTable` for the default route (~1.1 s →
+~0.2 s), `Win32_PerfRawData_Tcpip_NetworkInterface` for the adapter counters (~1.1 s → ~0.03 s), and
+one session-scoped `tasklist` instead of five `GetOwner` round-trips. Physical core count is fetched
+once and cached for the process lifetime, so it is never guessed from the logical count.
+
+Steady-state poll on the test machine: **2.2–2.5 s** (first poll 4.2 s, which also fetches the CPU
+facts). Battery, Wi-Fi and process owners can be up to 30 s stale; temperatures up to 30 s.
+
+### Real-machine verification and the fixes it forced
+
+- `npm test` (121), `verify.mjs` (93), `verify-windows.mjs` (173), `verify-sensors.mjs` (46),
+  `verify-cleanup.mjs` (108), `verify-benchmark.mjs` (46), `verify-footprint.mjs` (66),
+  `verify-build.mjs` (37) and `render-check.mjs` (282) all pass on Windows 10 22H2 with Windows
+  PowerShell 5.1. The macOS-only live probes in the sensor/cleanup/footprint suites report a skip on
+  Windows instead of a failure.
+- **`moveToTrash` on Windows**: `rename` cannot replace an existing directory, so the empty
+  placeholder made every directory move fail with `EPERM`. The placeholder is now released on win32
+  before the rename, and a name claimed in that window costs a retry, never another process's data.
+- **`verify-cleanup.mjs`** no longer creates a symlink when Windows refuses it (needs Developer Mode),
+  and it never calls `deleteCleanup(['recycle-bin'])` on a real Windows host — that would empty the
+  user's Recycle Bin.
+- **`verify-build.mjs`** compares the committed bundle by content, not by checkout line endings, so a
+  `core.autocrlf=true` checkout no longer looks stale.
+- **`verify.mjs`** expects the 17 Windows settings panes instead of the 21 macOS anchors.
+- **New coverage**: 2 mapper tests for the fast/detail merge, 3 static guards for the Recycle Bin
+  path, and the live bridge check above.
+
 ## 1.9.0 — correct System Settings pane anchors; Windows cold-start fixes
 
 Several "open … settings" buttons landed on **General** instead of their own pane. The cause was not

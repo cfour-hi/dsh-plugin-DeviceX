@@ -81,7 +81,11 @@ try {
   check('concat build is deterministic', concatCode === readFileSync(files.concatB, 'utf8'));
   check(
     'committed plugin/client.js is current with the esbuild build',
-    committedCode === esbuildCode,
+    // Compare content, not checkout line endings: git with core.autocrlf=true
+    // (the default on Windows) checks this file out with CRLF while a fresh
+    // build writes LF, which would fail for a reason that has nothing to do
+    // with staleness.
+    committedCode.replace(/\r\n/g, '\n') === esbuildCode.replace(/\r\n/g, '\n'),
     'run npm run build if this fails',
   );
 

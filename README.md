@@ -4,7 +4,7 @@
 
 [![verify](https://img.shields.io/github/actions/workflow/status/cfour-hi/dsh-plugin-devicex/verify.yml?branch=main&style=flat-square&label=verify)](https://github.com/cfour-hi/dsh-plugin-devicex/actions/workflows/verify.yml)
 [![npm](https://img.shields.io/npm/v/%40cfour-hi%2Fdsh-plugin-devicex?style=flat-square&label=npm)](https://www.npmjs.com/package/@cfour-hi/dsh-plugin-devicex)
-[![checks](https://img.shields.io/badge/checks-969%20passing-brightgreen?style=flat-square)](#验证与开发)
+[![checks](https://img.shields.io/badge/checks-976%20passing-brightgreen?style=flat-square)](#验证与开发)
 [![license](https://img.shields.io/github/license/cfour-hi/dsh-plugin-devicex?style=flat-square)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%2010%2F11-555?style=flat-square)](#已知限制)
 
@@ -99,7 +99,7 @@ B/C 展示但不默认勾选——本机实测 `Application Support/Claude-3p` �
 
 三条不变式：**删除永不接受路径**——浏览器只拿条目 id，完整路径留在 Host 内存，`scanId` 一次性且绑定单次
 扫描，`realpath` 后必须仍在允许的根列表内；**卸载失败即全局中止**，一个字节都不删，应用仍在运行时直接
-拒绝；**一律移入废纸篓**，结果页写明「清空废纸篓后释放 X」。Windows 侧只能列出不能清理，见[已知限制](#已知限制)。
+拒绝；**一律移入废纸篓**，结果页写明「清空废纸篓后释放 X」。Windows 侧同样移入回收站，不提供永久删除。
 扫描与令牌的完整设计见 [设计文档](docs/uninstall-footprint-design.md)。
 
 ## 给 Agent 与自动化
@@ -142,10 +142,12 @@ src/client/               # 浏览器端 TSX 源码（10 个标签页 + 43 个�
 npm run verify:ci    # 一条命令跑完全部关卡（等价 CI）
 ```
 
-分开跑时：`npm test`（119 项单测）、`verify.mjs`（96 项通用回归）、`verify-windows.mjs`（167 项，fixture
-无需真机）、`verify-sensors.mjs`（57 项温度/驱动）、`verify-cleanup.mjs`（130 项，真实扫描 + 沙箱删除）、
-`verify-benchmark.mjs`（46 项）、`verify-footprint.mjs`（72 项残留）、`render-check.mjs`（282 条渲染断言），
-合计 969 项。`verify:ci` 另外强制 `build-client --check`、`typecheck` 与产物校验，所以**过期产物过不了 CI**。
+分开跑时：`npm test`（121 项单测）、`verify.mjs`（93 项通用回归）、`verify-windows.mjs`（173 项，
+含 1 项仅在 Windows 上执行的桥接实机回归）、`verify-sensors.mjs`（Windows 46 / macOS 57 项温度与驱动）、
+`verify-cleanup.mjs`（Windows 108 / macOS 130 项，沙箱删除）、`verify-benchmark.mjs`（46 项）、
+`verify-footprint.mjs`（Windows 66 / macOS 72 项残留）、`render-check.mjs`（282 条渲染断言）。
+macOS 多出的条目是只有真机能跑的实机探测；在 Windows 上它们报告 SKIP 而不是失败。
+`verify:ci` 另外强制 `build-client --check`、`typecheck` 与产物校验，所以**过期产物过不了 CI**。
 
 `verify-footprint.mjs` 把实测踩到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、
 令牌单次使用与跨 scan 混用、卸载失败零副作用、`moveToTrash` 不覆盖已有条目。
@@ -155,10 +157,13 @@ npm run verify:ci    # 一条命令跑完全部关卡（等价 CI）
 
 ## 已知限制
 
-- **Windows 未在真机验证**：全部通过 fixture + 静态检查 + 模拟 win32 Host，PowerShell 5.1 的真实 CIM
-  字段差异、需要管理员权限的查询与动作需实机确认。
-- **Windows 的卸载残留只能列出、不能清理**：移入回收站需走 shell 且未在真机验证，带 `scanId` 的请求
-  返回 `UNSUPPORTED_PLATFORM`，不会静默丢弃用户的选择。
+- **Windows 已在真机验证，但只验证过一台机器**：Windows 10 22H2 + Windows PowerShell 5.1 上跑通了
+  采集、动作目录、回收站移入/还原与卸载流水线；其他版本、ARM 设备、非中文/非英文系统仍可能有 CIM
+  字段差异，失败会如实返回命令错误而不是假装成功。
+- **Windows 的 winget 卸载只以退出码为准**：winget 没有可观察的注册表记录，`winget list` 在本机要 ~15 秒
+  且需要接受源协议，所以 MSI/注册表卸载以注册表项消失为校验门槛，winget 卸载只能信退出码。
+- **Windows 的慢变字段最多陈旧 30 秒**：CPU 型号、默认路由、Wi-Fi、电池、进程属主与 GPU 温度走 30 秒
+  的旁路探测，快速轮询（约 2.2–2.5 秒一次）只保证内存、磁盘、字节计数、温度区与高占用进程是新的。
 - 需要管理员权限的动作（改主机名、防火墙、系统启动项、DNS、Wi-Fi 开关）失败时会把命令错误原样返回，
   不会假装成功。
 - macOS 自动化授权（退出应用、深色模式、锁定屏幕）首次调用可能被 TCC 拒绝；Apple Silicon 默认不向

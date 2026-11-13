@@ -194,10 +194,13 @@ footprint.consumeToken(onceToken);
 const secondUse = footprint.resolveScanItems(onceToken, ['fp_d']);
 check('a consumed token cannot be reused', secondUse.ok === false && secondUse.code === 'SCAN_CONSUMED');
 
+// Platform-neutral fixtures: the guard compares with `path.sep`, so POSIX
+// literals would pass on macOS and fail on Windows for the wrong reason.
+const insideRoot = join(tmpdir(), 'dx-root');
 check(
   'isInsideRoots rejects sibling-prefix escapes',
-  footprint.__test.isInsideRoots('/tmp/evil', ['/tmp/dx']) === false &&
-    footprint.__test.isInsideRoots('/tmp/dx/child', ['/tmp/dx']) === true,
+  footprint.__test.isInsideRoots(`${insideRoot}-evil`, [insideRoot]) === false &&
+    footprint.__test.isInsideRoots(join(insideRoot, 'child'), [insideRoot]) === true,
 );
 
 // route registration
@@ -373,9 +376,16 @@ check(
   'the pipeline only deletes after a successful verification',
   /if \(stillInstalled === true\) \{\s*return abort/.test(uninstallSource),
 );
+const win32Source = readFileSync(join(hostDir, 'actions-win32.js'), 'utf8');
 check(
-  'the Win32 runner refuses cleanup instead of silently skipping it',
-  readFileSync(join(hostDir, 'actions-win32.js'), 'utf8').includes('UNSUPPORTED_PLATFORM'),
+  'the Win32 runner recycles leftovers through the shared pipeline',
+  win32Source.includes('runWin32UninstallPipeline') &&
+    win32Source.includes("from './uninstall.js'") &&
+    win32Source.includes('recycleToBin'),
+);
+check(
+  'the Win32 runner no longer refuses a scan-backed uninstall',
+  !win32Source.includes('UNSUPPORTED_PLATFORM'),
 );
 check(
   'macOS never executes a bundle-shipped uninstaller',

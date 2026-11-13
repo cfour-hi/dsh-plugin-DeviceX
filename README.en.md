@@ -4,7 +4,7 @@
 
 [![verify](https://img.shields.io/github/actions/workflow/status/cfour-hi/dsh-plugin-devicex/verify.yml?branch=main&style=flat-square&label=verify)](https://github.com/cfour-hi/dsh-plugin-devicex/actions/workflows/verify.yml)
 [![npm](https://img.shields.io/npm/v/%40cfour-hi%2Fdsh-plugin-devicex?style=flat-square&label=npm)](https://www.npmjs.com/package/@cfour-hi/dsh-plugin-devicex)
-[![checks](https://img.shields.io/badge/checks-969%20passing-brightgreen?style=flat-square)](#verification-and-development)
+[![checks](https://img.shields.io/badge/checks-976%20passing-brightgreen?style=flat-square)](#verification-and-development)
 [![license](https://img.shields.io/github/license/cfour-hi/dsh-plugin-devicex?style=flat-square)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%2010%2F11-555?style=flat-square)](#known-limitations)
 
@@ -112,10 +112,9 @@ yet contained no bundle id, so only the name heuristic could find it; hiding it 
 Three invariants: **deletion never accepts a path** — the browser only receives item ids, full paths
 stay in Host memory, the one-time `scanId` is bound to a single scan, and after `realpath` the item must
 still sit inside an allowed root; **a failed uninstall aborts globally**, not a single byte is deleted,
-and a running app is rejected outright; **everything is moved to the Trash**, with the result page
-stating "Emptying the Trash frees X". Windows can list but not clean — see
-[known limitations](#known-limitations). The full scan and token design is in the
-[design doc](docs/uninstall-footprint-design.md).
+and a running app is rejected outright; **everything is moved to the Trash** (the Recycle Bin on
+Windows — never a permanent delete), with the result page stating "Emptying the Trash frees X". The full
+scan and token design is in the [design doc](docs/uninstall-footprint-design.md).
 
 ## Agents and automation
 
@@ -160,12 +159,13 @@ Host ↔ API ↔ client.
 npm run verify:ci    # one command for the whole gate (same as CI)
 ```
 
-Run individually: `npm test` (119 unit tests), `verify.mjs` (96 general regression checks),
-`verify-windows.mjs` (167, fixtures only — no real machine needed), `verify-sensors.mjs` (57 thermal/
-driver checks), `verify-cleanup.mjs` (130, real scan + sandboxed deletion), `verify-benchmark.mjs` (46),
-`verify-footprint.mjs` (72 leftover checks), `render-check.mjs` (282 client render assertions) — 969 checks
-in total. `verify:ci` additionally enforces `build-client --check`, `typecheck` and the artifact check,
-so **a stale artifact never passes CI**.
+Run individually: `npm test` (121 unit tests), `verify.mjs` (93 general regression checks),
+`verify-windows.mjs` (173, including one live bridge check that only runs on Windows),
+`verify-sensors.mjs` (46 on Windows / 57 on macOS), `verify-cleanup.mjs` (108 / 130),
+`verify-benchmark.mjs` (46), `verify-footprint.mjs` (66 / 72), `render-check.mjs` (282 client render
+assertions) — 976 checks on macOS, 935 on Windows. The difference is the macOS-only live probes, which
+report a skip instead of a failure elsewhere. `verify:ci` additionally enforces `build-client --check`,
+`typecheck` and the artifact check, so **a stale artifact never passes CI**.
 
 `verify-footprint.mjs` pins the pitfalls found during real measurements as regressions: Team ID prefixes,
 `Claude-3p` name matching, vendor-directory false positives, single-use tokens and cross-scan mixing,
@@ -176,12 +176,16 @@ run `npm run build`, then `npm run verify:ci`.
 
 ## Known limitations
 
-- **Windows has not been verified on real hardware**: everything passes via fixtures, static checks and a
-  simulated win32 Host. Real PowerShell 5.1 CIM field differences and admin-required queries/actions
-  still need confirmation on a physical machine.
-- **Uninstall leftovers on Windows can be listed but not cleaned**: moving items to the Recycle Bin
-  requires the shell and has not been verified on real hardware, so a request carrying a `scanId` returns
-  `UNSUPPORTED_PLATFORM` rather than silently discarding the user's selection.
+- **Windows is verified, but on one machine only**: collection, the action catalogue, Recycle Bin
+  moves/restores and the uninstall pipeline were exercised end to end on Windows 10 22H2 with Windows
+  PowerShell 5.1. Other builds, ARM devices and non-English systems may still differ in CIM fields;
+  failures surface the real command error instead of pretending success.
+- **winget uninstalls are gated by the exit code only**: winget leaves no registry record to watch, and
+  `winget list` costs ~15 s here and needs a source agreement. MSI and registry uninstalls verify that
+  the registry entry is gone; winget has no equivalent signal.
+- **Slow Windows facts can be up to 30 s stale**: CPU model, default route, Wi-Fi, battery, process
+  owners and GPU temperature come from a background detail probe refreshed every 30 s. The ~2.2–2.5 s
+  fast poll guarantees fresh memory, disk, byte counters, thermal zones and top processes only.
 - Admin-required actions (hostname, firewall, startup items, DNS, Wi-Fi toggle) return the command error
   verbatim on failure; they never pretend to have succeeded.
 - macOS automation permission (quit app, dark mode, lock screen) may be denied by TCC on first use;

@@ -349,8 +349,10 @@ codesign -d --entitlements - <bundle> | grep -c com.apple.security.app-sandbox
 两个平台都不走回收站。`cleanup` 的 `recycle-bin` 项只是"清空回收站"，不是"移入回收站"。
 
 → 必须新建"移入回收站"：`Shell.Application` 的 `NameSpace(0xA).MoveHere` 或
-`SHFileOperation` + `FOF_ALLOWUNDO`。**此路径未在 Windows 主机上验证**（本机是 macOS），
-实现时必须以 Windows 实测为准，并在失败时明确降级提示（绝不静默改成永久删除）。
+`SHFileOperation` + `FOF_ALLOWUNDO`。**1.10.0 已实现并在真机验证**：实际用的是
+`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory/DeleteFile` +
+`RecycleOption.SendToRecycleBin`（`SHFileOperation` 的受支持封装），失败时明确返回命令错误，
+绝不静默改成永久删除（见 §12.3）。
 
 ### 8.3 档位映射
 
@@ -391,7 +393,8 @@ codesign -d --entitlements - <bundle> | grep -c com.apple.security.app-sandbox
 1. `moveToTrash` 泛化 + 原子占位（§7.1 三个缺陷）。
 2. 扫描令牌 + `realpath` 校验 + 符号链接拒绝（§6.3）。
 3. `verify` 状态校验（§5.1）。
-4. Windows 回收站移动能力 + Windows 实测（§8.2）。
+4. Windows 回收站移动能力 + Windows 实测（§8.2）。**1.10.0 已完成**：真机跑通「移入回收站 → 还原」，
+   `app.uninstall` 的 `scanId` 路径接上共享流水线（§12.3）。
 
 （动作目录保持 19 个，无断言改动 —— 见 §6.2。）
 
@@ -478,28 +481,32 @@ codesign -d --entitlements - <bundle> | grep -c com.apple.security.app-sandbox
 
 ### 12.3 与决策 4 的偏差（Windows）
 
-决策 4 要求双平台同版本上线。Windows 现状：
+决策 4 要求双平台同版本上线。Windows 现状（1.10.0 起）：
 
-- **已实现**：只读扫描（MSIX 容器 A 档、名称匹配 B/C 档、`%PROGRAMDATA%` 标管理员）。
-- **未实现**：移入回收站。`app.uninstall` 收到 `scanId` 时**明确拒绝**并返回
-  `UNSUPPORTED_PLATFORM`，而不是"卸载完再静默忽略用户的选择"。
-- **原因**：`Shell.Application` / `SHFileOperation` 无法在 macOS 上验证，本插件不会发布
-  未在真机验证过的破坏性路径。
-- **补齐条件**：一台 Windows 真机跑通"移入回收站 → 可从回收站还原"即可接线，
-  流水线与令牌机制已经平台无关，`uninstall.js` 无需改动。
+- **已实现**：只读扫描（MSIX 容器 A 档、名称匹配 B/C 档、`%PROGRAMDATA%` 标管理员）；
+  **移入回收站**（`cleanup-win32.js` 的 `recycleToBin`，走
+  `Microsoft.VisualBasic.FileIO.FileSystem` 的 `SendToRecycleBin`，即 `SHFileOperation` +
+  `FOF_ALLOWUNDO` 的受支持封装）；`app.uninstall` 收到 `scanId` 时跑与 macOS 同一条流水线。
+- **已验证**（Windows 10 22H2 + Windows PowerShell 5.1，真机）：目录与文件移入回收站后可在回收站
+  看到并带「还原」动词，还原后回到原路径且内容完整；用一次性 HKCU 卸载项跑完整流水线，两条残留
+  9.2 秒内移入回收站并成功还原。
+- **仍未验证**：其他 Windows 版本、ARM 设备、非中英文系统；winget 卸载只能以退出码为门槛
+  （没有可观察的注册表记录，`winget list` 在本机约 15 秒且需要接受源协议）。
+- **拒绝语义**：`recycleToBin` 拒绝非绝对路径、盘符根与重解析点，失败时返回命令错误，
+  **绝不降级为永久删除**。
 
 ### 12.4 验证
 
 | 套件 | 数量 |
 | --- | --- |
-| `npm test` | 119 |
+| `npm test` | 121 |
 | 客户端渲染断言（两种产物各跑一遍） | 282 |
-| `verify.mjs` | 96 |
-| `verify-windows.mjs` | 167 |
-| `verify-sensors.mjs` | 57 |
-| `verify-cleanup.mjs` | 130 |
+| `verify.mjs` | 93 |
+| `verify-windows.mjs` | 173（含 1 项仅 Windows 的桥接实机检查） |
+| `verify-sensors.mjs` | Windows 46 / macOS 57 |
+| `verify-cleanup.mjs` | Windows 108 / macOS 130 |
 | `verify-benchmark.mjs` | 46 |
-| `verify-footprint.mjs`（新增） | 72 |
+| `verify-footprint.mjs` | Windows 66 / macOS 72 |
 
 ### 12.5 补充约束：macOS 不执行厂商自带卸载器
 

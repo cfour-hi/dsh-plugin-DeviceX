@@ -411,7 +411,10 @@ if (process.platform === 'darwin') {
   );
   check('live hardware is JSON-safe', jsonSafe(liveHardware) !== null);
 } else {
-  check('live darwin probes require macOS', false, process.platform);
+  // The live block reads macOS-only sources (system_profiler, ioreg). Running
+  // this suite on Windows must not report a failure for a probe that cannot
+  // exist there; the fixture half above already covers both platforms.
+  check(`live darwin probes skipped on ${process.platform} (macOS-only)`, true, process.platform);
 }
 
 const elapsedMs = Date.now() - startedAt;

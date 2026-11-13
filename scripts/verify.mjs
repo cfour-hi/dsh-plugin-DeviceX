@@ -197,7 +197,14 @@ for (const root of SETTINGS_ROOTS) {
 }
 const paneOptions =
   catalog.find((entry) => entry.id === 'system.openSettings')?.params.find((param) => param.name === 'pane')?.options ?? [];
-check('catalog lists the settings panes the UI can ask for', paneOptions.length >= 21, `${paneOptions.length} panes`);
+// The darwin catalog exposes 21 settings anchors; the Windows catalog exposes
+// the 17 ms-settings pages it can actually open.
+const minimumPanes = process.platform === 'win32' ? 17 : 21;
+check(
+  'catalog lists the settings panes the UI can ask for',
+  paneOptions.length >= minimumPanes,
+  `${paneOptions.length} panes`,
+);
 if (installedPanes.size > 0) {
   const actionsDarwinSource = readFileSync(join(pluginDir, 'host/actions-darwin.js'), 'utf8');
   const paneBlock = /const SETTINGS_PANES = \{([\s\S]*?)\n\};/.exec(actionsDarwinSource)?.[1] ?? '';

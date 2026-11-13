@@ -3,10 +3,10 @@
  *
  * Every Windows collection and action goes through this module so one place
  * guarantees: a resolved interpreter (Windows PowerShell 5.1 preferred, then
- * pwsh 7), stdin-streamed scripts (`-Command -`; no shell, no quoting
- * injection, and no 32,767-character command-line limit), UTF-8 console
- * output, a wall-clock timeout, a bounded buffer, and JSON parsing that never
- * throws.
+ * pwsh 7), a private temp script run with `-File` (no shell, no quoting
+ * injection, no argv length limit, and no line-by-line REPL parsing), UTF-8
+ * console output, a wall-clock timeout, a bounded buffer, and JSON parsing that
+ * never throws.
  *
  * Parameters reach scripts through environment variables (`DEVICEX_ARG_*`)
  * rather than string interpolation; callers use {@link psString} only for
@@ -14,7 +14,9 @@
  *
  * @module @cfour-hi/dsh-plugin-devicex/host/win
  */
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { run } from './proc.js';
 
 /** Default wall-clock timeout for one PowerShell call. */
@@ -69,15 +71,24 @@ export function resolveInterpreter() {
 }
 
 /**
- * Build the interpreter argv for one streamed script.
+ * Build the interpreter argv for one script file.
  *
- * The script is written to stdin (`-Command -`) instead of being encoded into
- * argv: Windows caps a command line at 32,767 characters and the bundled
- * collectors are larger than that once UTF-16/base64 encoded.
+ * The script is written to a private temp file and run with `-File`, not piped
+ * into `-Command -`. That is not cosmetic: `-Command -` parses stdin as an
+ * interactive REPL, one statement per line, and a multi-line block that is not
+ * terminated by a blank line is silently dropped (exit code 0, no output). Any
+ * inline action script with `if (...) {` on its own line would therefore fail
+ * with the opaque "PowerShell returned no output". `-File` parses the whole
+ * document as one script, which is what every bundled `.ps1` assumes.
+ *
+ * A file path also sidesteps the 32,767-character command-line limit that
+ * encoding the script into argv would hit.
+ *
+ * @param {string} [scriptPath] absolute path to the temp script
  * @returns {string[]}
  */
-export function commandArguments() {
-  return ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', '-'];
+export function commandArguments(scriptPath = '') {
+  return ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath];
 }
 
 /**
@@ -112,12 +123,21 @@ export async function runPS(script, options = {}) {
       error: 'PowerShell is not available on this host',
     };
   }
-  return run(interpreter.command, commandArguments(), {
-    timeout: options.timeout ?? DEFAULT_TIMEOUT,
-    maxBuffer: options.maxBuffer ?? DEFAULT_MAX_BUFFER,
-    env: options.env === undefined ? undefined : { ...process.env, ...options.env },
-    input: `${OUTPUT_PREFIX}${script}`,
-  });
+  // UTF-8 with BOM: Windows PowerShell 5.1 decodes a BOM-less file as ANSI,
+  // which would mangle any non-ASCII literal. The output prefix runs first so
+  // every script gets the same console encoding and quiet progress bar.
+  const directory = mkdtempSync(join(tmpdir(), 'devicex-ps-'));
+  const scriptPath = join(directory, 'script.ps1');
+  writeFileSync(scriptPath, `\uFEFF${OUTPUT_PREFIX}\n${script}`, 'utf8');
+  try {
+    return await run(interpreter.command, commandArguments(scriptPath), {
+      timeout: options.timeout ?? DEFAULT_TIMEOUT,
+      maxBuffer: options.maxBuffer ?? DEFAULT_MAX_BUFFER,
+      env: options.env === undefined ? undefined : { ...process.env, ...options.env },
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 /** Strip a UTF-8 BOM and surrounding whitespace. */
@@ -185,7 +205,11 @@ function short(text) {
   const line = String(text ?? '')
     .split(/\r?\n/)
     .map((entry) => entry.trim())
-    .filter(Boolean)
+    // PowerShell appends a location line ("At C:\...\script.ps1:5 char: 31",
+    // localized) plus a source snippet to a terminating error. They name our
+    // throwaway temp file and repeat the script text, so they are noise in a
+    // user-facing message; the exception text above them is the useful part.
+    .filter((entry) => entry !== '' && !/\.ps1:\d+/.test(entry) && !/^\+\s/.test(entry))
     .slice(0, 2)
     .join(' ');
   return line.length > 400 ? `${line.slice(0, 400)}…` : line || 'unknown PowerShell failure';
@@ -196,5 +220,6 @@ export const __test = {
   commandArguments,
   psString,
   trimOutput,
+  short,
   OUTPUT_PREFIX,
 };

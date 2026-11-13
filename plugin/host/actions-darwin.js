@@ -712,40 +712,67 @@ async function moveToTrash(source, options = {}) {
   const extension = /\.app$/i.test(base) ? '.app' : '';
   const stem = extension === '' ? base : base.slice(0, -extension.length);
 
-  const destination = await reserveTrashName(trash, stem, extension, isDirectory);
-  try {
-    // `rename` onto our own placeholder is atomic and cannot clobber a third
-    // party: the name was reserved a moment ago and nothing else can claim it.
-    await fsp.rename(source, destination);
-    return destination;
-  } catch (error) {
-    const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
-    if (code !== 'EXDEV') {
-      // Release the placeholder so a failed move does not litter the Trash.
-      await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
-      throw error;
-    }
-    // Cross-device: copy into the placeholder, then remove the source. The
-    // placeholder already exists, so `force: true` is safe here and keeps the
-    // partial copy from surviving a failure.
-    try {
-      await fsp.cp(source, destination, { recursive: true, force: true });
-    } catch (copyError) {
-      await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
-      throw copyError;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const destination = await reserveTrashName(trash, stem, extension, isDirectory);
+    // Windows cannot rename a directory onto an existing directory: it fails
+    // with EPERM even when the target is the empty placeholder we just made.
+    // Release our own placeholder on that platform and let `rename` claim the
+    // name; rename still refuses to clobber, so a third party that took the
+    // name in the gap costs a retry, never their data. POSIX keeps the atomic
+    // placeholder-then-rename path unchanged.
+    let releasedPlaceholder = false;
+    if (isDirectory && process.platform === 'win32') {
+      try {
+        await fsp.rmdir(destination);
+        releasedPlaceholder = true;
+      } catch {
+        releasedPlaceholder = false;
+      }
     }
     try {
-      await fsp.rm(source, { recursive: true, force: false, maxRetries: 2, retryDelay: 100 });
-    } catch (removeError) {
-      // The copy exists, so the data is safe; report the leftover so the caller
-      // can tell the user the original is still in place.
-      const reason = removeError instanceof Error ? removeError.message : String(removeError);
-      throw Object.assign(new Error(`Copied to Trash but could not remove the original: ${reason}`), {
-        code: 'PARTIAL_TRASH',
-      });
+      // `rename` onto our own placeholder is atomic and cannot clobber a third
+      // party: the name was reserved a moment ago and nothing else can claim it.
+      await fsp.rename(source, destination);
+      return destination;
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      if (code !== 'EXDEV') {
+        // Release the placeholder so a failed move does not litter the Trash.
+        if (!releasedPlaceholder) {
+          await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
+        }
+        // The name was claimed between the release and the rename: pick a new
+        // one instead of failing a move that never had a real conflict.
+        const taken = await fsp.lstat(destination).then(
+          () => true,
+          () => false,
+        );
+        if (releasedPlaceholder && taken) continue;
+        throw error;
+      }
+      // Cross-device: copy into the placeholder, then remove the source. The
+      // placeholder already exists, so `force: true` is safe here and keeps the
+      // partial copy from surviving a failure.
+      try {
+        await fsp.cp(source, destination, { recursive: true, force: true });
+      } catch (copyError) {
+        await fsp.rm(destination, { recursive: true, force: true }).catch(() => {});
+        throw copyError;
+      }
+      try {
+        await fsp.rm(source, { recursive: true, force: false, maxRetries: 2, retryDelay: 100 });
+      } catch (removeError) {
+        // The copy exists, so the data is safe; report the leftover so the caller
+        // can tell the user the original is still in place.
+        const reason = removeError instanceof Error ? removeError.message : String(removeError);
+        throw Object.assign(new Error(`Copied to Trash but could not remove the original: ${reason}`), {
+          code: 'PARTIAL_TRASH',
+        });
+      }
+      return destination;
     }
-    return destination;
   }
+  throw Object.assign(new Error('Could not reserve a unique name in the Trash.'), { code: 'EEXIST' });
 }
 
 /** Test seam: expose the Trash mover so offline tests can drive a sandbox. */

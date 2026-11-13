@@ -141,3 +141,57 @@ test('normalizeDeleteIds accepts arrays and comma strings within the cap', () =>
   assert.equal(cleanup.normalizeDeleteIds(['user-temp', 'user-temp']).ok, false);
   assert.equal(cleanup.normalizeDeleteIds(Array.from({ length: cleanup.MAX_DELETE_IDS + 1 }, () => 'user-temp')).ok, false);
 });
+
+/* --------------------------------------------------- metrics detail merge */
+
+test('mergeMetricsRaw fills omitted fast fields from the detail document', () => {
+  const fast = {
+    hostname: 'HOST',
+    cpu: null,
+    battery: null,
+    network: { counters: { read: 1, write: 2 }, defaultInterface: null, primaryIpv4: [], wifi: null },
+    thermal: { cpuCelsius: null, gpuCelsius: null, fans: [], sources: [], note: 'wmi-unsupported' },
+    processes: { total: 3, top: [{ pid: 42, name: 'x', cpuPercent: 1, workingSetBytes: 1, user: null }] },
+  };
+  const detail = {
+    cpu: { name: 'CPU', physicalCores: 4, logicalCores: 8 },
+    battery: { present: true, percent: 90 },
+    network: { defaultInterface: 'Ethernet', defaultGateway: '10.0.0.1', primaryIpv4: ['10.0.0.2'], wifi: null },
+    thermal: { gpuCelsius: 55, fans: [{ name: 'GPU', rpm: null }], sources: ['nvidia-smi'] },
+    owners: { 42: 'DOMAIN' + String.fromCharCode(92) + 'user' },
+  };
+  const merged = win.mergeMetricsRaw(fast, detail);
+  assert.equal(merged.cpu.physicalCores, 4);
+  assert.equal(merged.battery.percent, 90);
+  assert.equal(merged.network.defaultInterface, 'Ethernet');
+  assert.deepEqual(merged.network.primaryIpv4, ['10.0.0.2']);
+  // The fast byte counters are never replaced by the detail document.
+  assert.deepEqual(merged.network.counters, { read: 1, write: 2 });
+  assert.equal(merged.thermal.gpuCelsius, 55);
+  assert.deepEqual(merged.thermal.sources, ['nvidia-smi']);
+  assert.equal(merged.processes.top[0].user, 'DOMAIN' + String.fromCharCode(92) + 'user');
+});
+
+test('mergeMetricsRaw keeps fresh fast values and tolerates a missing detail', () => {
+  const fast = {
+    cpu: { name: 'FAST', physicalCores: 2, logicalCores: 2 },
+    battery: { present: true, percent: 50 },
+    network: { counters: { read: 0, write: 0 }, defaultInterface: 'Fast', primaryIpv4: ['1.1.1.1'], wifi: null },
+    thermal: { cpuCelsius: 40, gpuCelsius: 60, fans: [], sources: ['wmi-thermal-zone'], note: null },
+    processes: { total: 1, top: [{ pid: 1, name: 'a', cpuPercent: 0, workingSetBytes: 0, user: 'me' }] },
+  };
+  const merged = win.mergeMetricsRaw(fast, {
+    cpu: { name: 'SLOW', physicalCores: 8, logicalCores: 16 },
+    battery: { present: true, percent: 10 },
+    network: { defaultInterface: 'Slow', primaryIpv4: ['2.2.2.2'] },
+    thermal: { gpuCelsius: 99, fans: [{ name: 'GPU', rpm: 1 }], sources: ['nvidia-smi'] },
+    owners: { 1: 'other' },
+  });
+  assert.equal(merged.cpu.name, 'FAST');
+  assert.equal(merged.battery.percent, 50);
+  assert.equal(merged.network.defaultInterface, 'Fast');
+  assert.deepEqual(merged.network.primaryIpv4, ['1.1.1.1']);
+  assert.equal(merged.thermal.gpuCelsius, 60);
+  assert.equal(merged.processes.top[0].user, 'me');
+  assert.equal(win.mergeMetricsRaw(fast, null), fast);
+});

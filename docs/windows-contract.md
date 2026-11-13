@@ -39,12 +39,13 @@ edit them.
 import { runPS, runPSJson, readScript, psString, resolveInterpreter } from './win.js';
 
 // Runs Windows PowerShell 5.1 (preferred; DEVICEX_PWSH overrides) or pwsh 7 as
-// `-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command -` and streams
-// the script over the child's stdin (plus a UTF-8 console prefix). Scripts are
-// NOT encoded into argv: Windows caps a command line at 32,767 chars and the
-// bundled collectors are larger once encoded. Never throws; no shell.
+// `-NoProfile -NonInteractive -ExecutionPolicy Bypass -File <temp.ps1>`. The
+// script is written to a private temp file (UTF-8 with a BOM) instead of being
+// piped into `-Command -`: the latter parses stdin as an interactive REPL, one
+// statement per line, and silently drops a multi-line block whose closing brace
+// is not followed by a blank line (exit 0, no output). Never throws; no shell.
 const result = await runPSJson(scriptText, { timeout: 20_000, maxBuffer: 16 * 1024 * 1024 });
-// { ok: true, data }  |  { ok: false, error, raw, stderr }
+// { ok: true, data }  |  { ok: false, error, raw, stderr, timedOut, code }
 
 const script = readScript('metrics.ps1');           // cached read from host/win/
 const env = { DEVICEX_ARG_PID: '1234' };            // parameters go via env vars
@@ -107,6 +108,27 @@ Data sources:
 Recommended TTLs: metrics stateful (no TTL, deltas), hardware 300 s, system 120 s, software 600 s,
 network 15 s, security 60 s, processes 30 s. `warmup()` primes slow sections in the background.
 
+### Metrics scopes (measured on Windows 10 22H2 / PowerShell 5.1)
+
+One Windows CIM/cmdlet call costs ~1 s on the test laptop, so a single "everything" document took
+**~10.8 s** — four times the UI's 2.5 s cadence. `metrics.ps1` therefore runs in two scopes selected by
+`DEVICEX_ARG_SCOPE`:
+
+| Scope | Contains | Cadence |
+|---|---|---|
+| `fast` | OS/memory, disk + disk I/O counters, TCP byte counters, thermal zones, top-5 processes | every poll (2.5 s UI cadence, 3 s TTL) |
+| `detail` | CPU model/cores, default route, primary IPv4, Wi-Fi, battery, process owners, GPU temperature (nvidia-smi) | background, `DETAIL_TTL` 30 s |
+
+`collector-win32.js` merges the cached detail document into the fast one (`mergeMetricsRaw`): a fresh
+fast value always wins, a missing one is filled from detail, and `DEVICEX_ARG_CPU_FACTS=1` asks the
+first fast poll for the static CPU facts so `physicalCores` is never guessed from the logical count.
+Measured steady-state poll after the split: **2.2–2.5 s** (first poll 4.2 s).
+
+Cheaper sources that replaced the expensive ones: `Win32_IP4RouteTable` (~0.2 s) instead of
+`Get-NetRoute` (~1.1 s), `Win32_PerfRawData_Tcpip_NetworkInterface` (~0.03 s) instead of
+`Get-NetAdapterStatistics` (~1.1 s), and one session-scoped `tasklist` instead of five
+`Win32_Process` + `GetOwner` round-trips.
+
 ## Action catalog for win32 (`actions-win32.js`)
 
 Same surface as darwin (`GROUPS`, `actionCatalog()`, `actionHistory()` max 50 newest-first,
@@ -143,6 +165,25 @@ medium for signal/launchAgent/emptyTrash/wifi, low for the rest).
 Include `__test = { actionIds, validate: {...} }` so `scripts/verify-windows.mjs` can assert the
 catalog and exercise guards without Windows.
 
+## Leftover cleanup (Recycle Bin)
+
+`app.uninstall` with a `scanId` runs the same pipeline as macOS (`host/uninstall.js`): uninstall →
+verify → recycle the app → re-scan → recycle the selected leftovers. Windows supplies the steps in
+`actions-win32.js` (`runWin32UninstallPipeline`); the scan token stays authoritative for every path.
+
+`recycleToBin(absolutePath)` in `cleanup-win32.js` moves one path with
+`Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory` / `DeleteFile(..., SendToRecycleBin)` — the
+supported wrapper over `SHFileOperation` + `FOF_ALLOWUNDO`. It refuses non-absolute paths, filesystem
+roots and reparse points, and reports a failed move; it never falls back to a permanent delete.
+
+Verification gate: MSI and registry uninstalls check that the registry entry disappeared. winget leaves
+no registry record, and `winget list` costs ~15 s and needs a source agreement on the test host, so a
+winget run is gated by its exit code only — a documented limitation, not an accident.
+
+Verified on Windows 10 22H2 / Windows PowerShell 5.1: a directory and a file moved to the Recycle Bin,
+appeared there with a working "Restore" verb, and restored to their original paths with their contents
+intact. The full pipeline (throwaway HKCU uninstall entry, two leftovers) moved both in 9.2 s.
+
 ## Known Windows-only limitations (documented, not hidden)
 
 - `HKCU`-scoped actions (dark mode, `startup:HKCU` toggles) and the reported current user apply to the account
@@ -150,8 +191,12 @@ catalog and exercise guards without Windows.
   different profile than the interactive desktop user.
 - Bluetooth `connected`/battery and audio `default` come from PnP/MMDevices registry data; values that Windows
   does not expose are reported as false/absent rather than invented.
-- The metrics poll costs one PowerShell startup plus ~20 CIM queries (~0.5–1.5 s real hardware), so Windows uses
-  a 2.5–3 s metrics TTL instead of the macOS <250 ms budget; the UI's 2.5 s cadence is unaffected.
+- The fast poll costs one PowerShell startup plus ~6 CIM calls (~2.2–2.5 s on the test laptop), so
+  Windows uses a 3 s metrics TTL instead of the macOS <250 ms budget; the UI's 2.5 s cadence is
+  unaffected. CPU model, default route, Wi-Fi, battery, process owners and GPU temperature come from
+  the 30 s detail probe and can be up to 30 s stale.
+- winget uninstalls are gated by the exit code only (no registry record to watch; `winget list` is too
+  slow to use as a gate).
 - `Win32_VideoController.AdapterRAM` is a UInt32 (caps at 4 GB); the qwMemorySize registry fallback covers most
   dedicated GPUs. When neither value can establish the real size, VRAM is reported as `null` plus an `errors[]`
   annotation instead of a bogus number.

@@ -9,11 +9,13 @@
  *
  * @module @cfour-hi/dsh-plugin-devicex/host/actions-win32
  */
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { isIP } from 'node:net';
 import { resolve } from 'node:path';
-import { cleanupItems, deleteCleanup } from './cleanup-win32.js';
+import { cleanupItems, deleteCleanup, recycleToBin } from './cleanup-win32.js';
+import { consumeToken, peekScan, resolveScanItems, scanFootprint } from './footprint.js';
+import { runUninstallPipeline } from './uninstall.js';
 import { runPS, runPSJson, psString } from './win.js';
 
 /** @typedef {import('../../types/contracts.js').Win32ActionParamsById} Win32Params */
@@ -317,20 +319,41 @@ function parseUninstallId(params) {
   const id = raw.value;
   const lower = id.toLowerCase();
 
-  // 1.6: an optional footprint tail. Windows can only scan for now, so a
-  // request that asks to clean leftovers is refused by the runner rather than
-  // silently ignored - but the id is still validated first so the caller gets
-  // the precise rejection reason.
+  // Optional footprint tail: the id is validated first so a scan-backed
+  // request still gets the precise rejection reason when the id itself is bad.
   const scanId = params.scanId;
   if (scanId !== undefined && scanId !== null && scanId !== '') {
     if (typeof scanId !== 'string' || scanId.length > 128) {
       return failure('scanId must be a string of at most 128 characters.', 'BAD_PARAMS');
     }
   }
-  const withScan = (value) =>
-    typeof scanId === 'string' && scanId !== ''
-      ? /** @type {{ok: true, value: any}} */ ({ ok: true, value: { ...value, scanId } })
-      : /** @type {{ok: true, value: any}} */ ({ ok: true, value });
+  // Optional install location: a hint only. The scan token decides which paths
+  // may be touched, so an absent value is fine; a present one is still bounded.
+  let declaredPath = '';
+  if (params.path !== undefined && params.path !== null && params.path !== '') {
+    const pathRead = readString(params, 'path', { maxLength: 1_024 });
+    if (!pathRead.ok) return pathRead;
+    declaredPath = pathRead.value;
+  }
+  const cleanupRead = readSelect(params, 'cleanup', { options: ['trash', 'none'], defaultValue: 'trash' });
+  if (!cleanupRead.ok) return cleanupRead;
+  let itemIds;
+  if (params.itemIds !== undefined && params.itemIds !== null) {
+    const rawIds = Array.isArray(params.itemIds)
+      ? params.itemIds
+      : typeof params.itemIds === 'string'
+        ? params.itemIds.split(',')
+        : null;
+    if (rawIds === null) return failure('itemIds must be an array of scan item ids.', 'BAD_PARAMS');
+    if (rawIds.length > 20) return failure('Select at most 20 leftover items per uninstall.', 'BAD_PARAMS');
+    itemIds = params.itemIds;
+  }
+  const withScan = (value) => {
+    const enriched = { ...value, path: declaredPath, cleanup: cleanupRead.value };
+    if (itemIds !== undefined) enriched.itemIds = itemIds;
+    if (typeof scanId === 'string' && scanId !== '') enriched.scanId = scanId;
+    return /** @type {{ok: true, value: any}} */ ({ ok: true, value: enriched });
+  };
 
   if (lower.startsWith('msi:')) {
     if (!MSI_ID_PATTERN.test(id)) {
@@ -538,8 +561,8 @@ const SPECS = [
     requiresAdmin: false,
     params: [
       { name: 'id', type: 'string', required: true, placeholder: 'msi:{GUID} | winget:<id> | HKLM:\\...\\Uninstall\\...' },
-      // 1.6: present so the schema matches macOS. Supplying it is refused today
-      // (see the runner) because the Recycle Bin move is not verified yet.
+      // 1.10: a scan id turns the call into the shared uninstall pipeline; the
+      // selected leftovers go to the Recycle Bin (verified on a real host).
       { name: 'scanId', type: 'string', required: false, placeholder: 'scan id from GET /devicex/api/footprint' },
       { name: 'itemIds', type: 'string', required: false, multiple: true, placeholder: 'fp_1a2b3c4d' },
       { name: 'cleanup', type: 'select', required: false, options: ['trash', 'none'] },
@@ -963,6 +986,155 @@ if ($msi.Success) {
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* Uninstall with leftover cleanup (shared footprint pipeline)                */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Reads the install record after an uninstaller ran: whether the entry still
+ * exists, and (before the uninstall) whether it carries an `UninstallString`.
+ *
+ * `installed` is the verification gate. It is registry-based for MSI/registry
+ * apps because a vendor uninstaller's exit code is not evidence (MSI returns
+ * 0/3010/1641, vendor scripts lie). winget has no registry record to watch and
+ * `winget list` costs ~15 s and needs a source agreement, so a winget run is
+ * gated by its exit code only - documented in the README.
+ */
+const UNINSTALL_RECORD_SCRIPT = `$ErrorActionPreference = 'Stop'
+$kind = $env:DEVICEX_ARG_KIND
+$installed = $false
+$hasCommand = $false
+if ($kind -eq 'registry') {
+  $key = $env:DEVICEX_ARG_KEY
+  if (Test-Path -LiteralPath $key) {
+    $installed = $true
+    $entry = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
+    if ($null -ne $entry -and -not [string]::IsNullOrWhiteSpace([string]$entry.UninstallString)) {
+      $hasCommand = $true
+    }
+  }
+} elseif ($kind -eq 'msi') {
+  $guid = $env:DEVICEX_ARG_GUID
+  $roots = @(
+    'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall',
+    'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall'
+  )
+  foreach ($root in $roots) {
+    if (Test-Path -LiteralPath ($root + '\\' + $guid)) { $installed = $true }
+  }
+  $hasCommand = $installed
+} elseif ($kind -eq 'winget') {
+  $hasCommand = $true
+}
+@{ installed = $installed; hasCommand = $hasCommand } | ConvertTo-Json -Compress`;
+
+/**
+ * @param {Record<string, any>} target validated target (kind/key/guid)
+ * @returns {Promise<{installed: boolean, hasCommand: boolean, error: string|null}>}
+ */
+async function readUninstallRecord(target) {
+  const result = await runPSJson(UNINSTALL_RECORD_SCRIPT, {
+    env: envOf({ KIND: target.kind, KEY: target.key ?? '', GUID: target.guid ?? '' }),
+    timeout: 20_000,
+  });
+  if (!result.ok) {
+    // Unknown state is treated as "still installed": aborting deletes nothing,
+    // which is the safe side of a failed probe.
+    return { installed: true, hasCommand: true, error: String(result.error || 'the probe failed') };
+  }
+  return {
+    installed: result.data?.installed === true,
+    hasCommand: result.data?.hasCommand === true,
+    error: null,
+  };
+}
+
+/** Run the platform uninstaller for a validated target. */
+function runVendorUninstall(target) {
+  if (target.kind === 'msi') return uninstallMsi(target);
+  if (target.kind === 'winget') return uninstallWinget(target, true);
+  return uninstallRegistry(target);
+}
+
+/**
+ * `app.uninstall` with a footprint tail.
+ *
+ * Same pipeline as macOS (`uninstall.js`), so the ordering rule and the
+ * zero-side-effect failure path are shared: uninstall -> verify -> recycle the
+ * app -> re-scan -> recycle the selected leftovers. Leftovers go to the
+ * Recycle Bin through `recycleToBin`, never a permanent delete.
+ *
+ * @param {Record<string, any>} params validated params (kind/key/guid/token/scanId/itemIds/cleanup)
+ * @param {Record<string, any>} target the same object, as a validated target
+ */
+async function runWin32UninstallPipeline(params, target) {
+  const scanId = typeof params.scanId === 'string' ? params.scanId : '';
+  const cleanup = params.cleanup === 'none' ? 'none' : 'trash';
+  const declaredPath = typeof params.path === 'string' ? params.path.trim() : '';
+
+  /** @type {Array<{id: string, path: string, bytes: number}>} */
+  let items = [];
+  let appPath = declaredPath;
+  if (cleanup === 'trash' && params.itemIds !== undefined && params.itemIds !== null) {
+    const resolved = resolveScanItems(scanId, params.itemIds);
+    if (resolved.ok !== true) return failure(resolved.message, resolved.code);
+    items = resolved.items;
+    // The scan token is authoritative: the client cannot hand us a path.
+    if (resolved.appPath !== '') appPath = resolved.appPath;
+  } else if (scanId !== '') {
+    // No leftovers selected, but the caller still claims a scan: the token has
+    // to be real and unused, otherwise the request is meaningless.
+    const peek = peekScan(scanId);
+    if (peek.ok !== true) return failure(peek.message, peek.code);
+    if (appPath === '' && peek.appPath !== '') appPath = peek.appPath;
+  }
+
+  const before = await readUninstallRecord(target);
+  if (before.error !== null) {
+    return failure(`Could not read the uninstall record, so nothing was removed: ${before.error}`, 'COMMAND_FAILED');
+  }
+  const hasUninstaller = before.hasCommand;
+
+  const report = await runUninstallPipeline(
+    {
+      appPath,
+      hasUninstaller,
+      cleanupApp: appPath !== '',
+      items,
+      leftoverBytes: items.reduce((sum, item) => sum + (Number(item.bytes) || 0), 0),
+    },
+    {
+      async uninstallApp() {
+        const result = await runVendorUninstall(target);
+        return { ok: result.ok === true, message: result.message };
+      },
+      async isStillInstalled() {
+        // Without an uninstall command the app is uninstalled by recycling its
+        // install directory, so the directory is the post-condition.
+        if (!hasUninstaller) return appPath === '' ? false : existsSync(appPath);
+        const after = await readUninstallRecord(target);
+        return after.installed === true;
+      },
+      async trashApp(pathToRecycle) {
+        return recycleToBin(pathToRecycle);
+      },
+      async trashPath(pathToRecycle) {
+        return recycleToBin(pathToRecycle);
+      },
+      async rescan(pathToScan) {
+        return scanFootprint({ path: pathToScan, fresh: true });
+      },
+    },
+  );
+
+  if (report.ok === true && scanId !== '') consumeToken(scanId);
+
+  const data = { ...report };
+  if (report.ok === true) return success(report.message, data);
+  return { ok: false, message: report.message, code: report.aborted ? 'ABORTED' : 'PARTIAL', data };
+}
+
 /** Validators already ran; each runner receives the normalized value object. */
 const RUNNERS = {
   'process.signal': async ({ pid, signal }) => {
@@ -1004,16 +1176,11 @@ Start-Process -FilePath ${psString('explorer.exe')} -ArgumentList ('/select,"' +
     return success(`Revealed "${path}" in File Explorer.`, { path });
   },
   'app.uninstall': async (value) => {
-    // 1.6: refuse the footprint tail explicitly instead of uninstalling and
-    // then quietly leaving the leftovers the user selected. Windows has no
-    // verified Recycle Bin move yet, so listing works and cleanup does not.
+    // A scan-backed request runs the shared uninstall pipeline: the leftovers
+    // go to the Recycle Bin (verified on Windows 10 / PowerShell 5.1) instead
+    // of being refused as in 1.6-1.9.
     if (typeof value?.scanId === 'string' && value.scanId !== '') {
-      return {
-        ok: false,
-        message:
-          'Leftover cleanup is not available on Windows yet: this build can list an application\'s leftover folders but will not move them to the Recycle Bin. Uninstall without selecting leftovers to continue.',
-        code: 'UNSUPPORTED_PLATFORM',
-      };
+      return runWin32UninstallPipeline(value, value);
     }
     if (value.kind === 'msi') return uninstallMsi(value);
     if (value.kind === 'winget') return uninstallWinget(value, true);

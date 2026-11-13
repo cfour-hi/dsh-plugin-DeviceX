@@ -37,6 +37,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = dirname(here);
 const pluginDir = join(root, 'plugin');
 const hostDir = join(pluginDir, 'host');
+/** Sections 3-4 drive a live macOS scan; they are skipped on other hosts. */
+const isDarwin = process.platform === 'darwin';
+const isWindows = process.platform === 'win32';
 
 let passed = 0;
 const failures = [];
@@ -114,9 +117,17 @@ const darwin = await import(pathToFileURL(join(hostDir, 'cleanup-darwin.js')));
 const win32 = await import(pathToFileURL(join(hostDir, 'cleanup-win32.js')));
 const actions = await import(pathToFileURL(join(hostDir, 'actions.js')));
 const actionsDarwin = await import(pathToFileURL(join(hostDir, 'actions-darwin.js')));
-check('the development host is darwin', process.platform === 'darwin', process.platform);
+check(
+  'the suite knows which host it runs on',
+  ['darwin', 'win32'].includes(process.platform),
+  process.platform,
+);
 check('cleanup dispatcher reports the host platform', cleanup.PLATFORM === process.platform);
-check('dispatcher selects the darwin implementation', cleanup.__test.platform === 'darwin');
+check(
+  'dispatcher selects the host implementation',
+  cleanup.__test.platform === process.platform,
+  cleanup.__test.platform,
+);
 for (const name of ['scanCleanup', 'deleteCleanup', 'cleanupItems']) {
   check(`cleanup exports ${name}()`, typeof cleanup[name] === 'function');
 }
@@ -128,99 +139,103 @@ check(
 
 // ---------------------------------------------------------------------------
 section('3. Live darwin scan (read-only)');
-darwin.__test.clearCache();
-const scanStarted = Date.now();
-const scan = await cleanup.scanCleanup({ fresh: true });
-const scanWallMs = Date.now() - scanStarted;
-check('live scan returns within the 15 s page bound', scanWallMs < 15_000, `${scanWallMs} ms`);
-check('scan platform is darwin', scan.platform === 'darwin');
-check(
-  'scan generatedAt is a recent epoch millisecond value',
-  Number.isFinite(scan.generatedAt) && Math.abs(Date.now() - scan.generatedAt) < 120_000,
-);
-check('scan durationMs is a finite non-negative number', Number.isFinite(scan.durationMs) && scan.durationMs >= 0);
-check('scan durationMs stays inside the same bound', scan.durationMs < 15_000, `${scan.durationMs} ms`);
-check('scan exposes the eight-item macOS allowlist', Array.isArray(scan.items) && scan.items.length === 8);
-const itemKeys = ['id', 'label', 'detail', 'category', 'path', 'bytes', 'files', 'requiresAdmin', 'exists', 'error'];
-check(
-  'every item carries exactly the contract fields',
-  scan.items.every((item) => isPlainObject(item) && sameJson(Object.keys(item).sort(), [...itemKeys].sort())),
-);
 const validCategories = new Set(['cache', 'logs', 'trash', 'temp', 'developer', 'updates']);
-check('every item category is contract-valid', scan.items.every((item) => validCategories.has(item.category)));
-check(
-  'every item byte/file count is a non-negative integer',
-  scan.items.every(
-    (item) =>
-      Number.isInteger(item.bytes) &&
-      item.bytes >= 0 &&
-      Number.isInteger(item.files) &&
-      item.files >= 0,
-  ),
-);
-check(
-  'every item path is a fixed absolute path',
-  scan.items.every((item) => typeof item.path === 'string' && isPathAbsolute(item.path)),
-);
-check(
-  'every item exists flag is boolean and error is null or a string',
-  scan.items.every(
-    (item) => typeof item.exists === 'boolean' && (item.error === null || typeof item.error === 'string'),
-  ),
-);
-check(
-  'item ids match cleanupItems() in order',
-  sameJson(
-    scan.items.map((item) => item.id),
-    cleanup.cleanupItems().map((item) => item.id),
-  ),
-);
-check(
-  'scan totalBytes equals the sum of the item byte counts',
-  scan.totalBytes === scan.items.reduce((sum, item) => sum + item.bytes, 0),
-);
-check(
-  'scan totalFiles equals the sum of the item file counts',
-  scan.totalFiles === scan.items.reduce((sum, item) => sum + item.files, 0),
-);
-check(
-  'scan errors[] is a string array (failures are non-fatal)',
-  Array.isArray(scan.errors) && scan.errors.every((entry) => typeof entry === 'string'),
-);
-check('scan document is JSON-safe', jsonSafe(scan) !== null && sameJson(JSON.parse(jsonSafe(scan)), scan));
-const adminIds = scan.items.filter((item) => item.requiresAdmin).map((item) => item.id).sort().join(',');
-check('only the two system roots are marked requiresAdmin', adminIds === 'system-caches,system-logs', adminIds);
-check(
-  'user roots are not marked requiresAdmin',
-  scan.items
-    .filter((item) => !['system-caches', 'system-logs'].includes(item.id))
-    .every((item) => item.requiresAdmin === false),
-);
-console.log(
-  `  INFO live scan: ${scan.items.map((item) => `${item.id}=${item.bytes}B/${item.files}f`).join(' ')}`,
-);
+if (isDarwin) {
+  darwin.__test.clearCache();
+  const scanStarted = Date.now();
+  const scan = await cleanup.scanCleanup({ fresh: true });
+  const scanWallMs = Date.now() - scanStarted;
+  check('live scan returns within the 15 s page bound', scanWallMs < 15_000, `${scanWallMs} ms`);
+  check('scan platform is darwin', scan.platform === 'darwin');
+  check(
+    'scan generatedAt is a recent epoch millisecond value',
+    Number.isFinite(scan.generatedAt) && Math.abs(Date.now() - scan.generatedAt) < 120_000,
+  );
+  check('scan durationMs is a finite non-negative number', Number.isFinite(scan.durationMs) && scan.durationMs >= 0);
+  check('scan durationMs stays inside the same bound', scan.durationMs < 15_000, `${scan.durationMs} ms`);
+  check('scan exposes the eight-item macOS allowlist', Array.isArray(scan.items) && scan.items.length === 8);
+  const itemKeys = ['id', 'label', 'detail', 'category', 'path', 'bytes', 'files', 'requiresAdmin', 'exists', 'error'];
+  check(
+    'every item carries exactly the contract fields',
+    scan.items.every((item) => isPlainObject(item) && sameJson(Object.keys(item).sort(), [...itemKeys].sort())),
+  );
+  check('every item category is contract-valid', scan.items.every((item) => validCategories.has(item.category)));
+  check(
+    'every item byte/file count is a non-negative integer',
+    scan.items.every(
+      (item) =>
+        Number.isInteger(item.bytes) &&
+        item.bytes >= 0 &&
+        Number.isInteger(item.files) &&
+        item.files >= 0,
+    ),
+  );
+  check(
+    'every item path is a fixed absolute path',
+    scan.items.every((item) => typeof item.path === 'string' && isPathAbsolute(item.path)),
+  );
+  check(
+    'every item exists flag is boolean and error is null or a string',
+    scan.items.every(
+      (item) => typeof item.exists === 'boolean' && (item.error === null || typeof item.error === 'string'),
+    ),
+  );
+  check(
+    'item ids match cleanupItems() in order',
+    sameJson(
+      scan.items.map((item) => item.id),
+      cleanup.cleanupItems().map((item) => item.id),
+    ),
+  );
+  check(
+    'scan totalBytes equals the sum of the item byte counts',
+    scan.totalBytes === scan.items.reduce((sum, item) => sum + item.bytes, 0),
+  );
+  check(
+    'scan totalFiles equals the sum of the item file counts',
+    scan.totalFiles === scan.items.reduce((sum, item) => sum + item.files, 0),
+  );
+  check(
+    'scan errors[] is a string array (failures are non-fatal)',
+    Array.isArray(scan.errors) && scan.errors.every((entry) => typeof entry === 'string'),
+  );
+  check('scan document is JSON-safe', jsonSafe(scan) !== null && sameJson(JSON.parse(jsonSafe(scan)), scan));
+  const adminIds = scan.items.filter((item) => item.requiresAdmin).map((item) => item.id).sort().join(',');
+  check('only the two system roots are marked requiresAdmin', adminIds === 'system-caches,system-logs', adminIds);
+  check(
+    'user roots are not marked requiresAdmin',
+    scan.items
+      .filter((item) => !['system-caches', 'system-logs'].includes(item.id))
+      .every((item) => item.requiresAdmin === false),
+  );
+  console.log(
+    `  INFO live scan: ${scan.items.map((item) => `${item.id}=${item.bytes}B/${item.files}f`).join(' ')}`,
+  );
 
-// ---------------------------------------------------------------------------
-section('4. Scan cache (60 s TTL) and the fresh bypass');
-const cachedScan = await cleanup.scanCleanup();
-check('non-fresh scan is served from the cache (same document)', cachedScan === scan);
-const cacheStatus = darwin.__test.cacheStatus();
-check(
-  'cache metadata reports a populated 60 s cache',
-  cacheStatus.cached === true && cacheStatus.ttlMs === 60_000 && cacheStatus.ageMs >= 0,
-);
-const freshStarted = Date.now();
-const freshScan = await cleanup.scanCleanup({ fresh: true });
-check(
-  'fresh:true bypasses the cache and produces a new document',
-  freshScan !== scan && freshScan.generatedAt >= scan.generatedAt,
-);
-check('the bypassing scan also respects the runtime bound', Date.now() - freshStarted < 15_000);
-darwin.__test.clearCache();
-check('clearCache() drops the cached document', darwin.__test.cacheStatus().cached === false);
+  // ---------------------------------------------------------------------------
+  section('4. Scan cache (60 s TTL) and the fresh bypass');
+  const cachedScan = await cleanup.scanCleanup();
+  check('non-fresh scan is served from the cache (same document)', cachedScan === scan);
+  const cacheStatus = darwin.__test.cacheStatus();
+  check(
+    'cache metadata reports a populated 60 s cache',
+    cacheStatus.cached === true && cacheStatus.ttlMs === 60_000 && cacheStatus.ageMs >= 0,
+  );
+  const freshStarted = Date.now();
+  const freshScan = await cleanup.scanCleanup({ fresh: true });
+  check(
+    'fresh:true bypasses the cache and produces a new document',
+    freshScan !== scan && freshScan.generatedAt >= scan.generatedAt,
+  );
+  check('the bypassing scan also respects the runtime bound', Date.now() - freshStarted < 15_000);
+  darwin.__test.clearCache();
+  check('clearCache() drops the cached document', darwin.__test.cacheStatus().cached === false);
 
-// ---------------------------------------------------------------------------
-section('5. Allowlist immutability (no caller path ever reaches the fs)');
+  // ---------------------------------------------------------------------------
+  section('5. Allowlist immutability (no caller path ever reaches the fs)');
+} else {
+  check(`live darwin cleanup scan skipped on ${process.platform} (macOS-only)`, true, process.platform);
+}
 const allowlist = cleanup.cleanupItems();
 check(
   'cleanupItems() entries expose only the public metadata keys',
@@ -230,14 +245,22 @@ check(
 );
 check('cleanupItems() ids are unique', new Set(allowlist.map((item) => item.id)).size === allowlist.length);
 check(
-  'all allowlist paths are fixed absolute paths',
-  allowlist.every((item) => typeof item.path === 'string' && isPathAbsolute(item.path)),
+  'all allowlist paths are fixed absolute paths or null',
+  // Windows marks a root null when its environment variable is absent (the id
+  // stays stable) and labels the non-directory Recycle Bin with a placeholder
+  // instead of a path.
+  allowlist.every(
+    (item) =>
+      item.path === null ||
+      item.path === 'Recycle Bin' ||
+      (typeof item.path === 'string' && isPathAbsolute(item.path)),
+  ),
 );
 check(
   'cleanupItems() matches the implementation allowlist',
   sameJson(
     allowlist.map((item) => item.id),
-    darwin.cleanupItems().map((item) => item.id),
+    (isWindows ? win32 : darwin).cleanupItems().map((item) => item.id),
   ),
 );
 check('isAllowlistedPath accepts a real cleanup root', darwin.__test.isAllowlistedPath('/Library/Caches') === true);
@@ -287,7 +310,15 @@ await fsp.writeFile(join(sandbox, 'alpha', 'a.bin'), Buffer.alloc(100));
 await fsp.mkdir(join(sandbox, 'beta'));
 await fsp.writeFile(join(sandbox, 'beta', 'b.bin'), Buffer.alloc(50));
 await fsp.mkdir(join(sandbox, 'gamma'));
-await fsp.symlink(outsideCanary, join(sandbox, 'link-to-canary.bin'));
+// Creating a symlink needs Developer Mode or elevation on Windows. When it is
+// refused the suite keeps running: the walk and deletion guards below are still
+// valid without the link, and the canary assertions prove nothing escaped.
+try {
+  await fsp.symlink(outsideCanary, join(sandbox, 'link-to-canary.bin'));
+} catch (error) {
+  if (error?.code !== 'EPERM' && error?.code !== 'EACCES') throw error;
+  console.log('  SKIP symlink creation (needs Developer Mode or elevation on Windows)');
+}
 
 const sandboxWalk = await darwin.__test.walkRoot(sandbox);
 check(
@@ -467,20 +498,35 @@ check(
     winPathRefusal.data.deletedBytes === 0 &&
     winPathRefusal.data.items.length === 0,
 );
-const winPlatformRefusal = await win32.deleteCleanup(['recycle-bin']);
-check(
-  'win32 deletion is disabled off Windows (no fs/PowerShell call)',
-  winPlatformRefusal.ok === false &&
-    winPlatformRefusal.code === 'UNSUPPORTED_PLATFORM' &&
-    winPlatformRefusal.data.deletedBytes === 0,
-);
+if (isWindows) {
+  // Never call deleteCleanup here: on a real Windows host it would empty the
+  // user's Recycle Bin. The guard is exercised on non-Windows hosts below.
+  check('win32 deletion is not invoked on a Windows host (destructive)', true, 'skipped');
+} else {
+  const winPlatformRefusal = await win32.deleteCleanup(['recycle-bin']);
+  check(
+    'win32 deletion is disabled off Windows (no fs/PowerShell call)',
+    winPlatformRefusal.ok === false &&
+      winPlatformRefusal.code === 'UNSUPPORTED_PLATFORM' &&
+      winPlatformRefusal.data.deletedBytes === 0,
+  );
+}
 const winScan = await win32.scanCleanup({ fresh: true });
-check(
-  'win32 scan degrades cleanly on a non-Windows host',
-  winScan.platform === 'win32' &&
-    winScan.items.length === 8 &&
-    winScan.items.every((item) => item.exists === false && item.bytes === 0 && typeof item.error === 'string'),
-);
+if (isWindows) {
+  check(
+    'win32 scan on a real host returns the eight-item allowlist',
+    winScan.platform === 'win32' &&
+      winScan.items.length === 8 &&
+      winScan.items.every((item) => typeof item.exists === 'boolean' && Number.isInteger(item.bytes)),
+  );
+} else {
+  check(
+    'win32 scan degrades cleanly on a non-Windows host',
+    winScan.platform === 'win32' &&
+      winScan.items.length === 8 &&
+      winScan.items.every((item) => item.exists === false && item.bytes === 0 && typeof item.error === 'string'),
+  );
+}
 check('win32 scan document is JSON-safe', jsonSafe(winScan) !== null && sameJson(JSON.parse(jsonSafe(winScan)), winScan));
 
 // ---------------------------------------------------------------------------

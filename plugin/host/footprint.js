@@ -156,6 +156,34 @@ export async function scanFootprint(options = {}) {
  */
 
 /**
+ * Validate a scan token without selecting items.
+ *
+ * Used when a request carries a `scanId` but no item ids (the user chose to
+ * uninstall without touching leftovers): the token still has to exist, belong
+ * to this host and be unused, otherwise the id is meaningless.
+ *
+ * @param {unknown} scanId
+ * @returns {{ok: true, appPath: string} | {ok: false, message: string, code: string}}
+ */
+export function peekScan(scanId) {
+  if (typeof scanId !== 'string' || scanId === '') {
+    return { ok: false, message: 'A scan id is required to clean up leftovers.', code: 'BAD_PARAMS' };
+  }
+  const record = tokens.get(/** @type {string} */ (scanId));
+  if (record === undefined) {
+    return { ok: false, message: 'This scan has expired. Re-open the uninstall dialog.', code: 'SCAN_NOT_FOUND' };
+  }
+  if (record.consumed) {
+    return { ok: false, message: 'This scan was already used. Re-open the uninstall dialog.', code: 'SCAN_CONSUMED' };
+  }
+  if (Date.now() - record.at > TOKEN_TTL_MS) {
+    tokens.delete(scanId);
+    return { ok: false, message: 'This scan has expired. Re-open the uninstall dialog.', code: 'SCAN_EXPIRED' };
+  }
+  return { ok: true, appPath: record.appPath };
+}
+
+/**
  * Resolve requested item ids through a scan token.
  *
  * Every rejection reason is explicit so the caller can explain it: an unknown
@@ -167,19 +195,11 @@ export async function scanFootprint(options = {}) {
  * @returns {{ok: true, items: ResolvedItem[], appPath: string} | {ok: false, message: string, code: string}}
  */
 export function resolveScanItems(scanId, itemIds) {
-  if (typeof scanId !== 'string' || scanId === '') {
-    return { ok: false, message: 'A scan id is required to clean up leftovers.', code: 'BAD_PARAMS' };
-  }
-  const record = tokens.get(scanId);
+  const peek = peekScan(scanId);
+  if (peek.ok !== true) return peek;
+  const record = tokens.get(/** @type {string} */ (scanId));
   if (record === undefined) {
     return { ok: false, message: 'This scan has expired. Re-open the uninstall dialog.', code: 'SCAN_NOT_FOUND' };
-  }
-  if (record.consumed) {
-    return { ok: false, message: 'This scan was already used. Re-open the uninstall dialog.', code: 'SCAN_CONSUMED' };
-  }
-  if (Date.now() - record.at > TOKEN_TTL_MS) {
-    tokens.delete(scanId);
-    return { ok: false, message: 'This scan has expired. Re-open the uninstall dialog.', code: 'SCAN_EXPIRED' };
   }
 
   /** @type {unknown[]} */

@@ -580,6 +580,82 @@ export async function deleteCleanup(ids) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Recycle Bin move (uninstall leftovers)                                     */
+/* -------------------------------------------------------------------------- */
+
+/** Move one path to the Recycle Bin; never falls back to a permanent delete. */
+const RECYCLE_MOVE_SCRIPT = `$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName Microsoft.VisualBasic
+$target = $env:DEVICEX_ARG_PATH
+if ([string]::IsNullOrWhiteSpace($target)) { throw 'No path was supplied.' }
+if (-not (Test-Path -LiteralPath $target)) { throw "Path not found: $target" }
+$item = Get-Item -LiteralPath $target -Force -ErrorAction Stop
+if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+  throw "Refusing to recycle a reparse point: $target"
+}
+if ($item.PSIsContainer) {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(
+    $target,
+    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+} else {
+  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(
+    $target,
+    [Microsoft.VisualBasic.FileIO.UIOption]::OnlyErrorDialogs,
+    [Microsoft.VisualBasic.FileIO.RecycleOption]::SendToRecycleBin)
+}
+if (Test-Path -LiteralPath $target) { throw "The item is still present after the Recycle Bin move: $target" }
+@{ ok = $true } | ConvertTo-Json -Compress`;
+
+/** Wall-clock budget for one Recycle Bin move (ms). */
+const RECYCLE_MOVE_TIMEOUT_MS = 120_000;
+
+/**
+ * Move one absolute path to the Recycle Bin.
+ *
+ * `Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory/DeleteFile` is the
+ * supported wrapper over `SHFileOperation` + `FOF_ALLOWUNDO`. Verified on
+ * Windows 10 22H2 with Windows PowerShell 5.1: the item appears in the Recycle
+ * Bin and restores to its original path with its contents intact.
+ *
+ * Safety: callers must already have resolved the path through a footprint scan
+ * token. This function additionally refuses non-absolute paths, filesystem
+ * roots and reparse points (junctions/symlinks), and reports a failed move
+ * instead of ever falling back to a permanent delete.
+ *
+ * @param {string} target absolute path
+ * @returns {Promise<{ok: boolean, message: string, code?: string}>}
+ */
+export async function recycleToBin(target) {
+  if (process.platform !== 'win32') {
+    return {
+      ok: false,
+      message: 'Moving items to the Recycle Bin is only available on a Windows host.',
+      code: 'UNSUPPORTED_PLATFORM',
+    };
+  }
+  if (typeof target !== 'string' || !path.isAbsolute(target)) {
+    return { ok: false, message: 'Refusing to recycle a path that is not absolute.', code: 'BAD_PARAMS' };
+  }
+  const resolved = path.resolve(target);
+  if (resolved === path.parse(resolved).root) {
+    return { ok: false, message: `Refusing to recycle a filesystem root: ${resolved}`, code: 'PATH_NOT_ALLOWED' };
+  }
+  const result = await runPSJson(RECYCLE_MOVE_SCRIPT, {
+    env: { DEVICEX_ARG_PATH: resolved },
+    timeout: RECYCLE_MOVE_TIMEOUT_MS,
+  });
+  if (!result.ok) {
+    return {
+      ok: false,
+      message: shortErr(result.error || 'Could not move the item to the Recycle Bin.'),
+      code: 'RECYCLE_FAILED',
+    };
+  }
+  return { ok: true, message: 'Moved to the Recycle Bin.' };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Scan                                                                       */
 /* -------------------------------------------------------------------------- */
 

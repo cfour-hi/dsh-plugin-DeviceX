@@ -155,9 +155,9 @@ test('measurePath counts nested files and stops at the entry cap', async () => {
   }
 });
 
-/* --------------------------------------------------- cleanup is refused */
+/* ------------------------------------------------- scan ids are validated */
 
-test('win32 app.uninstall refuses a scanId instead of silently skipping cleanup', async () => {
+test('win32 app.uninstall rejects an unknown scan id before running anything', async () => {
   const actions = await import('../plugin/host/actions-win32.js');
   const catalog = actions.actionCatalog();
   const entry = catalog.find((action) => action.id === 'app.uninstall');
@@ -172,20 +172,20 @@ test('win32 app.uninstall refuses a scanId instead of silently skipping cleanup'
   assert.equal(malformed.ok, false);
   assert.equal(malformed.code, 'BAD_PARAMS');
 
-  // A well-formed scanId reaches the runner, which refuses on purpose: Windows
-  // cannot move leftovers to the Recycle Bin yet, and silently uninstalling
-  // while ignoring the user's selection would be worse than refusing.
+  // A well-formed but unknown token is refused by the scan store: the id has
+  // to come from GET /devicex/api/footprint, so nothing is uninstalled.
   const refused = await actions.runAction('app.uninstall', { id: 'winget:7zip.7zip', scanId: 'abc' });
   assert.equal(refused.ok, false);
-  assert.equal(refused.code, 'UNSUPPORTED_PLATFORM');
-  assert.match(refused.message, /Recycle Bin/);
+  assert.equal(refused.code, 'SCAN_NOT_FOUND');
+  assert.match(refused.message, /scan/i);
 });
 
 test('win32 app.uninstall still uninstalls normally without a scanId', async () => {
   const actions = await import('../plugin/host/actions-win32.js');
-  // No scanId: the pre-1.6 path is selected. The runner only fails on this
-  // macOS dev host because winget.exe is absent; the important part is that the
-  // failure is NOT the footprint refusal.
-  const result = await actions.runAction('app.uninstall', { id: 'winget:7zip.7zip' });
+  // No scanId: the pre-1.6 path is selected. The id cannot exist on any real
+  // machine, so the runner fails inside winget without touching installed
+  // software - the point is that it is NOT a footprint refusal.
+  const result = await actions.runAction('app.uninstall', { id: 'winget:devicex.nonexistent.package' });
   assert.notEqual(result.code, 'UNSUPPORTED_PLATFORM');
+  assert.notEqual(result.code, 'SCAN_NOT_FOUND');
 });

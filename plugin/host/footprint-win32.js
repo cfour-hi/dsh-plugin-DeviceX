@@ -378,23 +378,6 @@ export async function scanFootprint(options = {}) {
   };
 }
 
-/**
- * Leftover cleanup is not implemented for Windows yet: moving to the Recycle
- * Bin needs the shell, which could not be validated on a real Windows host.
- * Returning a refusal is the point - the plugin never ships an unverified
- * destructive path, and the caller must say so plainly.
- *
- * @returns {{ok: false, message: string, code: string}}
- */
-export function cleanupUnsupported() {
-  return {
-    ok: false,
-    message:
-      'Leftover cleanup is not available on Windows yet: this build can list leftovers but will not move them to the Recycle Bin. The application itself can still be uninstalled.',
-    code: 'UNSUPPORTED_PLATFORM',
-  };
-}
-
 /** Test seam. */
 export const __test = {
   PLATFORM,

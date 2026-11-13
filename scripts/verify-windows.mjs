@@ -86,10 +86,26 @@ for (const name of ['actionCatalog', 'actionHistory', 'runAction']) {
 
 // ---------------------------------------------------------------------------
 section('2. PowerShell bridge pure helpers');
-const argv = win.__test.commandArguments();
+const argv = win.__test.commandArguments('C:\\Users\\x\\AppData\\Local\\Temp\\devicex-ps-1\\script.ps1');
 check(
-  'bridge streams scripts over stdin (-Command -), never argv',
-  argv.includes('-Command') && argv[argv.length - 1] === '-' && !argv.some((arg) => arg.startsWith('-EncodedCommand')) && argv.includes('-NoProfile') && argv.includes('Bypass'),
+  'bridge runs a temp script with -File, never the -Command - stdin REPL',
+  argv.includes('-File') &&
+    argv[argv.length - 1].endsWith('script.ps1') &&
+    !argv.includes('-Command') &&
+    !argv.some((arg) => arg.startsWith('-EncodedCommand')) &&
+    argv.includes('-NoProfile') &&
+    argv.includes('Bypass'),
+);
+// `-Command -` parses stdin line by line and silently drops a multi-line block
+// that is not followed by a blank line. That regression shipped undetected
+// because no fixture exercises the bridge itself; the temp file must stay.
+check(
+  'bridge writes the temp script as UTF-8 with a BOM (PowerShell 5.1 needs it)',
+  readFileSync(join(pluginDir, 'host/win.js'), 'utf8').includes('\\uFEFF'),
+);
+check(
+  'diagnostics drop the PowerShell location and source-snippet lines',
+  win.__test.short('boom\nAt C:\\x\\script.ps1:5 char: 31\n+ throw "boom"\n+ CategoryInfo : ...') === 'boom',
 );
 // Windows caps a command line at 32,767 chars; the bridge must stay tiny there.
 check('bridge argv stays far below the Windows 32,767-character limit', argv.join(' ').length < 200);
@@ -97,6 +113,19 @@ check(
   'win.js has no -EncodedCommand path left',
   !readFileSync(join(pluginDir, 'host/win.js'), 'utf8').includes('EncodedCommand'),
 );
+// Windows-only regression guard for the bug the -File change fixes: a block
+// statement whose closing brace is not followed by a blank line used to exit 0
+// with no output under `-Command -`.
+if (REAL_PLATFORM === 'win32') {
+  const liveBlock = await win.runPSJson(
+    'if ($true) {\n  $value = 41 + 1\n}\n@{ ok = $value } | ConvertTo-Json -Compress',
+    { timeout: 30_000 },
+  );
+  check(
+    'live bridge: a multi-line block produces output',
+    liveBlock.ok === true && liveBlock.data?.ok === 42,
+  );
+}
 const procHelper = await import(pathToFileURL(join(pluginDir, 'host/proc.js')));
 const stdinEcho = await procHelper.run(
   process.execPath,
@@ -244,9 +273,28 @@ check(
   /'power\.sleep':[\s\S]{0,700}?runPSJson\(/.test(actionsWinSource) && /'power\.lock':[\s\S]{0,700}?runPSJson\(/.test(actionsWinSource),
 );
 check('emptyTrash probes an already-empty bin locale-independently', actionsWinSource.includes('Shell.Application'));
+const cleanupWinSource = readFileSync(join(pluginDir, 'host', 'cleanup-win32.js'), 'utf8');
 check(
-  'default-route sorting uses the RouteMetric + InterfaceMetric sum',
-  readFileSync(join(pluginDir, 'host', 'win', 'metrics.ps1'), 'utf8').includes('RouteMetric + [long]$_.InterfaceMetric') &&
+  'win32 leftovers go to the Recycle Bin, never a permanent delete',
+  cleanupWinSource.includes('export async function recycleToBin') &&
+    cleanupWinSource.includes('RecycleOption]::SendToRecycleBin') &&
+    !/RECYCLE_MOVE_SCRIPT[\s\S]{0,1500}Remove-Item/.test(cleanupWinSource),
+);
+check(
+  'recycleToBin refuses reparse points and filesystem roots',
+  cleanupWinSource.includes('ReparsePoint') && cleanupWinSource.includes('filesystem root'),
+);
+check(
+  'app.uninstall sends a scan-backed request through the shared pipeline',
+  actionsWinSource.includes('runWin32UninstallPipeline') &&
+    actionsWinSource.includes('recycleToBin') &&
+    actionsWinSource.includes("from './uninstall.js'"),
+);
+check(
+  'default-route sorting sums route and interface metrics',
+  // metrics.ps1 reads Win32_IP4RouteTable (Metric1) and adds the adapter's
+  // InterfaceMetric itself; network.ps1 still uses the Get-NetRoute form.
+  readFileSync(join(pluginDir, 'host', 'win', 'metrics.ps1'), 'utf8').includes('$metric += $adapterMetrics[$index]') &&
     readFileSync(join(pluginDir, 'host', 'win', 'network.ps1'), 'utf8').includes('RouteMetric + [long]$_.InterfaceMetric'),
 );
 
