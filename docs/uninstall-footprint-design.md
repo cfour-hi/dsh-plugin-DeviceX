@@ -492,14 +492,14 @@ codesign -d --entitlements - <bundle> | grep -c com.apple.security.app-sandbox
 
 | 套件 | 数量 |
 | --- | --- |
-| `npm test` | 109 |
-| 客户端渲染断言（两种产物各跑一遍） | 237 |
-| `verify.mjs` | 91 |
+| `npm test` | 119 |
+| 客户端渲染断言（两种产物各跑一遍） | 282 |
+| `verify.mjs` | 96 |
 | `verify-windows.mjs` | 167 |
 | `verify-sensors.mjs` | 57 |
 | `verify-cleanup.mjs` | 130 |
 | `verify-benchmark.mjs` | 46 |
-| `verify-footprint.mjs`（新增） | 69 |
+| `verify-footprint.mjs`（新增） | 72 |
 
 ### 12.5 补充约束：macOS 不执行厂商自带卸载器
 

@@ -101,6 +101,18 @@ for (const [label, needles] of Object.entries(expected)) {
   if (guardHit || missing.length) console.log('    text sample:', text.slice(0, 260));
 }
 
+// Windows has no FileVault pane. The Security pane card used to render a
+// FileVault button here that fell back to the same `privacy` target as the TCC
+// card above, so the page showed two identical "Open privacy settings" buttons.
+await clickTab('Security');
+const privacyLabel = t('sec.openPrivacyWin');
+const privacyButtons = [...container.querySelectorAll('button')].filter(
+  (node) => (node.textContent || '').trim() === privacyLabel,
+);
+check(privacyButtons.length === 1, 'Security: exactly one privacy settings button on Windows', 'found ' + privacyButtons.length);
+check(!bodyText().includes(t('sec.openFileVault')), 'Security: no FileVault button on Windows');
+check(consoleErrors.length === 0, 'Security: no console errors after the pane-button check', consoleErrors.slice(0, 2).join(' | ').slice(0, 300));
+
 console.log('\nconsole errors:', consoleErrors.length);
 for (const e of consoleErrors.slice(0, 6)) console.log('  ', e.slice(0, 300));
 const failed = results.filter((r) => !r.ok);

@@ -129,6 +129,11 @@ export function SoftwareTab(props: SoftwareTabProps) {
                   t={t}
                   scroll="fill"
                   ariaLabel={t("sw.applications")}
+                  // Search and the name sort reorder this list, so key on the
+                  // bundle path (unique per installed app) rather than the
+                  // array index. Fall back to name@version for rows the Host
+                  // reports without a path.
+                  rowKey={(row: any) => strOr(row.path, "") || strOr(row.name, "") + "@" + strOr(row.version, "")}
                   columns={[
                     {
                       key: "name",
@@ -216,10 +221,13 @@ export function SoftwareTab(props: SoftwareTabProps) {
                   ]}
                   rows={filtered}
                   empty={
+                    // `empty` only renders when the *filtered* list is empty, and
+                    // TabShell owns the loading state (skeleton), so "still
+                    // reading" was never true here. Distinguish "the Host
+                    // reported no applications" from "nothing matched".
                     <EmptyState
                       icon="software"
-                      title={t("sw.noApps")}
-                      text={applications.length === 0 ? t("sw.loadingApps") : undefined}
+                      title={applications.length === 0 ? t("sw.noAppsInstalled") : t("sw.noApps")}
                     />
                   }
                 />

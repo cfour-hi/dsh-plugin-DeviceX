@@ -53,14 +53,6 @@
 			software: "act.groups.software",
 			power: "act.groups.power",
 		};
-		const GROUP_ICONS = {
-			process: "processes",
-			app: "software",
-			system: "gear",
-			network: "network",
-			software: "software",
-			power: "power",
-		};
 		/** Labels for the parameter names used by the frozen action table. */
 		const PARAM_LABEL_KEYS = {
 			pid: "act.param.pid",
@@ -172,8 +164,6 @@
 			firewall: [["rect", { x: 3.5, y: 4.5, width: 17, height: 15, rx: 2 }], ["path", { d: "M3.5 9.5h17M3.5 14.5h17M8 4.5v15M14.5 4.5v15" }]],
 			database: [["ellipse", { cx: 12, cy: 6.5, rx: 7.5, ry: 3 }], ["path", { d: "M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3" }]],
 			chevron: [["path", { d: "M9 5l7 7-7 7" }]],
-			sort: [["path", { d: "M7 4v16M3.5 7.5L7 4l3.5 3.5M17 20V4M13.5 16.5L17 20l3.5-3.5" }]],
-			plus: [["path", { d: "M12 5v14M5 12h14" }]],
 		};
 
 export {
@@ -187,7 +177,6 @@ export {
 	SECTION_TABS,
 	ACTION_GROUPS,
 	GROUP_LABEL_KEYS,
-	GROUP_ICONS,
 	PARAM_LABEL_KEYS,
 	PARAM_PLACEHOLDER_KEYS,
 	OPTION_LABEL_KEYS,

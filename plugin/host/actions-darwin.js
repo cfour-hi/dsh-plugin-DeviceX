@@ -40,30 +40,97 @@ const DSCACHEUTIL = '/usr/bin/dscacheutil';
 const PMSET = '/usr/bin/pmset';
 const BREW_CANDIDATES = ['/opt/homebrew/bin/brew', '/usr/local/bin/brew'];
 
-/** AppleScript-visible System Settings anchors for `system.openSettings`. */
+/**
+ * System Settings anchors for `system.openSettings`.
+ *
+ * The value is the *bundle identifier of the settings extension* that macOS
+ * 13+ uses for the pane; `open "x-apple.systempreferences:<id>"` launches that
+ * extension. An identifier macOS does not know is **not** an error: System
+ * Settings silently falls back to the General pane, which is why a misspelled
+ * anchor looks like "the button opens the wrong page" instead of failing.
+ *
+ * Every value here was checked against the plists Apple ships on macOS 15:
+ *  - `/System/Library/ExtensionKit/Extensions/<Pane>.appex`
+ *  - `/System/Applications/System Settings.app/Contents/PlugIns/<Pane>.appex`
+ * `verify.mjs` re-checks them on the running host, so a macOS rename shows up
+ * as a failing check instead of a dead button.
+ */
 const SETTINGS_PANES = {
   wifi: 'com.apple.wifi-settings-extension',
-  network: 'com.apple.network-settings-extension',
+  // `com.apple.network-settings-extension` (lowercase "s") is not a real
+  // bundle id on macOS 14/15 — it silently opened General.
+  network: 'com.apple.Network-Settings.extension',
   bluetooth: 'com.apple.BluetoothSettings',
   sound: 'com.apple.Sound-Settings.extension',
   display: 'com.apple.Displays-Settings.extension',
   appearance: 'com.apple.Appearance-Settings.extension',
   wallpaper: 'com.apple.Wallpaper-Settings.extension',
   battery: 'com.apple.Battery-Settings.extension',
-  general: 'com.apple.General-Settings.extension',
-  privacy: 'com.apple.PrivacySecurity.extension',
+  // The General pane kept its classic (pre-ExtensionKit) identifier.
+  general: 'com.apple.systempreferences.GeneralSettings',
+  // Privacy & Security moved under `com.apple.settings.*`.
+  privacy: 'com.apple.settings.PrivacySecurity.extension',
   users: 'com.apple.Users-Groups-Settings.extension',
   keyboard: 'com.apple.Keyboard-Settings.extension',
   mouse: 'com.apple.Mouse-Settings.extension',
   trackpad: 'com.apple.Trackpad-Settings.extension',
   notifications: 'com.apple.Notifications-Settings.extension',
   softwareupdate: 'com.apple.Software-Update-Settings.extension',
-  storage: 'com.apple.Storage-Settings.extension',
+  // Storage is `com.apple.settings.Storage`; `…-Storage-Settings.extension`
+  // does not exist and fell back to General.
+  storage: 'com.apple.settings.Storage',
   datetime: 'com.apple.Date-Time-Settings.extension',
   language: 'com.apple.Localization-Settings.extension',
   sharing: 'com.apple.Sharing-Settings.extension',
   loginitems: 'com.apple.LoginItems-Settings.extension',
+  // There is no standalone Firewall pane on macOS 13+. The firewall control
+  // lives in the Network pane (the "Firewall" row, between VPN and Other
+  // Services), so that is the pane this anchor opens.
+  firewall: 'com.apple.Network-Settings.extension',
+  // FileVault is the first section of Privacy & Security, not its own pane.
+  filevault: 'com.apple.settings.PrivacySecurity.extension',
 };
+
+/**
+ * Bundle identifiers of the Settings extensions installed on this Mac.
+ *
+ * `x-apple.systempreferences:<unknown-id>` does not fail: System Settings falls
+ * back to the General pane, so a stale anchor silently opens the wrong page.
+ * Knowing the real identifiers lets `system.openSettings` refuse an anchor that
+ * would land elsewhere instead of reporting a success the user cannot see.
+ *
+ * @returns {Promise<Set<string>|null>} null when neither directory is readable
+ *   (a non-standard install); the anchors are then used as written.
+ */
+async function installedSettingsPanes() {
+  const roots = [
+    '/System/Library/ExtensionKit/Extensions',
+    '/System/Applications/System Settings.app/Contents/PlugIns',
+  ];
+  const found = new Set();
+  let readable = 0;
+  for (const root of roots) {
+    /** @type {string[]} */
+    let entries;
+    try {
+      entries = await fsp.readdir(root);
+    } catch {
+      continue;
+    }
+    readable += 1;
+    for (const entry of entries) {
+      if (!entry.endsWith('.appex')) continue;
+      try {
+        const info = await fsp.readFile(path.join(root, entry, 'Contents', 'Info.plist'), 'utf8');
+        const match = /<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/.exec(info);
+        if (match) found.add(match[1].trim());
+      } catch {
+        /* an unreadable plist is simply not a pane we can verify */
+      }
+    }
+  }
+  return readable > 0 && found.size > 0 ? found : null;
+}
 
 /** Supported POSIX signals for `process.signal`. */
 const SIGNAL_NAMES = new Map([
@@ -986,6 +1053,17 @@ const RUNNERS = {
     const paneRead = readSelect(params, 'pane', Object.keys(SETTINGS_PANES));
     if (!paneRead.ok) return failure(paneRead.message, 'BAD_PARAMS');
     const anchor = SETTINGS_PANES[paneRead.value];
+    // An anchor this macOS does not ship would silently open General; refuse it
+    // with the pane name so the mismatch is visible instead of looking like a
+    // working button that opens the wrong page.
+    const installed = await installedSettingsPanes();
+    if (installed !== null && !installed.has(anchor)) {
+      return failure(
+        `This macOS does not provide the "${paneRead.value}" settings pane (${anchor}); ` +
+          'opening it would fall back to General.',
+        'PANE_UNAVAILABLE',
+      );
+    }
     const url = `x-apple.systempreferences:${anchor}`;
     const result = await run(OPEN, [url], { timeout: 10_000 });
     if (!result.ok) return commandFailure('Open System Settings', result);

@@ -78,7 +78,6 @@ export function SystemTab(props: SystemTabProps) {
           locale.timezone ? { key: "timezone", label: t("sys.timezone"), value: locale.timezone } : null,
           locale.language ? { key: "language", label: t("sys.language"), value: locale.language } : null,
           locale.locale ? { key: "locale", label: t("sys.localeValue"), value: locale.locale } : null,
-          isFiniteNumber(currentUser.uid) ? { key: "uid", label: t("sys.uid"), value: String(currentUser.uid) } : null,
         ].filter(Boolean) as any;
         const envRows = ENV_KEYS.filter((key) => typeof environment[key] === "string" && environment[key].length > 0).map((key) => ({
           key,

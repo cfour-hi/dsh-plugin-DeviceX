@@ -1,5 +1,7 @@
 # Device X · dsh-plugin-devicex
 
+简体中文 | [English](README.en.md)
+
 一页中文/英文界面看尽本机硬件、系统、软件、网络、安全与进程，并对**非硬件**的一切直接操作——结束进程、
 卸载应用并清理残留、改主机名/音量/深色模式、开关 Wi-Fi/防火墙、设 DNS、清空废纸篓、睡眠锁定……
 还内置可确认的磁盘清理与可重复的本机基准测试。同一套能力以 `device_info` / `device_control` /
@@ -46,7 +48,7 @@ PowerShell/CIM），浏览器 UI、HTTP API、Agent 工具两端完全一致。
 | `system.setHostname` | HostName / ComputerName / LocalHostName（字符与长度校验） |
 | `system.setVolume` / `system.setDarkMode` | 音量 0–100 / 深色模式 |
 | `system.launchAgent` | 启停 LaunchAgent 或 Windows 启动项（路径白名单） |
-| `system.openSettings` | 打开系统设置面板（21 项白名单） |
+| `system.openSettings` | 打开系统设置面板（23 项白名单） |
 | `system.toggleFirewall` / `flushDNS` / `emptyTrash` | 防火墙开关 / 刷新 DNS / 清空废纸篓或回收站 |
 | `cleanup.delete` | 删除扫描选中的项；只接受扫描返回的固定 id，绝不接受路径（1–20 个、去重） |
 | `network.setWifiPower` / `setDns` | Wi-Fi 开关 / 设置 0–4 个 DNS（接受服务名或网卡名） |
@@ -135,14 +137,14 @@ src/client/               # 浏览器端 TSX 源码（10 个标签页 + 44 个�
 npm run verify:ci    # 一条命令跑完全部（等价 CI）
 
 # 也可以分开跑：
-npm test                          # 单测 109 项
-node scripts/verify.mjs           # 通用回归 91 项
+npm test                          # 单测 119 项
+node scripts/verify.mjs           # 通用回归 96 项
 node scripts/verify-windows.mjs   # Windows 适配 167 项（fixture，无需真机）
 node scripts/verify-sensors.mjs   # 温度/驱动 57 项
 node scripts/verify-cleanup.mjs   # 清理 130 项（真实扫描 + 沙箱删除）
 node scripts/verify-benchmark.mjs # 基准 46 项
 node scripts/verify-footprint.mjs # 卸载残留 72 项
-node scripts/render-check.mjs     # 客户端渲染断言 246 条
+node scripts/render-check.mjs     # 客户端渲染断言 282 条
 ```
 
 `verify-footprint.mjs` 把实测踩到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、

@@ -248,7 +248,7 @@ Action table (ids are frozen; params as listed):
 | `system.setVolume` | system | `percent:number 0..100` | `osascript -e 'set volume output volume N'` |
 | `system.setDarkMode` | system | `enabled:boolean` | `osascript` System Events appearance preferences |
 | `system.launchAgent` | system | `path:string`, `enabled:boolean` | user scope: `launchctl bootstrap gui/$UID PATH` / `bootout gui/$UID PATH`; validate plist path under `~/Library/LaunchAgents` or `/Library/Launch*` |
-| `system.openSettings` | system | `pane:string` | allowlist panes, `open "x-apple.systempreferences:PANE"` |
+| `system.openSettings` | system | `pane:string` | allowlist panes, `open "x-apple.systempreferences:PANE"`; the pane value is the **bundle id of the Settings extension** (macOS 13+), and an id this macOS does not ship is refused with `PANE_UNAVAILABLE` because System Settings otherwise silently falls back to General |
 | `system.toggleFirewall` | system | `enabled:boolean` | `/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on|off` |
 | `system.flushDNS` | system | — | `dscacheutil -flushcache` (+ report if mDNSResponder needed) |
 | `system.emptyTrash` | system | — | remove entries inside `~/.Trash` |
@@ -347,7 +347,10 @@ Requirements:
    the packages). Both views fill the pane height and
    scroll in place under a sticky table header; empty/loading states included.
 6. **Network**: interface cards, Wi-Fi status card, DNS list, default route, proxy, listening ports
-   + established count, actions (Wi-Fi power, set DNS modal, open network settings).
+   + established count, actions (Wi-Fi power, set DNS modal, open network settings). The listeners list
+   is a bounded, in-place scrolling table (a busy host exposes hundreds of socks): a search field over
+   protocol / address / port / PID / process, a TCP–UDP–all segmented filter and a 100-row page with a
+   "show more" step, so the panel never grows to an unbounded column of rows.
 7. **Security**: status cards (FileVault/SIP/Gatekeeper/Firewall with on/off/unknown pills), TCC
    permission panel (readable or explanatory fallback), admin users, action buttons (open settings
    panes, toggle firewall with confirm, flush DNS, empty trash).
@@ -738,3 +741,38 @@ new.
 - **Processes**: one full-height card, search + sticky header always visible.
 - **Guard**: `scripts/render-check.mjs` covers 246 assertions and runs in `verify:ci` and the
   `verify` workflow; `verify:build` stays at 37 checks.
+
+## Post-1.7 audit (current state)
+
+Corrections made after the frozen sections above; they supersede any figure quoted there.
+
+- **`components/spanIcon.tsx` is gone.** The 1.3.12/1.4.0 notes describe it as a shared helper for
+  banner icons, but nothing ever imported it — `SectionErrors.tsx` emits `.dx-bannerIcon` inline. The
+  file was removed together with its single entry in the concat `MODULE_ORDER`
+  (`scripts/build-client-concat.mjs`), which is the only thing that had kept it alive. Shared TSX
+  helpers are now `TabShell` / `SectionErrors` / `hooks.js` forwarders / `action-helpers.tsx`.
+- **`processes.list[].elapsed` is a number of seconds.** `types/contracts.ts` said `string`, but both
+  hosts normalise to seconds (`parseElapsed` in `collector-darwin.js`, the creation-date delta in
+  `collector-win32.js`). The Processes tab renders it through `fmtUptime`, and the render fixtures
+  feed seconds so the contract and the fixtures agree. Treat the type as the authority.
+- **Current suite sizes**: `npm test` 119, `verify.mjs` 96, `verify-build.mjs` 37,
+  `render-check.mjs` 282 (mounted against both build artifacts, so 2 × 282 runs in
+  `verify:build`), `render-windows-check.mjs` 36 (the real mapped Windows payload), `verify-windows.mjs`
+  167, `verify-sensors.mjs` 57, `verify-cleanup.mjs` 130, `verify-benchmark.mjs` 46,
+  `verify-footprint.mjs` 72. The 215/237/246 figures in the frozen sections are the counts *at those
+  milestones*.
+- **Table row keys**: `DataTable.rowKey` is honoured but was never passed, so every table keyed rows by
+  array index. The three lists that get reordered under the user (`ProcessesTab` sorts by CPU on each
+  2.5 s tick, `SoftwareTab` by name/filter, `NetworkTab` by search/protocol/"show more") now pass a
+  stable key — pid, bundle path, and proto:address:port:pid respectively. The render suite asserts that
+  re-sorting the process table moves the *same* DOM node for a pid.
+- **`useDeviceMetrics().samples` is a snapshot per tick**, not `samplesRef.current`. The ring buffers
+  are mutated in place by `pushSample`, so the old return value had a constant object identity and no
+  `memo`/`useMemo`/`useEffect` dependency on `samples` could ever observe a new tick.
+- **Icon table**: `constants.js` `ICONS` no longer carries `sort` or `plus` (never referenced), and
+  the exported `GROUP_ICONS` map was removed (`ACTION_META[...].icon` is what the Actions tab reads).
+- **Reminder for future edits**: `plugin/client.js` is the committed esbuild build. `verify-build.mjs`
+  regenerates both engines to temp files and asserts the committed file equals the esbuild output, so
+  after any `src/client/` change you must run `npm run build`. `build-client-concat.mjs --check`
+  compares against the committed artifact and will report it stale — that check is not part of the
+  gate; the concat engine is exercised through `--out` by `verify-build.mjs`.

@@ -9,6 +9,8 @@ import {
   cleanupFixture,
   footprintFixture,
   benchmarkFixture,
+  networkFixture,
+  softwareFixture,
 } from "./client-fixtures.mjs";
 
 // ------------------------------------------------------------------ harness
@@ -465,6 +467,11 @@ section("1. English happy path — every tab renders live Host data");
   check(textOf(container).indexOf("WindowServer") >= 0, "Processes table lists rows");
   check(textOf(container).indexOf("kernel_task") >= 0, "Processes table lists kernel_task");
   check(buttonsWithText(container, "End…").length >= 2, "Processes rows expose kill buttons");
+  // `elapsed` arrives as seconds from both hosts; it must be rendered as a
+  // duration, not as the raw counter ("274320" tells the user nothing).
+  const procText = textOf(container);
+  check(procText.indexOf("274320") < 0, "Processes elapsed is not rendered as a raw second count");
+  check(procText.indexOf("3 d") >= 0, "Processes elapsed renders as a duration");
 
   await clickTab(container, "Cleanup");
   check(container.querySelectorAll(".dx-cleanRow").length === 5, "Cleanup lists the allowlisted items", "got " + container.querySelectorAll(".dx-cleanRow").length);
@@ -939,6 +946,225 @@ section("13. Failure toasts, Homebrew uninstall and launch-agent confirmation");
   check(errors.length === 0, "no console errors in failure/brew/agent flows", errors.slice(0, 3).join(" || "));
   await unmountPage(mounted);
   check(fetchViolations.length === 0, "all network calls stayed under /devicex/api/", JSON.stringify(fetchViolations.slice(0, 5)));
+}
+
+// ================================================================== 14. long listening-port list
+section("14. Listening ports stay bounded, searchable and filterable");
+{
+  takeConsoleErrors();
+  // 260 listeners: a busy host is the case the table has to survive.
+  const busyPorts = [];
+  for (let index = 0; index < 260; index += 1) {
+    const tcp = index % 3 !== 0;
+    busyPorts.push({
+      proto: tcp ? "tcp" : "udp",
+      address: index % 5 === 0 ? "127.0.0.1" : "0.0.0.0",
+      port: 3000 + index,
+      pid: 4000 + index,
+      process: index % 7 === 0 ? "node" : "listener-" + index,
+    });
+  }
+  const happy = createHappyHandler({
+    sections: () => ({ ...inventoryBySection(), network: { ...networkFixture(), listeningPorts: busyPorts } }),
+  });
+  activeHandler = happy.handler;
+  const mounted = await mountPage(tEn);
+  const { container } = mounted;
+  await clickTab(container, "Network");
+  const portsCard = () =>
+    [...container.querySelectorAll("section.dx-card")].find((node) => textOf(node).indexOf("Listening ports") >= 0) || null;
+  const portsRows = () => {
+    const card = portsCard();
+    return card ? [...card.querySelectorAll("tbody tr")] : [];
+  };
+  check(portsRows().length === 100, "listening ports render the first bounded page only", "rows=" + portsRows().length);
+  const moreButton = buttonsWithText(container, "Show 100 more")[0];
+  check(!!moreButton, "a show-more control appears for a long listener list");
+  if (moreButton) {
+    await click(moreButton);
+    check(portsRows().length === 200, "show-more extends the page by one step", "rows=" + portsRows().length);
+  }
+  const searchField = [...container.querySelectorAll("input[type=search]")].find(
+    (node) => String(node.getAttribute("aria-label")) === "Search",
+  );
+  check(!!searchField, "the listener card exposes a search field");
+  if (searchField) {
+    await setFieldValue(searchField, "listener-11");
+    check(portsRows().length > 0 && portsRows().length < 100, "searching the port list narrows the page", "rows=" + portsRows().length);
+    check(textOf(container).indexOf("listener-11") >= 0, "the matching listener is rendered");
+    await setFieldValue(searchField, "no-such-listener");
+    check(portsRows().length === 0, "an unmatched port search renders no rows");
+    await setFieldValue(searchField, "");
+  }
+  const tcpButton = buttonsWithText(container, "TCP").filter((node) => node.className.indexOf("dx-segBtn") >= 0)[0];
+  check(!!tcpButton, "the listener card exposes a protocol filter");
+  if (tcpButton) {
+    await click(tcpButton);
+    const card = portsCard();
+    const protoCells = (card ? [...card.querySelectorAll("tbody tr")] : []).map((row) =>
+      row.children[0] ? textOf(row.children[0]) : "",
+    );
+    check(protoCells.length > 0 && protoCells.every((value) => value === "TCP"), "the TCP filter hides UDP listeners", JSON.stringify(protoCells.slice(0, 4)));
+    const udpButton = buttonsWithText(container, "UDP").filter((node) => node.className.indexOf("dx-segBtn") >= 0)[0];
+    if (udpButton) {
+      await click(udpButton);
+      const udpCells = (portsCard() ? [...portsCard().querySelectorAll("tbody tr")] : []).map((row) =>
+        row.children[0] ? textOf(row.children[0]) : "",
+      );
+      check(udpCells.length > 0 && udpCells.every((value) => value === "UDP"), "the UDP filter shows only UDP listeners", JSON.stringify(udpCells.slice(0, 4)));
+    }
+  }
+  const errors = takeConsoleErrors();
+  check(errors.length === 0, "no console errors with a long listener list", errors.slice(0, 3).join(" || "));
+  await unmountPage(mounted);
+}
+
+// ================================================================== 15. software empty states
+section("15. Software distinguishes no-apps from no-match");
+{
+  takeConsoleErrors();
+  // The `empty` slot only renders once TabShell has data, so it can never mean
+  // "still loading". A Host that reports zero applications must say so, not
+  // claim it is still reading the list.
+  const noApps = createHappyHandler({
+    sections: () => ({
+      ...inventoryBySection(),
+      software: { ...softwareFixture(), applications: [], totalApplications: 0, homebrew: { available: true, prefix: "/opt/homebrew", installed: [], outdated: [] } },
+    }),
+  });
+  activeHandler = noApps.handler;
+  const first = await mountPage(tEn);
+  await clickTab(first.container, "Software");
+  // Assert on the empty-state *title*, not on "the string appears somewhere in
+  // the page": the old code put the misleading copy in `text`, so a
+  // page-wide substring match would still pass after the fix.
+  const emptyTitles = () => [...first.container.querySelectorAll(".dx-emptyTitle")].map(textOf);
+  check(
+    emptyTitles().indexOf("No installed applications found") >= 0,
+    "zero applications renders the not-installed copy as the empty title",
+    JSON.stringify(emptyTitles()),
+  );
+  check(
+    emptyTitles().indexOf("No matching applications") < 0,
+    "zero applications does not claim a filter matched nothing",
+    JSON.stringify(emptyTitles()),
+  );
+  const firstErrors = takeConsoleErrors();
+  check(firstErrors.length === 0, "no console errors with zero applications", firstErrors.slice(0, 3).join(" || "));
+  await unmountPage(first);
+
+  // The same slot must still explain a filter that matched nothing.
+  const happy = createHappyHandler();
+  activeHandler = happy.handler;
+  const second = await mountPage(tEn);
+  await clickTab(second.container, "Software");
+  const searchField = [...second.container.querySelectorAll("input[type=search]")].find(
+    (node) => String(node.getAttribute("aria-label")) === "Search",
+  );
+  check(!!searchField, "the software card exposes a search field");
+  if (searchField) {
+    await setFieldValue(searchField, "zzz-no-such-application");
+    const filteredTitles = [...second.container.querySelectorAll(".dx-emptyTitle")].map(textOf);
+    check(
+      filteredTitles.indexOf("No matching applications") >= 0,
+      "an unmatched search renders the no-match copy as the empty title",
+      JSON.stringify(filteredTitles),
+    );
+    check(
+      filteredTitles.indexOf("No installed applications found") < 0,
+      "an unmatched search does not claim nothing is installed",
+      JSON.stringify(filteredTitles),
+    );
+  }
+  const secondErrors = takeConsoleErrors();
+  check(secondErrors.length === 0, "no console errors in the software empty states", secondErrors.slice(0, 3).join(" || "));
+  await unmountPage(second);
+}
+
+// ================================================================== 16. stable row keys
+section("16. Reordered tables key rows by identity, not by position");
+{
+  takeConsoleErrors();
+  activeHandler = createHappyHandler().handler;
+  const mounted = await mountPage(tEn);
+  const { container } = mounted;
+  await clickTab(container, "Processes");
+  // The first process column is the pid, so a row can be found across renders.
+  const processRow = (pid) =>
+    [...container.querySelectorAll("tbody tr")].find(
+      (row) => row.children.length > 0 && textOf(row.children[0]) === String(pid),
+    ) || null;
+  const before = processRow(1234);
+  check(!!before, "process row for pid 1234 is rendered");
+  const sortButton = buttonsWithText(container, "Descending")[0];
+  check(!!sortButton, "the process table exposes a CPU sort toggle");
+  if (before && sortButton) {
+    await click(sortButton);
+    const after = processRow(1234);
+    check(!!after, "process row for pid 1234 still renders after re-sorting");
+    // An index key leaves the node at its old position and only rewrites its
+    // text, so the pid would be served by a different element. A pid key moves
+    // the same node instead.
+    check(before === after, "re-sorting moves the same DOM node for a pid (stable row key)");
+    const order = [...container.querySelectorAll("tbody tr")]
+      .map((row) => (row.children[0] ? textOf(row.children[0]) : ""))
+      .filter((value) => value.length > 0);
+    check(order[0] !== "1234", "the CPU sort actually reordered the table", JSON.stringify(order));
+  }
+  const errors = takeConsoleErrors();
+  check(errors.length === 0, "no console errors while re-sorting the process table", errors.slice(0, 3).join(" || "));
+  await unmountPage(mounted);
+}
+
+// ================================================================== 17. samples snapshot
+section("17. Every metrics tick publishes a fresh samples snapshot");
+{
+  takeConsoleErrors();
+  activeHandler = createHappyHandler().handler;
+  // Exercised from source with the same injected React: the published object
+  // identity is a property of the hook, not of the bundle. `pushSample` edits
+  // the ring buffers in place, so returning `samplesRef.current` gave every
+  // render the same object and a future memo/useMemo dependency on `samples`
+  // would never see a new tick.
+  const { setReact } = await import("../src/client/runtime.js");
+  const { useDeviceMetrics } = await import("../src/client/use-device-metrics.js");
+  setReact(React);
+  let latest = null;
+  function Probe() {
+    latest = useDeviceMetrics();
+    return null;
+  }
+  const holder = document.createElement("div");
+  document.body.appendChild(holder);
+  const probeRoot = ReactDOMClient.createRoot(holder);
+  await act(async () => {
+    probeRoot.render(React.createElement(Probe));
+  });
+  await flush(150);
+  const first = latest && latest.samples;
+  check(!!first && Array.isArray(first.cpu), "the metrics hook exposes sample arrays");
+  const countBefore = first && Array.isArray(first.cpu) ? first.cpu.length : -1;
+  check(countBefore >= 1, "the first tick recorded a CPU sample", "samples=" + countBefore);
+  if (latest) {
+    await act(async () => {
+      await latest.refresh();
+    });
+    await flush(150);
+  }
+  const second = latest && latest.samples;
+  check(second !== first, "a tick publishes a new samples object (no mutated-ref identity)");
+  check(
+    !!second && Array.isArray(second.cpu) && second.cpu.length === countBefore + 1,
+    "the new snapshot carries exactly one more CPU sample",
+    "before=" + countBefore + " after=" + (second && second.cpu ? second.cpu.length : "?"),
+  );
+  check(!!first && !!second && first.cpu !== second.cpu, "the snapshot copies the arrays instead of sharing them");
+  await act(async () => {
+    probeRoot.unmount();
+  });
+  holder.remove();
+  const errors = takeConsoleErrors();
+  check(errors.length === 0, "no console errors in the metrics probe", errors.slice(0, 3).join(" || "));
 }
 
 // ------------------------------------------------------------------ summary

@@ -1,17 +1,28 @@
 /** Network tab: Wi-Fi, DNS, default route, proxy, interfaces and listening ports. */
 import { Fragment, h } from "../jsx.js";
-import { asArray, asObject, fmtNumber, isFiniteNumber, isObj, rssiLevel, strOr } from "../helpers.js";
+import { asArray, asObject, fmtNumber, isFiniteNumber, isObj, numOr, rssiLevel, strOr } from "../helpers.js";
+import { useState } from "../hooks.js";
 import { Card } from "./Card";
 import { DataTable } from "./DataTable";
 import { EmptyState } from "./EmptyState";
 import { FactGrid } from "./FactGrid";
 import { Icon } from "./Icon";
 import { Pill } from "./Pill";
+import { SearchField } from "./SearchField";
+import { SegmentedControl } from "./SegmentedControl";
 import { SignalBars } from "./SignalBars";
 import { TabShell } from "./TabShell";
 import type { TabState } from "./TabShell";
 
 export type Translator = (key: string, params?: Record<string, unknown>) => string;
+
+/** Protocol bucket for one listener row (`tcp`, `tcp6`, `udp6` … → tcp/udp). */
+function protoBucket(value: unknown) {
+  const text = strOr(value, "").toLowerCase();
+  if (text.indexOf("tcp") === 0) return "tcp";
+  if (text.indexOf("udp") === 0) return "udp";
+  return "other";
+}
 
 const NET_TYPE_KEYS: Record<string, string> = {
   wifi: "net.type.wifi",
@@ -20,6 +31,13 @@ const NET_TYPE_KEYS: Record<string, string> = {
   bridge: "net.type.bridge",
   other: "net.type.other",
 };
+
+/** Rows rendered per "show more" step for the listening-port table.
+ *
+ * 100 covers an ordinary desktop (a few dozen listeners), so the control only
+ * appears on a host that really reports hundreds of sockets (containers,
+ * proxies, a dev machine with many servers). */
+const PORT_PAGE_SIZE = 100;
 
 export interface NetworkTabProps {
   t: Translator;
@@ -34,6 +52,11 @@ export interface NetworkTabProps {
 export function NetworkTab(props: NetworkTabProps) {
   const t = props.t;
   const pending = asObject(props.pending);
+  // A busy host exposes hundreds of listeners; the card shows a bounded,
+  // searchable, protocol-filtered page instead of one very long table.
+  const [portQuery, setPortQuery] = useState("");
+  const [portProto, setPortProto] = useState("all");
+  const [portLimit, setPortLimit] = useState(PORT_PAGE_SIZE);
   return (
     <TabShell t={t} state={props.state} skeletonCards={4} onRetry={props.onRetry} errorsKey="net.errors">
       {(data: any) => {
@@ -43,6 +66,16 @@ export function NetworkTab(props: NetworkTabProps) {
         const dns = asObject(data.dns);
         const proxy = asObject(data.proxy);
         const ports = asArray(data.listeningPorts).filter(isObj);
+        const portNeedle = String(portQuery).trim().toLowerCase();
+        const filteredPorts = ports.filter((entry: any) => {
+          if (portProto !== "all" && protoBucket(entry.proto) !== portProto) return false;
+          if (portNeedle.length === 0) return true;
+          const haystack = [entry.proto, entry.address, entry.port, entry.pid, entry.process]
+            .filter((value) => value !== null && value !== undefined)
+            .map((value) => String(value).toLowerCase());
+          return haystack.some((value) => value.indexOf(portNeedle) >= 0);
+        });
+        const visiblePorts = filteredPorts.slice(0, portLimit);
         const wifiInterface = interfaces.find((entry: any) => entry.type === "wifi");
         const wifiOn = wifiInterface ? wifiInterface.up !== false : wifi !== null;
         const wifiPowerLabel = wifiOn ? t("net.wifiPowerOn") : t("net.wifiPowerOff");
@@ -255,33 +288,97 @@ export function NetworkTab(props: NetworkTabProps) {
               }
               flush
             >
-              <DataTable
-                t={t}
-                ariaLabel={t("net.ports")}
-                columns={[
-                  {
-                    key: "proto",
-                    label: t("net.proto"),
-                    render: (row: any) => <span className="dx-mono">{strOr(row.proto, "—").toUpperCase()}</span>,
-                  },
-                  { key: "address", label: t("common.address"), render: (row: any) => <span className="dx-mono">{strOr(row.address, "—")}</span> },
-                  {
-                    key: "port",
-                    label: t("common.port"),
-                    render: (row: any) => (
-                      <span className="dx-mono">{row.port === null || row.port === undefined ? "—" : String(row.port)}</span>
-                    ),
-                  },
-                  {
-                    key: "pid",
-                    label: t("common.pid"),
-                    render: (row: any) => (row.pid === null || row.pid === undefined ? "—" : String(row.pid)),
-                  },
-                  { key: "process", label: t("common.process"), render: (row: any) => strOr(row.process, "—") },
-                ]}
-                rows={ports}
-                empty={<EmptyState title={t("net.noPorts")} />}
-              />
+              {ports.length === 0 ? (
+                <EmptyState title={t("net.noPorts")} />
+              ) : (
+                <Fragment>
+                  <div className="dx-toolbar" style={{ padding: "12px 16px" }}>
+                    <div className="dx-toolbarLeft">
+                      <SearchField
+                        value={String(portQuery)}
+                        onChange={(value) => {
+                          setPortQuery(value);
+                          setPortLimit(PORT_PAGE_SIZE);
+                        }}
+                        placeholder={t("net.portsSearch")}
+                        label={t("common.search")}
+                      />
+                    </div>
+                    <div className="dx-toolbarRight">
+                      <SegmentedControl
+                        label={t("net.portsFilter")}
+                        options={[
+                          { value: "all", label: t("common.all") },
+                          { value: "tcp", label: "TCP" },
+                          { value: "udp", label: "UDP" },
+                        ]}
+                        value={String(portProto)}
+                        onChange={(value) => {
+                          setPortProto(value);
+                          setPortLimit(PORT_PAGE_SIZE);
+                        }}
+                      />
+                      <span className="dx-small dx-muted" title={t("net.portsTotal", { total: ports.length })}>
+                        {String(visiblePorts.length) + " / " + String(filteredPorts.length)}
+                      </span>
+                    </div>
+                  </div>
+                  <DataTable
+                    t={t}
+                    // Bounded scrollport (sticky header stays pinned) so a busy
+                    // host cannot stretch the whole panel.
+                    scroll
+                    ariaLabel={t("net.ports")}
+                    // Search, the protocol filter and "show more" all reshuffle
+                    // this list, so identify a socket by its 4-tuple instead of
+                    // its position on the page.
+                    rowKey={(row: any) =>
+                      strOr(row.proto, "") +
+                      ":" +
+                      strOr(row.address, "") +
+                      ":" +
+                      String(numOr(row.port, -1)) +
+                      ":" +
+                      String(numOr(row.pid, -1))
+                    }
+                    columns={[
+                      {
+                        key: "proto",
+                        label: t("net.proto"),
+                        render: (row: any) => <span className="dx-mono">{strOr(row.proto, "—").toUpperCase()}</span>,
+                      },
+                      { key: "address", label: t("common.address"), render: (row: any) => <span className="dx-mono">{strOr(row.address, "—")}</span> },
+                      {
+                        key: "port",
+                        label: t("common.port"),
+                        render: (row: any) => (
+                          <span className="dx-mono">{row.port === null || row.port === undefined ? "—" : String(row.port)}</span>
+                        ),
+                      },
+                      {
+                        key: "pid",
+                        label: t("common.pid"),
+                        render: (row: any) => (row.pid === null || row.pid === undefined ? "—" : String(row.pid)),
+                      },
+                      { key: "process", label: t("common.process"), render: (row: any) => strOr(row.process, "—") },
+                    ]}
+                    rows={visiblePorts}
+                    empty={<EmptyState icon="search" title={t("net.noPortsMatch")} />}
+                  />
+                  {visiblePorts.length < filteredPorts.length ? (
+                    <div className="dx-toolbar" style={{ padding: "10px 16px", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        className="dx-btn"
+                        data-size="sm"
+                        onClick={() => setPortLimit(portLimit + PORT_PAGE_SIZE)}
+                      >
+                        {t("net.portsMore", { n: Math.min(PORT_PAGE_SIZE, filteredPorts.length - visiblePorts.length) })}
+                      </button>
+                    </div>
+                  ) : null}
+                </Fragment>
+              )}
             </Card>
           </div>
         );

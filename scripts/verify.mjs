@@ -17,7 +17,7 @@
  * README.md for the live probe commands.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -171,6 +171,56 @@ const unknown = await actions.runAction('nope', {});
 check('unknown action is refused', unknown.ok === false && unknown.code === 'UNKNOWN_ACTION');
 const badParams = await actions.runAction('system.setVolume', { percent: 500 });
 check('out-of-range params are refused', badParams.ok === false);
+
+// `system.openSettings` is a silent-failure trap: `x-apple.systempreferences:`
+// with an identifier macOS does not know opens the General pane instead of
+// failing, so a stale anchor looks like a working button that lands on the
+// wrong page (exactly what `com.apple.network-settings-extension` did). Check
+// every pane against the identifiers this host actually ships.
+const SETTINGS_ROOTS = [
+  '/System/Library/ExtensionKit/Extensions',
+  '/System/Applications/System Settings.app/Contents/PlugIns',
+];
+const installedPanes = new Set();
+for (const root of SETTINGS_ROOTS) {
+  if (!existsSync(root)) continue;
+  for (const entry of readdirSync(root)) {
+    if (!entry.endsWith('.appex')) continue;
+    try {
+      const info = readFileSync(join(root, entry, 'Contents', 'Info.plist'), 'utf8');
+      const match = /<key>CFBundleIdentifier<\/key>\s*<string>([^<]+)<\/string>/.exec(info);
+      if (match) installedPanes.add(match[1].trim());
+    } catch {
+      /* unreadable plist: not a pane we can verify */
+    }
+  }
+}
+const paneOptions =
+  catalog.find((entry) => entry.id === 'system.openSettings')?.params.find((param) => param.name === 'pane')?.options ?? [];
+check('catalog lists the settings panes the UI can ask for', paneOptions.length >= 21, `${paneOptions.length} panes`);
+if (installedPanes.size > 0) {
+  const actionsDarwinSource = readFileSync(join(pluginDir, 'host/actions-darwin.js'), 'utf8');
+  const paneBlock = /const SETTINGS_PANES = \{([\s\S]*?)\n\};/.exec(actionsDarwinSource)?.[1] ?? '';
+  const anchors = [...paneBlock.matchAll(/([A-Za-z]+):\s*'([^']+)'/g)].map((match) => [match[1], match[2]]);
+  check('every settings pane has an anchor', anchors.length === paneOptions.length, `${anchors.length} anchors / ${paneOptions.length} panes`);
+  const unknownAnchors = anchors
+    .map(([name, anchor]) => [name, anchor.split('?')[0]])
+    .filter(([, anchor]) => !installedPanes.has(anchor));
+  check(
+    'every settings-pane anchor exists on this macOS (no silent General fallback)',
+    unknownAnchors.length === 0,
+    unknownAnchors.map(([name, anchor]) => `${name}=${anchor}`).join(', '),
+  );
+  const unlisted = anchors.filter(([name]) => !paneOptions.includes(name)).map(([name]) => name);
+  check('every anchor is reachable from the UI pane list', unlisted.length === 0, unlisted.join(', '));
+}
+// A stale anchor must be reported, not silently redirected to General.
+const stalePane = await actions.runAction('system.openSettings', { pane: 'network' });
+check(
+  'openSettings reports success only for a pane this Mac really has',
+  stalePane.ok === true,
+  stalePane.message,
+);
 
 // ---------------------------------------------------------------------------
 section('3. Registration wiring (fake Cordis context)');

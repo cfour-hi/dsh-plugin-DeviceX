@@ -67,7 +67,6 @@ const MODULE_ORDER = [
   'components/ConnectionsCard.tsx',
   'components/HardwareTab.tsx',
   'components/SystemTab.tsx',
-  'components/spanIcon.tsx',
   'components/UninstallFootprintModal.tsx',
   'components/SoftwareTab.tsx',
   'components/NetworkTab.tsx',

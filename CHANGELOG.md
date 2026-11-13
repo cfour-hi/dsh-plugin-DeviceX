@@ -33,6 +33,117 @@ collectors ran alongside it in the warmup wave.
 - **Timeout headroom**: `processes.ps1` gets a 40 s budget for the session-0
   fallback and a loaded machine.
 
+## 1.9.0 — correct System Settings pane anchors
+
+Several "open … settings" buttons landed on **General** instead of their own pane. The cause was not
+the buttons: `x-apple.systempreferences:<bundle-id>` does not fail for an identifier macOS does not
+know — System Settings silently falls back to General. Four of the 21 anchors in
+`plugin/host/actions-darwin.js` were never real bundle ids on macOS 14/15, so those buttons looked
+broken while the code around them was fine.
+
+- **Wrong identifiers fixed**: `network` was `com.apple.network-settings-extension` (lowercase "s";
+  the real one is `com.apple.Network-Settings.extension`), `privacy` was
+  `com.apple.PrivacySecurity.extension` (now `com.apple.settings.PrivacySecurity.extension`) and
+  `storage` was `com.apple.Storage-Settings.extension` (now `com.apple.settings.Storage`). `general`
+  was also wrong — the General pane kept its classic `com.apple.systempreferences.GeneralSettings`
+  identifier instead of following the `…-Settings.extension` pattern the table assumed.
+- **Two panes that did not exist**: `firewall` and `filevault` were not anchors at all. The macOS 13+
+  Settings app has no Firewall pane (the control is a row in Network) and FileVault is the first
+  section of Privacy & Security, so both now open the pane that really contains them, and the
+  FileVault button asks for `filevault` instead of relying on a `privacy` fallback.
+- **No more silent misdirection**: `system.openSettings` reads the identifiers this macOS actually
+  ships (`/System/Library/ExtensionKit/Extensions` and the Settings app's `PlugIns`) and refuses an
+  anchor it would not land on with `PANE_UNAVAILABLE`, naming the pane. On a Mac where neither
+  directory is readable it falls back to the old behaviour rather than blocking the action.
+- **Mislabelled button**: the Privacy & Security card's button said "Open FileVault Settings" while
+  opening Privacy & Security; it now says "Open Privacy & Security" (`sec.openPrivacy`), and the TCC
+  card keeps its own wording.
+- **Sturdier pane matching**: the client resolved a pane by substring over the live catalogue, so a
+  short matcher could claim an unrelated option. It now prefers an exact id, then a prefix, then a
+  substring, and only ever returns ids the host actually offers.
+- **Verified**: every anchor was cross-checked against the plists Apple ships on macOS 15 and then
+  exercised end to end — the action was called and the Settings extension macOS launched was read
+  back (`network` → Network, `storage` → Storage, `privacy` → Privacy & Security, `general` →
+  General, `firewall` → Network, `filevault` → Privacy & Security). `verify.mjs` gains five checks
+  (the pane list and the anchor table agree, each anchor present on the host, each anchor reachable
+  from the UI list, the action succeeding, and a positive pane count), and the anchor check provably
+  fails when the old `com.apple.network-settings-extension` value is put back.
+- **Windows regression caught before release**: the FileVault button is rendered on both platforms and
+  had been narrowed to `openPane(["filevault"], "filevault")`. Windows has no `filevault` pane, so the
+  fallback string was sent verbatim and rejected as `BAD_PARAMS`. It now asks for
+  `["filevault", "privacy"]`, which hits the real anchor on macOS and the Privacy pane on Windows.
+
+### Audit pass
+
+- **Process uptime was unreadable**: both hosts report `elapsed` as a **number of seconds**
+  (`parseElapsed` on macOS, the creation-date delta on Windows) but the Processes tab printed the raw
+  counter — a process up for three days showed `274320`. It now renders through the same `fmtUptime`
+  used by the uptime KPI; `types/contracts.ts` said `elapsed: string`, which is what kept the mismatch
+  invisible, and now says `number`. Two render assertions pin it, and the fixture that fed `"3d 04:12"`
+  (masking the bug) now feeds seconds like the hosts do.
+- **Duplicate System fact**: the Locale card repeated the current user's UID, which the User card
+  already shows. Removed.
+- **Dead code**: `components/spanIcon.tsx` had no importers (the banner icon is inline in
+  `SectionErrors`) and is gone, along with its one line in the concat `MODULE_ORDER`; the unused
+  `sort`/`plus` entries in the icon table and the exported-but-unused `GROUP_ICONS` map went with it.
+- **Simplified**: `fmtBytes` had a ternary whose branches were both `1` (`scaled >= 10 ? 1 : 1`),
+  left over from a dropped 0-digit branch.
+- **Sub-minute uptimes never said so**: `fmtUptime` guarded its minute branch on `parts.length === 0`
+  after the day/hour branches had already pushed, so `unit.lessThanMinute` was unreachable and a
+  30-second uptime rendered as `0 min`. The 12 s battery "time remaining" and the process `elapsed`
+  column both hit this. Every input below a minute now reads "less than a minute", and the hour/day
+  paths are byte-identical to before.
+- **Formerly untested formatters**: `src/client/helpers.js` had no unit tests despite being the one
+  DOM-free module the client and tests share. `test/client-helpers.test.mjs` pins the `fmtUptime` unit
+  boundaries (including the sub-minute regression above), `fmtBytes` scaling, `fmtMs` and
+  `percentOf` — 10 tests, `npm test` now 119.
+- **Software empty state told the truth about nothing**: the `empty` slot only renders once `TabShell`
+  has data, so "Reading the application list…" could never be accurate. A host that reports zero
+  applications now says "No installed applications found" (`sw.noAppsInstalled`), distinct from
+  "No matching applications" for a filter that matched nothing. Asserted on the empty-state *title*,
+  because the old copy lived in `text` and a page-wide substring match would have passed either way.
+- **Stable table row keys**: `DataTable.rowKey` was declared and honoured but never passed, so all 15
+  tables keyed rows by array index. The three lists that actually reorder under the user — `ProcessesTab`
+  (re-sorted by CPU every 2.5 s tick), `SoftwareTab` (name sort + search + source filter) and
+  `NetworkTab` (search + protocol filter + "show more") — now pass pid, bundle path, and
+  `proto:address:port:pid`. Invisible today because no row cell holds state, but an index key hands a
+  row's DOM (and its focus/hover) to a different record the moment one is reordered.
+- **`samples` is a snapshot, not a live ref**: `useDeviceMetrics` returned `samplesRef.current`, whose
+  identity never changes because `pushSample` mutates the ring buffers in place. Works only because the
+  state object happens to change every tick; any future `memo`/`useMemo`/`useEffect` dependency on
+  `samples` would have silently frozen the sparklines. Each tick now publishes a copied snapshot.
+- **One privacy button on Windows**: the Security pane card rendered a FileVault button on both
+  platforms; on Windows it fell back to the same `privacy` page as the TCC card above it, showing two
+  identical "Open privacy settings" buttons. That button is now macOS-only (Windows keeps the TCC one).
+- **Docs**: the check counts quoted in `README.md`, `README.en.md` and
+  `docs/uninstall-footprint-design.md` had drifted (`verify.mjs` 91 → 96, render suite 237/258 → 282,
+  footprint 69 → 72); they now match what the suites actually print, and the pane-anchor check count
+  in this entry says five, which is what `verify.mjs` gained.
+
+## 1.8.0 — bounded listening-port list
+
+A host running containers, proxies and a dozen dev servers exposes hundreds of listening sockets, and
+the Network tab rendered every one of them: the panel became a multi-screen column of rows and the rest
+of the section scrolled out of reach. The listeners table is now a bounded, searchable view.
+
+- **Bounded page**: the card renders at most 100 rows per step with a "show more" button, so the
+  section keeps a predictable height no matter how many sockets the Host reports — 100 rows means the
+  control never appears on an ordinary desktop (a few dozen listeners). The table also scrolls in
+  place (`DataTable scroll`), which keeps the sticky header visible.
+- **Search**: one field filters protocol / address / port / PID / process name, matching what the
+  contract already carries — no extra Host call, no change to the `network` section shape. Changing
+  the query resets the page to the first step.
+- **Protocol filter**: an "all / TCP / UDP" segmented control in the card toolbar; `tcp6`/`udp6`
+  bucket into their base protocol, so `/v6` listeners are not hidden behind a name mismatch.
+- **Counter**: the toolbar shows `visible / filtered` with the unfiltered total in its hover title, so
+  a filter that hides most rows is still visible at a glance.
+- **Empty states split**: "no listening ports" (nothing reported by the Host) is now distinct from
+  "no matching listening ports" (a filter that matched nothing).
+- **Verified**: a new render scenario mounts 260 synthetic listeners and asserts the 100-row first page,
+  the show-more step, the search narrowing/unmatched state and both protocol filters; the suite is now
+  258 assertions, and `npm test` (109), `verify.mjs` (96), `verify-build.mjs` (37) and the six
+  Windows/sensor/cleanup/benchmark/footprint suites stay green.
+
 ## 1.7.0 — Ant Design UI pass
 
 The panel keeps its contract — one committed `plugin/client.js`, a single `react` seed, no

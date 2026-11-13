@@ -367,11 +367,24 @@ export function DeviceXPage(props: DeviceXPageProps) {
     (matchers: unknown, fallback: string) => {
       const openSettings = asArray(catalog.actions).find((action: any) => action.id === "system.openSettings");
       const paneParam = openSettings ? asArray(openSettings.params).find((param: any) => param.name === "pane") : null;
-      const options = paneParam ? asArray(paneParam.options) : [];
-      for (const matcher of asArray(matchers)) {
-        const needle = String(matcher).toLowerCase();
-        const found = options.find((option: any) => String(option).toLowerCase().indexOf(needle) >= 0);
-        if (found !== undefined) return found;
+      // The catalogue is the authority on which panes this platform exposes: a
+      // pane the host does not list would be rejected as BAD_PARAMS, so the
+      // matcher only ever picks from here. Exact ids win over substrings so a
+      // short matcher cannot accidentally claim a longer, unrelated pane.
+      const options = (paneParam ? asArray(paneParam.options) : []).map((option: any) => String(option));
+      const lower = options.map((option: string) => option.toLowerCase());
+      const wants = asArray(matchers).map((matcher: any) => String(matcher).toLowerCase());
+      for (const needle of wants) {
+        const exact = lower.indexOf(needle);
+        if (exact >= 0) return options[exact];
+      }
+      for (const needle of wants) {
+        const prefix = lower.findIndex((option: string) => option.startsWith(needle));
+        if (prefix >= 0) return options[prefix];
+      }
+      for (const needle of wants) {
+        const partial = lower.findIndex((option: string) => option.indexOf(needle) >= 0);
+        if (partial >= 0) return options[partial];
       }
       return fallback;
     },

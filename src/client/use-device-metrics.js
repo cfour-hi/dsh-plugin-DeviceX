@@ -5,7 +5,7 @@
  */
 import { api } from "./api.js";
 import { POLL_MS, MAX_SAMPLES } from "./constants.js";
-import { asArray, numOr } from "./helpers.js";
+import { numOr, pushSample } from "./helpers.js";
 import { normalizeMetrics } from "./normalizers.js";
 import { useCallback, useEffect, useRef, useState } from "./hooks.js";
 
@@ -30,7 +30,7 @@ export function usePrefersReducedMotion() {
  * immediate sample. Keeps a ring buffer for CPU/memory/disk/network/battery.
  */
 export function useDeviceMetrics() {
-  const [state, setState] = useState({ status: "loading", metrics: null, error: null, updatedAt: 0 });
+  const [state, setState] = useState({ status: "loading", metrics: null, error: null, updatedAt: 0, samples: null });
   const aliveRef = useRef(true);
   const inFlightRef = useRef(false);
   const timerRef = useRef(null);
@@ -61,7 +61,26 @@ export function useDeviceMetrics() {
     pushSample(samples.rx, metrics.network.rxBytesPerSec, MAX_SAMPLES);
     pushSample(samples.tx, metrics.network.txBytesPerSec, MAX_SAMPLES);
     pushSample(samples.battery, metrics.battery && metrics.battery.present ? metrics.battery.percent : -1, MAX_SAMPLES);
-    setState({ status: "ready", metrics, error: null, updatedAt: Date.now() });
+    // Publish a *snapshot* of the ring buffers rather than the buffers
+    // themselves. `pushSample` edits them in place, so returning
+    // `samplesRef.current` gave every render the same object identity: a
+    // future `memo`/`useMemo`/`useEffect` dependency on `samples` would never
+    // observe a new tick. Copying six arrays of at most MAX_SAMPLES numbers is
+    // cheaper than that class of silent freeze.
+    setState({
+      status: "ready",
+      metrics,
+      error: null,
+      updatedAt: Date.now(),
+      samples: {
+        cpu: samples.cpu.slice(),
+        memory: samples.memory.slice(),
+        disk: samples.disk.slice(),
+        rx: samples.rx.slice(),
+        tx: samples.tx.slice(),
+        battery: samples.battery.slice(),
+      },
+    });
     inFlightRef.current = false;
   }, []);
   useEffect(() => {
@@ -92,14 +111,7 @@ export function useDeviceMetrics() {
     if (tickRef.current) return tickRef.current();
     return fetchOnce();
   }, [fetchOnce]);
-  return { status: state.status, metrics: state.metrics, error: state.error, updatedAt: state.updatedAt, samples: samplesRef.current, refresh };
-}
-
-/** Push a finite sample into a bounded ring buffer. */
-function pushSample(buffer, value, max) {
-  if (typeof value !== "number" || !isFinite(value)) return;
-  buffer.push(value);
-  if (buffer.length > max) buffer.splice(0, buffer.length - max);
+  return { status: state.status, metrics: state.metrics, error: state.error, updatedAt: state.updatedAt, samples: state.samples, refresh };
 }
 
 /** Percentage of part/total, or null. */

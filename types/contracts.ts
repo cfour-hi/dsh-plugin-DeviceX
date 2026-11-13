@@ -406,7 +406,8 @@ export interface ProcessesSection {
     memPercent: number | null;
     rssBytes: number | null;
     state: string | null;
-    elapsed: string | null;
+    /** Seconds the process has been running (both hosts normalise `ps`/CIM to seconds). */
+    elapsed: number | null;
     command: string;
   }>;
   byUser: Array<{ user: string; count: number }>;

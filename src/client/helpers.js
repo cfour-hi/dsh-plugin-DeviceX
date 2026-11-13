@@ -41,7 +41,7 @@
 				scaled /= 1024;
 				unit += 1;
 			}
-			const digits = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 1;
+			const digits = scaled >= 100 ? 0 : 1;
 			return scaled.toFixed(digits) + " " + BYTE_UNITS[unit];
 		}
 		function fmtRate(value) {
@@ -57,7 +57,7 @@
 			if (!isFiniteNumber(value)) return "—";
 			return digits ? value.toFixed(digits) : String(Math.round(value));
 		}
-		/** Compact uptime, at most two units ("3 d 4 h", "12 min"). */
+		/** Compact uptime, at most two units ("3 d 4 h", "12 min", "less than a minute"). */
 		function fmtUptime(seconds, t) {
 			if (!isFiniteNumber(seconds) || seconds < 0) return "—";
 			const total = Math.floor(seconds);
@@ -67,8 +67,12 @@
 			const parts = [];
 			if (day > 0) parts.push(day + " " + t("unit.day"));
 			if (hour > 0) parts.push(hour + " " + t("unit.hour"));
-			if (day === 0 && parts.length === 0) parts.push(minute + " " + t("unit.minute"));
-			if (parts.length === 0) parts.push(t("unit.lessThanMinute"));
+			// Minutes are the finest unit shown, so a sub-minute duration says so
+			// rather than reading "0 min".
+			if (day === 0 && hour === 0) {
+				if (minute === 0) return t("unit.lessThanMinute");
+				parts.push(minute + " " + t("unit.minute"));
+			}
 			return parts.slice(0, 2).join(" ");
 		}
 		/** Format a millisecond duration for benchmark/scan timings. */

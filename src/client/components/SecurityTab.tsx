@@ -109,7 +109,7 @@ export function SecurityTab(props: SecurityTabProps) {
                   onClick={() => props.openPane(["privacy", "security"], "privacy")}
                 >
                   <Icon name="gear" size={13} />
-                  {isWindows ? t("sec.openPrivacyWin") : t("sec.openFileVault")}
+                  {isWindows ? t("sec.openPrivacyWin") : t("sec.openPrivacy")}
                 </button>
               }
             >
@@ -195,14 +195,22 @@ export function SecurityTab(props: SecurityTabProps) {
             </div>
             <Card title={t("sec.paneTitle")} icon="gear">
               <div className="dx-toolbar">
-                <button
-                  type="button"
-                  className="dx-btn"
-                  onClick={() => props.openPane(["privacy", "security", "filevault"], "privacy")}
-                >
-                  <Icon name="lock" size={13} />
-                  {isWindows ? t("sec.openPrivacyWin") : t("sec.openFileVault")}
-                </button>
+                {/* macOS only: FileVault is a section of Privacy & Security.
+                    Windows has no FileVault pane, and the TCC card above
+                    already offers the same `privacy` target with the same
+                    label — rendering it here too put two identical buttons on
+                    one page. `privacy` stays as the matcher fallback in case a
+                    future macOS renames the anchor. */}
+                {isWindows ? null : (
+                  <button
+                    type="button"
+                    className="dx-btn"
+                    onClick={() => props.openPane(["filevault", "privacy"], "privacy")}
+                  >
+                    <Icon name="lock" size={13} />
+                    {t("sec.openFileVault")}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="dx-btn"

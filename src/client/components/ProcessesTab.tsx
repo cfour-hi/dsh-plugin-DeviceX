@@ -1,6 +1,6 @@
 /** Processes tab: searchable/sortable process table with per-row kill. */
 import { Fragment, h } from "../jsx.js";
-import { asArray, asObject, fmtBytes, fmtPercent, isObj, numOr, strOr } from "../helpers.js";
+import { asArray, asObject, fmtBytes, fmtPercent, fmtUptime, isObj, numOr, strOr } from "../helpers.js";
 import { useState } from "../hooks.js";
 import { Card } from "./Card";
 import { DataTable } from "./DataTable";
@@ -96,6 +96,11 @@ export function ProcessesTab(props: ProcessesTabProps) {
                   t={t}
                   scroll="fill"
                   ariaLabel={t("tab.processes")}
+                  // The list is re-sorted by CPU on every metrics tick, so an
+                  // index key would hand a row's DOM (and its focus/hover
+                  // state) to a different process. A pid is the process
+                  // identity the Host reports.
+                  rowKey={(row: any) => numOr(row.pid, -1)}
                   columns={[
                     { key: "pid", label: t("common.pid"), render: (row: any) => <span className="dx-mono">{String(row.pid)}</span> },
                     {
@@ -129,7 +134,11 @@ export function ProcessesTab(props: ProcessesTabProps) {
                     {
                       key: "elapsed",
                       label: t("proc.elapsed"),
-                      render: (row: any) => (row.elapsed === null || row.elapsed === undefined ? "—" : String(row.elapsed)),
+                      // Both hosts report `elapsed` as a number of seconds
+                      // (collector-darwin `parseElapsed`, collector-win32's
+                      // creation-date delta); render it like every other
+                      // duration instead of printing the raw counter.
+                      render: (row: any) => fmtUptime(row.elapsed, t),
                     },
                     {
                       key: "actions",

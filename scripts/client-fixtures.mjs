@@ -164,9 +164,11 @@ export const securityFixture = () => ({
 export const processesFixture = () => ({
   total: 512,
   list: [
-    { pid: 1234, ppid: 1, user: "_windowserver", cpu: 14.2, memPercent: 2.8, rssBytes: 512 * 1024 * 1024, state: "running", elapsed: "3d 04:12", command: "/System/Library/PrivateFrameworks/SkyLight.framework/WindowServer" },
-    { pid: 222, ppid: 0, user: "root", cpu: 8.1, memPercent: 1.2, rssBytes: 256 * 1024 * 1024, state: "running", elapsed: "3d 04:12", command: "kernel_task" },
-    { pid: 9876, ppid: 1234, user: "qaxc84", cpu: 0.4, memPercent: 0.1, rssBytes: 24 * 1024 * 1024, state: "sleeping", elapsed: "00:12", command: "node /tmp/dshx/asar/index.js" },
+    // `elapsed` is seconds, like both hosts emit (`parseElapsed` on macOS, the
+    // creation-date delta on Windows) — not the raw `ps` "3d 04:12" string.
+    { pid: 1234, ppid: 1, user: "_windowserver", cpu: 14.2, memPercent: 2.8, rssBytes: 512 * 1024 * 1024, state: "running", elapsed: 3 * 86400 + 4 * 3600 + 12 * 60, command: "/System/Library/PrivateFrameworks/SkyLight.framework/WindowServer" },
+    { pid: 222, ppid: 0, user: "root", cpu: 8.1, memPercent: 1.2, rssBytes: 256 * 1024 * 1024, state: "running", elapsed: 3 * 86400 + 4 * 3600 + 12 * 60, command: "kernel_task" },
+    { pid: 9876, ppid: 1234, user: "qaxc84", cpu: 0.4, memPercent: 0.1, rssBytes: 24 * 1024 * 1024, state: "sleeping", elapsed: 12, command: "node /tmp/dshx/asar/index.js" },
   ],
   byUser: [{ user: "qaxc84", count: 320 }, { user: "root", count: 120 }],
   errors: [],
