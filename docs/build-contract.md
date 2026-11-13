@@ -279,10 +279,14 @@ fence rejects, `405` for wrong method, `500` for unexpected. `cache-control: no-
 
 ## Agent tools (Lead implements `host/tool.js`)
 
-- `device_info` — read: `{ section?: "overview"|"hardware"|"system"|"software"|"network"|"security"|"processes", fresh?: boolean }`,
+Three tools as of 1.2; the third is specified in "Routes / tools / actions after 1.2" below.
+
+- `device_info` — read: `{ section?: "overview"|"hardware"|"system"|"software"|"network"|"security"|"processes"|"cleanup", fresh?: boolean }`,
   returns a compact summary + JSON payload. `overview` = metrics + headline facts.
 - `device_control` — write: `{ action: string (enum of action ids), params: object }`, returns
   `{ ok, message }`. Same implementation as the HTTP route (one operation, two callers).
+- `device_benchmark` — `{ tests?: string[], repeat?: boolean }`, the same engine as
+  `POST /devicex/api/benchmark`.
 
 ## Client — `client.js` (client-ui)
 
@@ -474,9 +478,10 @@ copy passes over two 32 MiB `Float64Array`s, disk one 64 MiB write+fsync+read un
 
 ### Routes / tools / actions after 1.2
 
-- Browser routes (6): `GET /devicex/api/metrics`, `GET /devicex/api/inventory`,
+- Browser routes (7 since 1.6): `GET /devicex/api/metrics`, `GET /devicex/api/inventory`,
   `GET /devicex/api/actions`, `POST /devicex/api/action`, `GET /devicex/api/cleanup`,
-  `POST /devicex/api/benchmark` — all behind the same Connection trust fence.
+  `POST /devicex/api/benchmark`, `GET /devicex/api/footprint` — all behind the same Connection
+  trust fence.
 - Agent tools (3): `device_info` (sections gain `cleanup`), `device_control` (catalog now includes
   `cleanup.delete`), `device_benchmark` (`tests?`, `repeat?`).
 - Action catalogue: 19 ids (the 18 frozen ids plus `cleanup.delete`; Windows swaps

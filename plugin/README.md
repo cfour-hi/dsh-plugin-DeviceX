@@ -15,12 +15,13 @@ dsh plugin add @cfour-hi/dsh-plugin-devicex
 
 | 路径 | 作用 |
 | --- | --- |
-| `index.js` | 插件入口：注册 `device_info` / `device_control` 两个工具、HTTP 路由与 Cordis 层 |
+| `index.js` | 插件入口：注册 `device_info` / `device_control` / `device_benchmark` 三个工具、HTTP 路由与 Cordis 层 |
 | `client.js` | 浏览器端单文件 bundle（由仓库的 `src/client/` 用 esbuild 生成，已随包提交，无需构建） |
-| `host/` | Host 侧采集与动作实现：`collector-*`、`actions-*`、`cleanup-*`、`benchmark`、`proc`、`transport` |
-| `host/win/*.ps1` | Windows 采集桥（PowerShell + CIM） |
+| `host/` | Host 侧采集、动作与流水线：`collector-*`、`actions-*`、`cleanup-*`、`footprint-*`、`uninstall`、`benchmark`、`proc`、`transport`、`tool` |
+| `host/win/*.ps1` | Windows 采集桥（PowerShell + CIM，七个只读脚本） |
 | `locale/{en,zh}.json` | 插件管理器里的标题与描述 |
 | `icon.svg` | 面板图标 |
+| `cordis.patch.yml` | Bundle patch（客户端注入与服务声明） |
 
 本包不含源码、测试与构建脚本；完整源码、契约文档与验证套件在仓库中：
 

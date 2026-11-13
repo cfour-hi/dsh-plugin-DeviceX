@@ -2,6 +2,12 @@
 
 简体中文 | [English](README.en.md)
 
+[![verify](https://img.shields.io/github/actions/workflow/status/cfour-hi/dsh-plugin-devicex/verify.yml?branch=main&style=flat-square&label=verify)](https://github.com/cfour-hi/dsh-plugin-devicex/actions/workflows/verify.yml)
+[![npm](https://img.shields.io/npm/v/%40cfour-hi%2Fdsh-plugin-devicex?style=flat-square&label=npm)](https://www.npmjs.com/package/@cfour-hi/dsh-plugin-devicex)
+[![checks](https://img.shields.io/badge/checks-969%20passing-brightgreen?style=flat-square)](#验证与开发)
+[![license](https://img.shields.io/github/license/cfour-hi/dsh-plugin-devicex?style=flat-square)](LICENSE)
+[![platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%2010%2F11-555?style=flat-square)](#已知限制)
+
 ![Device X：整台机器，一页看清](docs/promo/banner-zh-1280x640.jpg)
 
 一页中文/英文界面看尽本机硬件、系统、软件、网络、安全与进程，并对**非硬件**的一切直接操作——结束进程、
@@ -38,133 +44,7 @@ PowerShell/CIM），浏览器 UI、HTTP API、Agent 工具两端完全一致。
 | 进程 | 可搜索排序的进程表，逐行结束（TERM/KILL/INT/STOP/CONT），二次确认 |
 | 清理 | 扫描缓存/日志/废纸篓/开发缓存，显示体积与文件数；勾选后二次确认才删除 |
 | 性能 | CPU 单/多核、内存带宽、磁盘读写；与上次运行对比，仅适合同机前后比较 |
-| 操作 | 19 个白名单动作按组呈现，表单由参数目录生成，危险动作二次确认，含操作历史 |
-
-## 动作清单（19 项，白名单 + 严格参数校验）
-
-| 动作 | 说明 |
-|---|---|
-| `process.signal` | TERM/KILL/INT/STOP/CONT；拒绝 PID 1 与 Host 自身 |
-| `app.quit` / `app.launch` / `app.reveal` | 退出 / 启动 / 在文件管理器中显示 |
-| `app.uninstall` | 卸载 `.app` 或 MSI/winget/注册表项；macOS 仅限三个应用目录并拒绝系统应用；可选级联清理残留 |
-| `system.setHostname` | HostName / ComputerName / LocalHostName（字符与长度校验） |
-| `system.setVolume` / `system.setDarkMode` | 音量 0–100 / 深色模式 |
-| `system.launchAgent` | 启停 LaunchAgent 或 Windows 启动项（路径白名单） |
-| `system.openSettings` | 打开系统设置面板（23 项白名单） |
-| `system.toggleFirewall` / `flushDNS` / `emptyTrash` | 防火墙开关 / 刷新 DNS / 清空废纸篓或回收站 |
-| `cleanup.delete` | 删除扫描选中的项；只接受扫描返回的固定 id，绝不接受路径（1–20 个、去重） |
-| `network.setWifiPower` / `setDns` | Wi-Fi 开关 / 设置 0–4 个 DNS（接受服务名或网卡名） |
-| `power.sleep` / `power.lock` | 睡眠 / 锁定 |
-| `software.brewUninstall` / `software.wingetUninstall` | 卸载包管理器公式或包 |
-
-Windows 用相同动作 id 的平台实现：`Stop-Process`、`Rename-Computer`、`ms-settings:`、
-`Enable/Disable-NetAdapter`、`Set-DnsClientServerAddress`、`Clear-RecycleBin` 等；`app.uninstall` 参数改为
-`id`（`msi:{GUID}` / `winget:<id>` / 卸载注册表键），不执行任意 shell 字符串。
-
-**安全模型**：同源 `/devicex/api/*`，落在 DSH 的 Connection 信任栅栏之后（签名会话 cookie + Host/Origin
-校验，未认证 401、异源 403）；子进程一律 `execFile` 参数数组，不经 shell；路径参数做根目录与后缀校验；
-每次动作（含失败）进入 50 条环形历史。
-
-## 卸载残留清理
-
-应用拖进废纸篓只删了 `.app`，数据仍留在 `~/Library`。卸载时会先扫描散落的数据目录，**列出来供逐项勾选**。
-
-| 档位 | 依据 | 默认勾选 |
-|---|---|---|
-| A 高置信 | Bundle ID 匹配、MSIX 包容器、Homebrew cask `zap` 清单 | ✅ |
-| B 名称候选 | 目录名像 App 名，且只匹配到一个已装应用 | ❌ |
-| C 冲突候选 | 同一目录匹配到 ≥2 个已装应用 | ❌ |
-| D 共享/受限 | 厂商级目录（`Google/`、`Microsoft/`）或需管理员权限 | 无复选框 |
-
-B/C 展示但不默认勾选——本机实测 `Application Support/Claude-3p` 占 11 GB 却不含任何 bundle id，
-只有名称启发式能发现它；藏起来等于替用户放弃 11 GB。弹窗底部固定显示「另有 N 项未选中（共 X）」。
-
-**删除永不接受路径**：`GET /devicex/api/footprint` 只读扫描并返回一次性 `scanId`，完整路径只留在 Host 内存；
-浏览器只拿条目 id，`app.uninstall` 传 `scanId` + `itemIds`，Host 校验令牌未过期、未使用、属于该 scan，
-且 `realpath` 后仍在允许的根列表内、非根目录、非符号链接。
-
-**流水线**：扫描 → 勾选 → 卸载本体 → 校验确已卸载 → 复扫 → 逐项移入废纸篓。卸载失败或被取消则
-**全局中止、一个字节都不删**；应用仍在运行时直接拒绝；没有自带卸载器不算失败；macOS 不执行 bundle 内
-卸载器（现存两个都没有可验证的命令行契约）。一律移入废纸篓，结果页写明「清空废纸篓后释放 X」。
-
-Windows 只能列出不能清理：移入回收站需走 shell 且未在真机验证，带 `scanId` 的请求返回
-`UNSUPPORTED_PLATFORM`，不会静默丢弃用户的选择。详见 [设计文档](docs/uninstall-footprint-design.md)。
-
-## Agent 工具
-
-- `device_info`：`section` 取八个分区之一，`fresh` 绕过缓存。
-- `device_control`：`action` + `params`，与 UI 走同一实现，不会出现两套逻辑。
-- `device_benchmark`：`tests?`、`repeat?`，与「性能」页同一引擎。
-
-## HTTP API
-
-均以 `/devicex/api` 为前缀，同一来源，`cache-control: no-store`。
-
-| 路径 | 说明 |
-|---|---|
-| `GET /metrics` | 实时指标（UI 每 2.5 s 轮询） |
-| `GET /inventory[?section=&fresh=1]` | 完整清单或单个分区 |
-| `GET /actions` · `POST /action` | 动作目录 / 执行动作（业务失败仍 HTTP 200） |
-| `GET /cleanup[?fresh=1]` | 白名单清理扫描（60 s 缓存） |
-| `GET /footprint[?path=&fresh=1]` | 只读残留扫描，返回一次性 `scanId` |
-| `POST /benchmark` | 运行基准（body: `{ tests?, repeat? }`） |
-
-## 架构
-
-```
-plugin/
-├── index.js              # Host 入口：warmup + 7 条路由 + 3 个工具
-├── host/
-│   ├── collector*.js     # 平台采集（系统命令 / PowerShell+CIM），TTL 缓存与预热
-│   ├── actions*.js       # 19 个白名单动作，两平台各一套实现
-│   ├── cleanup*.js       # 白名单清理扫描与删除
-│   ├── footprint*.js     # 残留扫描：纯内核 + 平台实现 + 一次性令牌
-│   ├── uninstall.js      # 卸载流水线（校验门禁、失败零副作用）
-│   ├── benchmark.js      # CPU/内存/磁盘基准（worker_threads）
-│   ├── win.js + win/*.ps1 # PowerShell 桥与七个只读采集脚本
-│   ├── transport.js      # 路由注册 + 信任栅栏 + JSON 信封
-│   └── tool.js           # 三个 Agent 工具的 schema 与渲染
-└── client.js             # 构建产物（勿手改，改源码后 npm run build）
-
-src/client/               # 浏览器端 TSX 源码（10 个标签页 + 44 个组件）
-```
-
-浏览器端由 esbuild 打成单文件 IIFE（225 KB，只向 loader 要一次 `react`），提交的 `plugin/client.js`
-自包含、运行时零依赖；无打包器环境可用 `npm run build:concat` 生成等价产物（322 KB）。
-[types/contracts.ts](types/contracts.ts) 是纯类型文件，定义 Host ↔ API ↔ 客户端的冻结形状。
-
-## 验证
-
-```sh
-npm run verify:ci    # 一条命令跑完全部（等价 CI）
-
-# 也可以分开跑：
-npm test                          # 单测 119 项
-node scripts/verify.mjs           # 通用回归 96 项
-node scripts/verify-windows.mjs   # Windows 适配 167 项（fixture，无需真机）
-node scripts/verify-sensors.mjs   # 温度/驱动 57 项
-node scripts/verify-cleanup.mjs   # 清理 130 项（真实扫描 + 沙箱删除）
-node scripts/verify-benchmark.mjs # 基准 46 项
-node scripts/verify-footprint.mjs # 卸载残留 72 项
-node scripts/render-check.mjs     # 客户端渲染断言 282 条
-```
-
-`verify-footprint.mjs` 把实测踩到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、
-令牌单次使用与跨 scan 混用、卸载失败零副作用、`moveToTrash` 不覆盖已有条目。
-
-## 已知限制
-
-- **Windows 未在真机验证**：全部通过 fixture + 静态检查 + 模拟 win32 Host，PowerShell 5.1 的真实 CIM
-  字段差异、需要管理员权限的查询与动作需实机确认。
-- **卸载残留（Windows）**：只能列出不能清理，见上文。
-- 需要管理员权限的动作（改主机名、防火墙、系统启动项、DNS、Wi-Fi 开关）失败时会把命令错误原样返回，
-  不会假装成功。
-- macOS 自动化授权（退出应用、深色模式、锁定屏幕）首次调用可能被 TCC 拒绝；Apple Silicon 默认不向
-  普通用户公开 CPU/GPU 温度，`thermal.cpuCelsius` 为 `null` 并给出 `note`，不伪造温度。
-- 清理与残留：`~/.Trash` 与部分系统缓存受 TCC 保护，扫描如实返回 `EPERM`；流水线不依赖枚举废纸篓，
-  也不承诺「随时可还原」。
-- 基准分数只适合同一台机器前后对比，不能与跑分软件横向比较；机器负载会影响单次结果。
-- 端口列表仅含 TCP LISTEN；非管理员看不到部分系统进程的端口。
+| 操作 | 每个平台 19 个白名单动作按组呈现，表单由参数目录生成，危险动作二次确认，含操作历史 |
 
 ## 安装
 
@@ -179,12 +59,114 @@ dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-plugin-devicex-<vers
 
 运行中的会话也可直接 `plugin_manager action=install_bundle target=<路径或仓库地址>` 热安装，无需重启。
 仓库根的 `package.json` 是 Git 安装入口，`plugin/package.json` 供本地 link 与 tgz 使用，两份清单必须同步
-（`verify.mjs` 会逐项检查）。完整步骤见 [docs/INSTALL.md](docs/INSTALL.md)。
+（`verify.mjs` 会逐项检查）。前提条件、权限要求与卸载/更新步骤见 [docs/INSTALL.md](docs/INSTALL.md)。
 
-## 开发
+## 能做什么
 
-改 `plugin/` 后重跑 `install_bundle` 或重启 Harness；改 UI 请改 `src/client/` 再 `npm run build`
-（CI 拒绝过期产物），然后 `npm run verify:ci`。
+每个平台 19 个白名单动作（两端合计 20 个 id：`brewUninstall` 与 `wingetUninstall` 各属一端），
+参数由目录生成并逐项校验，危险动作二次确认。
+
+| 组 | 动作 | 说明 |
+|---|---|---|
+| process | `process.signal` | TERM/KILL/INT/STOP/CONT；拒绝 PID 1 与 Host 自身 |
+| app | `app.quit` · `app.launch` · `app.reveal` · `app.uninstall` | 退出 / 启动 / 在文件管理器中显示 / 卸载（macOS 仅限三个应用目录并拒绝系统应用；Windows 接受 `msi:{GUID}`、`winget:<id>` 或卸载注册表键，不执行任意 shell 字符串） |
+| system | `system.setHostname` · `setVolume` · `setDarkMode` · `launchAgent` · `openSettings` · `toggleFirewall` · `flushDNS` · `emptyTrash` · `cleanup.delete` | 主机名 / 音量 0–100 / 深色模式 / 启停 LaunchAgent 或启动项 / 打开 23 个系统设置面板 / 防火墙 / 刷新 DNS / 清空废纸篓或回收站 / 删除清理选中项 |
+| network | `network.setWifiPower` · `setDns` | Wi-Fi 开关；设 0–4 个 DNS（接受服务名或网卡名） |
+| power | `power.sleep` · `power.lock` | 睡眠 / 锁定 |
+| software | `software.brewUninstall` · `software.wingetUninstall` | 卸载包管理器公式或包 |
+
+Windows 用相同动作 id 的平台实现：`Stop-Process`、`Rename-Computer`、`ms-settings:`、
+`Enable/Disable-NetAdapter`、`Set-DnsClientServerAddress`、`Clear-RecycleBin` 等。
+
+**安全模型**：同源 `/devicex/api/*`，落在 DSH 的 Connection 信任栅栏之后（签名会话 cookie + Host/Origin
+校验，未认证 401、异源 403）；子进程一律 `execFile` 参数数组，不经 shell；路径参数做根目录与后缀校验；
+`cleanup.delete` 只接受扫描返回的固定 id，绝不接受路径（1–20 个、去重）；每次动作（含失败）进入 50 条
+环形历史。
+
+## 卸载残留清理
+
+应用拖进废纸篓只删了 `.app`，数据仍留在 `~/Library`。卸载时会先扫描散落的数据目录，**列出来供逐项勾选**。
+
+| 档位 | 依据 | 默认勾选 |
+|---|---|---|
+| A 高置信 | Bundle ID 匹配、MSIX 包容器、Homebrew cask `zap` 清单 | ✅ |
+| B 名称候选 | 目录名像 App 名，且只匹配到一个已装应用 | ❌ |
+| C 冲突候选 | 同一目录匹配到 ≥2 个已装应用 | ❌ |
+| D 共享/受限 | 厂商级目录（`Google/`、`Microsoft/`）或需管理员权限 | 无复选框 |
+
+B/C 展示但不默认勾选——本机实测 `Application Support/Claude-3p` 占 11 GB 却不含任何 bundle id，只有名称
+启发式能发现它；藏起来等于替用户放弃 11 GB。弹窗底部固定显示「另有 N 项未选中（共 X）」。
+
+三条不变式：**删除永不接受路径**——浏览器只拿条目 id，完整路径留在 Host 内存，`scanId` 一次性且绑定单次
+扫描，`realpath` 后必须仍在允许的根列表内；**卸载失败即全局中止**，一个字节都不删，应用仍在运行时直接
+拒绝；**一律移入废纸篓**，结果页写明「清空废纸篓后释放 X」。Windows 侧只能列出不能清理，见[已知限制](#已知限制)。
+扫描与令牌的完整设计见 [设计文档](docs/uninstall-footprint-design.md)。
+
+## 给 Agent 与自动化
+
+- `device_info`：`section` 取八个分区之一，`fresh` 绕过缓存。
+- `device_control`：`action` + `params`，与 UI 走同一实现，不会出现两套逻辑。
+- `device_benchmark`：`tests?`、`repeat?`，与「性能」页同一引擎。
+
+UI 通过 `/devicex/api` 的 7 条同源路由取数（`metrics`、`inventory`、`actions`、`action`、`cleanup`、
+`footprint`、`benchmark`；`cache-control: no-store`，业务失败仍 HTTP 200）。请求体、错误码与响应信封的
+精确契约见 [build-contract](docs/build-contract.md)。
+
+## 架构
+
+```
+plugin/
+├── index.js              # Host 入口：warmup + 7 条路由 + 3 个工具
+├── host/
+│   ├── collector*.js     # 平台采集（系统命令 / PowerShell+CIM），TTL 缓存与预热
+│   ├── actions*.js       # 每个平台 19 个白名单动作
+│   ├── cleanup*.js       # 白名单清理扫描与删除
+│   ├── footprint*.js     # 残留扫描：纯内核 + 平台实现 + 一次性令牌
+│   ├── uninstall.js      # 卸载流水线（校验门禁、失败零副作用）
+│   ├── benchmark.js      # CPU/内存/磁盘基准（worker_threads）
+│   ├── win.js + win/*.ps1 # PowerShell 桥与七个只读采集脚本
+│   ├── transport.js      # 路由注册 + 信任栅栏 + JSON 信封
+│   └── tool.js           # 三个 Agent 工具的 schema 与渲染
+└── client.js             # 构建产物（勿手改，改源码后 npm run build）
+
+src/client/               # 浏览器端 TSX 源码（10 个标签页 + 43 个组件）
+```
+
+浏览器端由 esbuild 打成单文件 IIFE（227 KB，只向 loader 要一次 `react`），提交的 `plugin/client.js`
+自包含、运行时零依赖；无打包器环境可用 `npm run build:concat` 生成等价产物（335 KB）。
+[types/contracts.ts](types/contracts.ts) 是纯类型文件，定义 Host ↔ API ↔ 客户端的冻结形状。
+
+## 验证与开发
+
+```sh
+npm run verify:ci    # 一条命令跑完全部关卡（等价 CI）
+```
+
+分开跑时：`npm test`（119 项单测）、`verify.mjs`（96 项通用回归）、`verify-windows.mjs`（167 项，fixture
+无需真机）、`verify-sensors.mjs`（57 项温度/驱动）、`verify-cleanup.mjs`（130 项，真实扫描 + 沙箱删除）、
+`verify-benchmark.mjs`（46 项）、`verify-footprint.mjs`（72 项残留）、`render-check.mjs`（282 条渲染断言），
+合计 969 项。`verify:ci` 另外强制 `build-client --check`、`typecheck` 与产物校验，所以**过期产物过不了 CI**。
+
+`verify-footprint.mjs` 把实测踩到的坑固化成回归：Team ID 前缀、`Claude-3p` 名称匹配、厂商目录误报、
+令牌单次使用与跨 scan 混用、卸载失败零副作用、`moveToTrash` 不覆盖已有条目。
+
+改 `plugin/` 后重跑 `install_bundle` 或重启 Harness；改 UI 请改 `src/client/` 再 `npm run build`，然后
+`npm run verify:ci`。
+
+## 已知限制
+
+- **Windows 未在真机验证**：全部通过 fixture + 静态检查 + 模拟 win32 Host，PowerShell 5.1 的真实 CIM
+  字段差异、需要管理员权限的查询与动作需实机确认。
+- **Windows 的卸载残留只能列出、不能清理**：移入回收站需走 shell 且未在真机验证，带 `scanId` 的请求
+  返回 `UNSUPPORTED_PLATFORM`，不会静默丢弃用户的选择。
+- 需要管理员权限的动作（改主机名、防火墙、系统启动项、DNS、Wi-Fi 开关）失败时会把命令错误原样返回，
+  不会假装成功。
+- macOS 自动化授权（退出应用、深色模式、锁定屏幕）首次调用可能被 TCC 拒绝；Apple Silicon 默认不向
+  普通用户公开 CPU/GPU 温度，`thermal.cpuCelsius` 为 `null` 并给出 `note`，不伪造温度。
+- 清理与残留：`~/.Trash` 与部分系统缓存受 TCC 保护，扫描如实返回 `EPERM`；流水线不依赖枚举废纸篓，
+  也不承诺「随时可还原」。
+- 基准分数只适合同一台机器前后对比，不能与跑分软件横向比较；机器负载会影响单次结果。
+- 端口列表仅含 TCP LISTEN；非管理员看不到部分系统进程的端口。
 
 ## 许可证
 

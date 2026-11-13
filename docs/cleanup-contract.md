@@ -124,7 +124,7 @@ Used by the action validator, tests and client labelling.
 
 ## Tests
 
-`node scripts/verify-cleanup.mjs` (>= 35 checks) covers:
+`node scripts/verify-cleanup.mjs` (130 checks) covers:
 
 - syntax checks for every touched host module;
 - a live macOS scan (shape, byte/file totals, categories, admin flags,

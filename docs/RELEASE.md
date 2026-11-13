@@ -1,6 +1,6 @@
 # 发布流程（npm + GitHub Release）
 
-发布由 tag 驱动：`git push origin v1.5.0` 触发 `.github/workflows/release.yml`，先跑与 `main` 完全相同的验证门，
+发布由 tag 驱动：`git push origin v1.10.0` 触发 `.github/workflows/release.yml`，先跑与 `main` 完全相同的验证门，
 再把**通过审计的同一份 tarball** 发布到 npm，并把该文件挂到 GitHub Release 上。日常发版不需要任何 token。
 
 ```
@@ -20,17 +20,20 @@ push tag v*.*.*
 
 > 前提：仓库 **public**（provenance 只对公开仓库生成）；操作账号对 `@cfour-hi` 有发布权限并开了 2FA。
 
-### 1. 第一次发布必须 bootstrap
+### 1. 第一次发布必须 bootstrap（本仓库已完成，保留给新包名 / fork）
 
 npm 的 Trusted publishing **只能配置在已存在的包上**：`npm trust` 明确要求包已上架，网页端的
-"Trusted publishing" 设置页也只出现在已发布包的设置里。本仓库的包名目前在 registry 上还是 404，
-所以第一次发布只能二选一：
+"Trusted publishing" 设置页也只出现在已发布包的设置里。本仓库的首个版本（1.5.0）就是靠下面这套 bootstrap
+上架的——先用一次性方式发布、再绑定 trusted publisher、之后删除令牌——此后每次发版都由 OIDC 完成。
+
+> 现状：`@cfour-hi/dsh-plugin-devicex` 已在 registry 上（1.5.0 / 1.7.0 / 1.9.0），trusted publisher 已绑定。
+> 下面的步骤只在**给一个新包名首发**时需要（例如 fork 到自己的 scope）。
 
 **路径 A（推荐，仍由 CI 完成首发）**
 
-1. 生成一个有 `@cfour-hi` 发布权限的 Granular Access Token；
+1. 生成一个有该 scope 发布权限的 Granular Access Token；
 2. 仓库 Settings → Secrets and variables → Actions 新增 `NPM_TOKEN`；
-3. Actions → **release** → *Run workflow*，`dry_run` 选 **false**，`version` 留空（用清单里的 1.5.0）；
+3. Actions → **release** → *Run workflow*，`dry_run` 选 **false**，`version` 留空（用清单里的版本号）；
    工作流跑完 verify 直接打包 → 用 token 发布（会打印 warning 说明走了 token 路径），不再等待审批；
 4. 推 tag 后由 tag 运行补上 GitHub Release（此时版本已在 npm 上，publish 自动跳过）；
 5. 立刻按第 2 步配置 Trusted publishing，然后**删除 `NPM_TOKEN` secret**。
@@ -42,8 +45,8 @@ npm 的 Trusted publishing **只能配置在已存在的包上**：`npm trust` �
 cd plugin && npm publish --access public      # 手工首发，仅此一次（2FA）
 ```
 
-之后按第 2 步配置 Trusted publishing；`v1.5.0` 的 GitHub Release 依然可以补：推 tag 后工作流发现版本已存在，
-会跳过 publish 直接建 Release。第一个真正由 CI 发布的版本是下一个版本（1.5.1）。
+之后按第 2 步配置 Trusted publishing；首个 tag 的 GitHub Release 依然可以补：推 tag 后工作流发现版本已存在，
+会跳过 publish 直接建 Release。第一个真正由 CI 发布的版本是配置完成后的下一个版本。
 
 ### 2.5 实测到的两个操作细节
 
@@ -102,16 +105,16 @@ Secrets 里不应再存在 `NPM_TOKEN`；工作流优先 OIDC，token 只作为 
 
    ```sh
    npm run verify:ci                       # 与 CI 完全一致的门
-   npm run release:check -- --tag v1.5.0   # tag / 两份清单 / CHANGELOG / repository 对齐
+   npm run release:check -- --tag v1.10.0  # tag / 两份清单 / CHANGELOG / repository 对齐
    npm run release:pack                    # 打包并审计 tarball（dist/，不进仓库）
    ```
 4. **推 main，再打 tag**：
 
    ```sh
-   git commit -am "chore(release): 1.5.0"
+   git commit -am "chore(release): 1.10.0"
    git push origin main
-   git tag -a v1.5.0 -m "1.5.0"
-   git push origin v1.5.0
+   git tag -a v1.10.0 -m "1.10.0"
+   git push origin v1.10.0
    ```
 5. **看 Actions**：`verify` 绿了 `publish` 立即开始，没有审批环节；发布完成后 npm 与 Releases 各一份产物
    （同一个文件）。也就是说 **推 tag 就等于授权发布**——真正拦得住的是 verify 门与版本/分支守卫。

@@ -128,6 +128,7 @@ union. Parameters reach PowerShell via `$env:DEVICEX_ARG_*`; validate everything
 | `system.toggleFirewall` | system | `enabled:boolean` | `Set-NetFirewallProfile -Profile Domain,Private,Public -Enabled True/False` (admin) |
 | `system.flushDNS` | system | — | `Clear-DnsClientCache`, fallback `ipconfig /flushdns` |
 | `system.emptyTrash` | system | — | `Clear-RecycleBin -Force -ErrorAction Stop` |
+| `cleanup.delete` | system | `ids:string[]` (1–20 unique allowlist ids) | same rules as darwin: unknown ids, caller paths, duplicates and oversized batches are refused before any filesystem call; deletion goes through `cleanup-win32.js` (`deleteCleanup`), the Recycle Bin through `Clear-RecycleBin -Force` |
 | `network.setWifiPower` | network | `enabled:boolean` | resolve wireless adapter (`Get-NetAdapter -Physical` where InterfaceDescription matches `Wi-Fi|Wireless|WLAN`), `Enable-NetAdapter`/`Disable-NetAdapter -Confirm:$false` (admin) |
 | `network.setDns` | network | `service:string`, `servers:string \| string[]` (0–4 valid IPs) | validate alias via `Get-NetAdapter`, `Set-DnsClientServerAddress -InterfaceAlias <alias> -ServerAddresses <...>` (admin); `servers` as string or array like darwin, empty = clear |
 | `power.sleep` | power | — | `rundll32.exe powrprof.dll,SetSuspendState 0,1,0` (document hibernate caveat in message) |

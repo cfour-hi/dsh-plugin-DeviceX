@@ -2,8 +2,8 @@
 
 Device X 是一个 **DSH 持久插件**，安装到某个 DSH profile 后，该 profile 的所有会话都会得到：
 
-- 左侧栏底部的 **Device X** 面板图标 + 中央仪表盘（8 个标签页、SVG 图表、CSS 3D）；
-- Agent 工具 `device_info` / `device_control`。
+- 左侧栏底部的 **Device X** 面板图标 + 中央仪表盘（10 个标签页、SVG 图表、CSS 3D）；
+- Agent 工具 `device_info` / `device_control` / `device_benchmark`。
 
 官方安装入口有两个，底层是同一套插件管理操作：
 
@@ -53,13 +53,13 @@ plugin_manager action=install_bundle target=https://github.com/cfour-hi/dsh-plug
 
 ```sh
 # 从打包文件安装（适合离线或分发给别人；先在 plugin/ 下 npm pack 生成，见方式四）
-dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
+dsh plugin --profile desktop add /绝对路径/cfour-hi-dsh-plugin-devicex-<version>.tgz
 
 # 或直接从源码目录安装
 dsh plugin --profile desktop add /绝对路径/plugin
 
 # Windows（PowerShell / cmd）
-dsh plugin --profile desktop add C:\path\cfour-hi-dsh-devicex-1.2.0.tgz
+dsh plugin --profile desktop add C:\path\cfour-hi-dsh-plugin-devicex-<version>.tgz
 dsh plugin --profile desktop add C:\path\plugin
 ```
 
@@ -86,11 +86,11 @@ dsh plugin --profile desktop add C:\path\plugin
 在目标机器的 DSH 会话里让 Agent 执行（或自己调用该工具）：
 
 ```
-plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-devicex-1.2.0.tgz
+plugin_manager action=install_bundle target=/绝对路径/cfour-hi-dsh-plugin-devicex-<version>.tgz
 # 也可以直接填仓库地址：target=https://github.com/cfour-hi/dsh-plugin-devicex
 ```
 
-- 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到两个工具，无需重启；
+- 返回 `application: applied` 即生效：侧边栏出现 Device X 图标、Agent 立刻拿到三个工具，无需重启；
   若返回 `restart-required` 则重启 DSH。
 - 直接在 **Plugins 页面**粘贴包名/仓库地址/本地路径时，DSH 会先装再等一次确认：安装成功后需要点
   **Enable now** 才会启用（`plugin_manager` 工具默认 `enabled: true`，装完自动启用并加进
@@ -138,7 +138,7 @@ npm i @cfour-hi/dsh-plugin-devicex          # 或作为普通依赖
 ## 安装后确认
 
 1. 左侧栏（Plugins、Schedules 图标之后）出现 **Device X** 图标 → 点击打开面板；
-2. 该会话的 Agent 可见 `device_info` / `device_control` 两个工具；
+2. 该会话的 Agent 可见 `device_info` / `device_control` / `device_benchmark` 三个工具；
 3. 探活（端口以实际 `DSH_WEB_URL` 为准；未认证返回 401 表示路由已注册）：
 
 ```sh

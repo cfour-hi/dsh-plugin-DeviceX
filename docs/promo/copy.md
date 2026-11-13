@@ -1,6 +1,7 @@
 # Device X 社交发布素材
 
-本目录的图片由 `promo/build-promo.mjs` 生成，截图来自插件的真实界面（jsdom 挂载 + 无头 Chrome 渲染），
+本目录的图片由 `promo/build-promo.mjs` 生成（`banner-*.jpg` 是单独制作的设计稿，不在该流水线内），截图来自
+插件的真实界面（jsdom 挂载 + 无头 Chrome 渲染），
 数据为合成演示数据：**主机名、账号、序列号、MAC、SSID、内网地址均在生成前替换**（`promo/capture-ui.mjs`
 里的 privacy scrub 会做最后一道检查，缺一项就构建失败）。因此图片可以直接公开发布。
 
@@ -8,6 +9,8 @@
 
 | 文件 | 尺寸 | 建议用途 |
 |---|---|---|
+| `banner-zh-1280x640.jpg` · `banner-en-1280x640.jpg` | 1280×640 | 仓库 README 顶部横幅、GitHub Social Preview |
+| `banner-zh-2172x1086.jpg` · `banner-en-2172x1086.jpg` | 2172×1086 | 同款横幅的 2× 版（大尺寸头图、文章配图） |
 | `hero-zh-1200x630.jpg` | 2400×1260（2×） | 微博头图、公众号封面、GitHub Social Preview、横版信息流 |
 | `hero-en-1200x630.jpg` | 2400×1260（2×） | X / Twitter、Product Hunt、英文社区 |
 | `square-zh-1080x1080.jpg` | 2160×2160（2×） | 朋友圈、小红书方图、微博配图 |
@@ -129,7 +132,7 @@ github.com/cfour-hi/dsh-plugin-devicex
 
 - **图片已脱敏**：画面中的 `Demo-Mac.local`、`/Users/demo`、`10.0.0.12`、`C02DEMO123` 等都是演示数据；
   不要换成自己的真实截图再发。
-- **版本号**：图片和文案对应 v1.5.0；发版后如果改了数字，重新跑构建脚本。
+- **版本号**：图片和文案对应 v1.9.0；发版后如果改了数字，重新跑构建脚本。
 - **平台差异**：macOS 为实机验证；Windows 为离线 fixture + 静态检查 + 模拟 Host 端到端验证，
   公开文案可以写「支持 Windows」，但遇到 Windows 具体问题请如实说明这是已知验证边界。
 - **权限预期**：改主机名、防火墙、系统级启动项、DNS、Wi-Fi 开关等动作需要管理员权限；
