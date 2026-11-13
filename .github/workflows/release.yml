@@ -17,6 +17,9 @@ name: release
 #
 # Re-runs are safe: if the version is already on npm the publish step is skipped
 # and only the GitHub Release is reconciled (created or its asset replaced).
+#
+# No manual approval: the gate on a release is `verify` plus the version/tag
+# guards below. Pushing the tag is what authorizes the publish.
 
 on:
   push:
@@ -55,9 +58,11 @@ jobs:
     if: github.repository == 'cfour-hi/dsh-plugin-devicex'
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Human approval gate. The npm trusted publisher must name the same
-    # environment (`npm trust github … --env npm-release`), otherwise the OIDC
-    # claim and the npm-side expectation disagree and publishing is refused.
+    # Not an approval gate: this environment carries no protection rules, so the
+    # job starts as soon as `verify` is green. It must stay, because the npm
+    # trusted publisher is bound to this environment name
+    # (`npm trust github … --env npm-release`); drop the key and the OIDC claim
+    # no longer matches the npm-side expectation, and publishing is refused.
     environment: npm-release
     permissions:
       contents: write # create the GitHub Release + upload the tarball

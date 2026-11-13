@@ -7,7 +7,7 @@
 push tag v*.*.*
    └─ verify（复用 .github/workflows/verify.yml：build --check → tsc → test → verify:build → 五套离线验证）
         └─ publish（ubuntu-latest，npm 11.21.2，OIDC 换 token）
-             ├─ **npm-release 环境审批**：reviewer 点 Approve 后 job 才开始执行
+             ├─（无人工审批）job 直接开始：verify 绿即发布
              ├─ check-release-version：tag / 两份清单 / CHANGELOG / repository 对齐
              ├─ 包备好：tag 指向 origin/main 上的提交
              ├─ pack-release：npm pack + tarball 内容审计
@@ -31,8 +31,7 @@ npm 的 Trusted publishing **只能配置在已存在的包上**：`npm trust` �
 1. 生成一个有 `@cfour-hi` 发布权限的 Granular Access Token；
 2. 仓库 Settings → Secrets and variables → Actions 新增 `NPM_TOKEN`；
 3. Actions → **release** → *Run workflow*，`dry_run` 选 **false**，`version` 留空（用清单里的 1.5.0）；
-   工作流跑完 verify 后会停在 **Review deployments**，点 **Approve** 批准；
-   随后打包 → 用 token 发布（会打印 warning 说明走了 token 路径）；
+   工作流跑完 verify 直接打包 → 用 token 发布（会打印 warning 说明走了 token 路径），不再等待审批；
 4. 推 tag 后由 tag 运行补上 GitHub Release（此时版本已在 npm 上，publish 自动跳过）；
 5. 立刻按第 2 步配置 Trusted publishing，然后**删除 `NPM_TOKEN` secret**。
    只要 secret 还在，后续每次发布都会优先用 token 而不是 OIDC（工作流会持续告警）。
@@ -114,9 +113,9 @@ Secrets 里不应再存在 `NPM_TOKEN`；工作流优先 OIDC，token 只作为 
    git tag -a v1.5.0 -m "1.5.0"
    git push origin v1.5.0
    ```
-5. **看 Actions 并审批**：`verify` 绿了才进 `publish`，此时运行会停在 **Review deployments**（`npm-release`
-   环境）等你点 **Approve**；批准后才会真正发布。完成后 npm 与 Releases 各一份产物（同一个文件）。
-   *dry run 也走同一个审批门*——这是有意的：被批准的那条路径就是被验证的路径。
+5. **看 Actions**：`verify` 绿了 `publish` 立即开始，没有审批环节；发布完成后 npm 与 Releases 各一份产物
+   （同一个文件）。也就是说 **推 tag 就等于授权发布**——真正拦得住的是 verify 门与版本/分支守卫。
+   *dry run 同样不审批*，直接从同一个产物路径走。
 
 发布前会拦下四类问题，不会产生"半发布"：tag 与两份清单/CHANGELOG 不一致、tag 不在 `origin/main` 上、
 目标版本已存在于 npm、目标版本会把 `latest` 往回指。
@@ -180,39 +179,45 @@ Actions → **release** → *Run workflow*，`dry_run` 默认 **true**：
 - 以上三项由 `npm run release:check` 与 `npm run release:pack` 校验（`pack-release` 还会核对 tarball 内的
   `package/LICENSE` 与仓库根 `LICENSE` 是否一致）。
 
-## 发布审批（Environment）
+## 环境绑定与人工审批（已取消）
 
-`publish` job 绑定 GitHub Environment **`npm-release`**，任何一次发布（含手动 dry run）都会先停在
-*Review deployments* 等待审批，批准后 job 才开始跑。已在本仓库配置：
+`publish` job 声明了 GitHub Environment **`npm-release`**，但这个环境**没有任何保护规则**：没有 required
+reviewers、没有等待计时器，`verify` 一绿 job 就直接开始，不存在 Approve 这一步。
+
+保留这个环境（而不是删掉工作流里的 `environment:` 键）只有一个原因：npm trusted publishing 的 OIDC
+声明里带着环境名，npm 端配置的是 `--env npm-release`，两边必须一致，否则 403。
 
 | 项 | 值 |
 | --- | --- |
-| Environment | `npm-release` |
-| Required reviewers | `cfour-hi`（仓库 owner） |
-| Prevent self-review | 关闭 —— 单人维护时自己可以批准；要强制双人复核就打开它并再加一个 reviewer |
-| Admin bypass | 默认开启（`can_admins_bypass`），管理员可在紧急情况绕过 |
+| Environment | `npm-release`（必须存在，名字必须与 npm 端一致） |
+| Protection rules | 无 |
+| Required reviewers | 无（2026-11-13 移除，v1.9.0 起不再审批） |
 
 复现或修改（仓库 path 换成自己的）：
 
 ```sh
-# 查看现状
+# 查看现状：保护规则应为空数组
 gh api repos/cfour-hi/dsh-plugin-devicex/environments/npm-release \
-  --jq '{name, rules: [.protection_rules[] | {type, prevent_self_review}]}'
+  --jq '{name, rules: [.protection_rules[]? | {type, prevent_self_review}]}'
 
-# 重新设置 required reviewers（uid 换成审批人）
+# 清空审批人：reviewers 传空数组即删除 required_reviewers 规则，环境本身保留
+gh api -X PUT repos/cfour-hi/dsh-plugin-devicex/environments/npm-release \
+  --input <(printf '{"reviewers":[],"deployment_branch_policy":null}')
+
+# 需要恢复人工审批时（例如把发版权交给别人）再加回 reviewer，工作流不用改
 uid=$(gh api user --jq .id)
 gh api -X PUT repos/cfour-hi/dsh-plugin-devicex/environments/npm-release \
   --input <(printf '{"reviewers":[{"type":"User","id":%s}]}' "$uid")
 ```
 
-也可以走网页：Settings → Environments → `npm-release` → *Required reviewers*。
+网页等价入口：Settings → Environments → `npm-release` → *Required reviewers*。
 
-注意两点：
+注意三点：
 
-- **npm 端的 Environment 必须同名**：OIDC 声明里的 environment 与 npm trusted publisher 配置不一致会 403。
-  已经配过 npm trust 但当时没填 environment 的，用 `npm trust github … --env npm-release` 重配一次。
-- 审批只看"要不要发布"，不看你发的是哪个版本；版本/分支的合法性仍由 tag、`origin/main` 祖先、
-  npm 已存在版本这些自动守卫负责。
+- **不要删除环境，也不要删掉工作流里的 `environment:`**：OIDC 声明会失去环境名，与 npm 端配置对不上直接 403。
+- 现在**推 tag 即发布**：能推送 tag 的账号就是能发版的人。护栏仍在——tag/两份清单/CHANGELOG/repository
+  必须对齐、tag 必须是 `origin/main` 的祖先、目标版本已存在则跳过发布、`latest` 不允许回退。
+- 已经卡在 *Review deployments* 的旧运行，在规则被清空后会自行继续（v1.9.0 的运行就是这样完成发布的）。
 
 ## 相关文件
 
